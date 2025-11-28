@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useRef, useEffect, useMemo, KeyboardEvent } from 'react'
+import { useState, useRef, useEffect, useMemo, KeyboardEvent, MouseEvent } from 'react'
 import StrategyAnalytics from './StrategyAnalytics'
 import usePolymarketPrices from '@/hooks/usePolymarketPrices'
 import { useTradingContext } from '@/contexts/TradingContext'
+import useCurrentMarket from '@/hooks/useCurrentMarket'
 
 
 const TradingPanel = () => {
@@ -152,6 +153,15 @@ const TradingPanel = () => {
     }
   }
 
+  const {
+    market: currentMarket,
+    loading: currentMarketLoading,
+    error: currentMarketError,
+  } = useCurrentMarket({
+    pair: selectedPair,
+    timeframe: selectedTimeframe,
+  })
+
   // Get real-time Polymarket prices with minimal delay
   const { prices, loading, error } = usePolymarketPrices({
     pair: selectedPair,
@@ -167,6 +177,39 @@ const TradingPanel = () => {
   // Determine if we're trading UP (green) or DOWN (red)
   const isTradingUp = isBuy ? (buyType === 'up') : (sellType === 'up')
   const isTradingDown = !isTradingUp
+
+  const formattedMarketStart =
+    currentMarket.startTime != null
+      ? new Date(currentMarket.startTime).toLocaleString('en-US', {
+          timeZone: 'America/New_York',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        })
+      : null
+  const formattedMarketEnd =
+    currentMarket.endTime != null
+      ? new Date(currentMarket.endTime).toLocaleString('en-US', {
+          timeZone: 'America/New_York',
+          month: 'short',
+          day: 'numeric',
+          hour: 'numeric',
+          minute: '2-digit',
+        })
+      : null
+
+  const handlePolymarketLinkClick = (event?: MouseEvent<HTMLAnchorElement>) => {
+    event?.preventDefault()
+    if (!currentMarket.polymarketUrl || typeof window === 'undefined') return
+    window.open(currentMarket.polymarketUrl, '_blank', 'noopener,noreferrer')
+  }
+
+  const handlePolymarketLinkKeyDown = (event: KeyboardEvent<HTMLAnchorElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    handlePolymarketLinkClick()
+  }
 
   const selectableAmountPresets = useMemo(
     () =>
@@ -708,7 +751,7 @@ const TradingPanel = () => {
       </div>
 
       {/* Main Action Button */}
-      <div className="p-4 flex-shrink-0">
+      <div className="p-4 flex-shrink-0 space-y-3">
         <button
           className={`w-full py-3 rounded-lg font-bold text-sm transition-all duration-200 border ${
             isTradingUp
@@ -720,6 +763,44 @@ const TradingPanel = () => {
             ? `${isBuy ? 'BUY' : 'SELL'} ${isBuy ? (buyType === 'up' ? 'UP' : 'DOWN') : (sellType === 'down' ? 'DOWN' : 'UP')} @ LIMIT`
             : `${isBuy ? 'BUY' : 'SELL'} ${isBuy ? (buyType === 'up' ? 'UP' : 'DOWN') : (sellType === 'down' ? 'DOWN' : 'UP')}`}
         </button>
+
+        <div className="rounded-lg border border-gray-800 bg-gray-900/40 px-3 py-2 text-xs text-gray-400 space-y-1">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="font-semibold text-gray-200">
+              {currentMarket.marketId ? `Market ID: ${currentMarket.marketId}` : 'Market metadata unavailable'}
+            </span>
+            {currentMarket.polymarketUrl && (
+              <a
+                href={currentMarket.polymarketUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-400 hover:text-blue-300 underline"
+                tabIndex={0}
+                aria-label="Open current market on Polymarket"
+                onClick={handlePolymarketLinkClick}
+                onKeyDown={handlePolymarketLinkKeyDown}
+              >
+                View on Polymarket
+              </a>
+            )}
+          </div>
+          {currentMarket.question ? (
+            <p className="text-gray-400">{currentMarket.question}</p>
+          ) : (
+            <p className="text-gray-500">
+              {currentMarketLoading
+                ? 'Loading current market details...'
+                : currentMarketError || 'Waiting for websocket service to return the active market.'}
+            </p>
+          )}
+          {(formattedMarketStart || formattedMarketEnd) && (
+            <p className="text-gray-400">
+              Window: {formattedMarketStart || '—'}
+              {formattedMarketEnd ? ` → ${formattedMarketEnd}` : ''}{' '}
+              <span className="text-gray-500">(ET)</span>
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Account Summary */}

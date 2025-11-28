@@ -98,9 +98,100 @@ const usePolymarketPrices = ({
 
   useEffect(() => {
     let isMounted = true
+    let previousMarketId: string | null = null
 
     const initializeTokens = async () => {
-      // Get token IDs
+      // First, try to get current active market from WebSocket service
+      try {
+        const currentMarketResponse = await fetch(
+          `/api/current-markets?pair=${encodeURIComponent(pair)}&timeframe=${encodeURIComponent(timeframe)}`
+        )
+
+        if (currentMarketResponse.ok) {
+          const currentMarket = await currentMarketResponse.json()
+          
+          // Check if market changed
+          const marketChanged = previousMarketId !== null && previousMarketId !== currentMarket?.marketId
+          if (marketChanged && currentMarket?.marketId) {
+            console.log(`[usePolymarketPrices] Market changed: ${previousMarketId} → ${currentMarket.marketId}, resetting prices`)
+            // Reset prices when market changes
+            if (isMounted) {
+              setPrices(null)
+              setLoading(true)
+            }
+          }
+          previousMarketId = currentMarket?.marketId || null
+          
+          // Check if we have valid market data (not null/empty)
+          if (currentMarket?.marketId && currentMarket?.bestBid !== null && currentMarket?.bestAsk !== null && 
+              currentMarket.bestBid > 0 && currentMarket.bestAsk > 0) {
+            // Prices from orderbook are typically in decimal format (0-1), but check if they're in cents (0-100)
+            // If bestAsk > 1, it's in cents, otherwise it's already in decimal
+            const bestAsk = currentMarket.bestAsk > 1 ? currentMarket.bestAsk / 100 : currentMarket.bestAsk
+            const bestBid = currentMarket.bestBid > 1 ? currentMarket.bestBid / 100 : currentMarket.bestBid
+            
+            // bestAsk is the price to buy YES (UP), bestBid is the price to sell YES (UP)
+            // For display, we use bestAsk as the YES price and (1 - bestAsk) as the NO price
+            const yesPrice = Math.max(0.01, Math.min(0.99, bestAsk))
+            const noPrice = Math.max(0.01, Math.min(0.99, 1 - bestAsk))
+            
+            if (isMounted) {
+              setPrices({
+                yesPrice: Math.max(0.01, Math.min(0.99, yesPrice)),
+                noPrice: Math.max(0.01, Math.min(0.99, noPrice)),
+                lastUpdated: new Date(),
+              })
+              setLoading(false)
+              setError(null)
+              
+              // Set up polling to refresh prices
+              if (intervalRef.current) {
+                clearInterval(intervalRef.current)
+              }
+              intervalRef.current = setInterval(async () => {
+                try {
+                  const refreshResponse = await fetch(
+                    `/api/current-markets?pair=${encodeURIComponent(pair)}&timeframe=${encodeURIComponent(timeframe)}`
+                  )
+                  if (refreshResponse.ok) {
+                    const refreshed = await refreshResponse.json()
+                    
+                    // Check if market changed during refresh
+                    if (refreshed?.marketId !== previousMarketId && refreshed?.marketId) {
+                      console.log(`[usePolymarketPrices] Market changed during refresh: ${previousMarketId} → ${refreshed.marketId}`)
+                      previousMarketId = refreshed.marketId
+                      if (isMounted) {
+                        setPrices(null)
+                        setLoading(true)
+                      }
+                    }
+                    
+                    if (refreshed?.marketId && refreshed?.bestBid !== null && refreshed?.bestAsk !== null && 
+                        refreshed.bestBid > 0 && refreshed.bestAsk > 0 && isMounted) {
+                      const bestAsk = refreshed.bestAsk > 1 ? refreshed.bestAsk / 100 : refreshed.bestAsk
+                      const yesPrice = Math.max(0.01, Math.min(0.99, bestAsk))
+                      const noPrice = Math.max(0.01, Math.min(0.99, 1 - bestAsk))
+                      setPrices({
+                        yesPrice,
+                        noPrice,
+                        lastUpdated: new Date(),
+                      })
+                      setLoading(false)
+                    }
+                  }
+                } catch (err) {
+                  console.error('Error refreshing prices:', err)
+                }
+              }, interval)
+            }
+            return
+          }
+        }
+      } catch (err) {
+        console.warn('Could not fetch current market, falling back to market search:', err)
+      }
+
+      // Fallback to original market search logic
       const marketKey = `${pair}-${timeframe}`
       let tokens = yesTokenId && noTokenId 
         ? { yes: yesTokenId, no: noTokenId }

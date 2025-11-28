@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "next lint",
     "test:server": "node server/test-websocket-server.js",
-    "test:routes": "node scripts/test-api-routes.js"
+    "test:routes": "node scripts/test-api-routes.js",
+    "ws:build": "cd ws-service && npm run build",
+    "ws:dev": "cd ws-service && npm run dev",
+    "ws:start": "cd ws-service && npm run start"
   },
   "dependencies": {
     "next": "^14.0.0",

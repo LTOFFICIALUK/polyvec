@@ -67,3 +67,12 @@ STRATEGY CLICKED:
 - Shows paper trade estimate results in a new tab at the top of the screen
 Tabs say: "Strategy, Paper Trade" 
 - Shows strategy type
+
+
+
+
+orderbook flow: 
+1. FIND MARKET 
+https://gamma-api.polymarket.com/markets?closed=false&limit=2000&order=id&ascending=false
+
+2. 

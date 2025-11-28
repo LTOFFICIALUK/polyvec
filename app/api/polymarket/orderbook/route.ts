@@ -2,8 +2,8 @@
 
 import { NextResponse } from 'next/server'
 
-// Base URL for Polymarket API
-const POLYMARKET_API_BASE = 'https://api.polymarket.com'
+// Use CLOB API for orderbook data (correct endpoint per Polymarket docs)
+const POLYMARKET_CLOB_API = 'https://clob.polymarket.com'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -11,38 +11,57 @@ export async function GET(req: Request) {
   const tokenIds = searchParams.get('tokenIds') // Comma-separated list
 
   try {
-    // Single token orderbook
+    // Single token orderbook - use CLOB API
     if (tokenId) {
-      const response = await fetch(`${POLYMARKET_API_BASE}/orderbook/order-book-summary?token_id=${tokenId}`, {
+      const response = await fetch(`${POLYMARKET_CLOB_API}/book?token_id=${tokenId}`, {
+        headers: {
+          'Accept': 'application/json',
+        },
         cache: 'no-store',
       })
 
       if (!response.ok) {
-        throw new Error(`Polymarket API error: ${response.status}`)
+        if (response.status === 404) {
+          return NextResponse.json({ bids: [], asks: [] })
+        }
+        throw new Error(`Polymarket CLOB API error: ${response.status}`)
       }
 
       const data = await response.json()
-      return NextResponse.json(data)
+      // CLOB API returns { bids: [...], asks: [...] } directly
+      return NextResponse.json({
+        bids: data.bids || [],
+        asks: data.asks || [],
+      })
     }
 
-    // Multiple token orderbooks
+    // Multiple token orderbooks - use CLOB batch API
     if (tokenIds) {
       const tokenArray = tokenIds.split(',').map((id) => id.trim())
-      const response = await fetch(`${POLYMARKET_API_BASE}/orderbook/multiple-order-books-summaries`, {
+      const response = await fetch(`${POLYMARKET_CLOB_API}/books`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
-        body: JSON.stringify({ token_ids: tokenArray }),
+        body: JSON.stringify(tokenArray.map(id => ({ token_id: id }))),
         cache: 'no-store',
       })
 
       if (!response.ok) {
-        throw new Error(`Polymarket API error: ${response.status}`)
+        throw new Error(`Polymarket CLOB API error: ${response.status}`)
       }
 
       const data = await response.json()
-      return NextResponse.json(data)
+      // CLOB batch API returns array of { asset_id, bids, asks }
+      // For now, return the first one or combine them
+      if (Array.isArray(data) && data.length > 0) {
+        return NextResponse.json({
+          bids: data[0].bids || [],
+          asks: data[0].asks || [],
+        })
+      }
+      return NextResponse.json({ bids: [], asks: [] })
     }
 
     return NextResponse.json({ error: 'Missing tokenId or tokenIds parameter' }, { status: 400 })

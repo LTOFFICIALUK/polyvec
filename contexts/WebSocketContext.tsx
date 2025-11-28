@@ -6,7 +6,9 @@ interface WebSocketContextType {
   isConnected: boolean
   sendMessage: (message: any) => void
   subscribe: (topic: string, callback: (data: any) => void) => () => void
+  subscribeMarkets: (markets: string[], callback: (data: any) => void) => () => void
   getLatestData: (topic: string) => any | null
+  getMarketData: (marketId: string) => any | null
 }
 
 const WebSocketContext = createContext<WebSocketContextType | undefined>(undefined)
@@ -29,12 +31,18 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const reconnectAttempts = useRef(0)
   const subscribersRef = useRef<Map<string, Set<(data: any) => void>>>(new Map())
+  const marketSubscribersRef = useRef<Map<string, Set<(data: any) => void>>>(new Map())
   const latestDataRef = useRef<Map<string, any>>(new Map())
+  const marketDataRef = useRef<Map<string, any>>(new Map())
   const messageQueueRef = useRef<any[]>([])
+  const subscribedMarketsRef = useRef<Set<string>>(new Set())
 
-  const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_SERVER_URL || 'ws://localhost:8080'
-  const MAX_RECONNECT_ATTEMPTS = 5
-  const RECONNECT_DELAY = 3000
+  const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_SERVER_URL 
+    ? `${process.env.NEXT_PUBLIC_WEBSOCKET_SERVER_URL.replace(/\/$/, '')}/ws`
+    : 'ws://localhost:8081/ws'
+  const MAX_RECONNECT_ATTEMPTS = 10
+  const INITIAL_RECONNECT_DELAY = 1000
+  const MAX_RECONNECT_DELAY = 30000
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -68,12 +76,59 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
         try {
           const data = JSON.parse(event.data)
           
-          // Handle different message types
-          if (data.topic) {
-            // Update latest data cache
+          // Handle new protocol messages (market_snapshot, orderbook_update, trade, etc.)
+          if (data.type === 'market_snapshot' && data.marketId) {
+            const marketId = data.marketId
+            marketDataRef.current.set(marketId, data)
+            
+            // Notify market subscribers
+            const subscribers = marketSubscribersRef.current.get(marketId)
+            if (subscribers) {
+              subscribers.forEach((callback) => {
+                try {
+                  callback(data)
+                } catch (error) {
+                  console.error('Error in market subscriber callback:', error)
+                }
+              })
+            }
+          } else if (data.type === 'orderbook_update' && data.marketId) {
+            const marketId = data.marketId
+            marketDataRef.current.set(marketId, data)
+            
+            const subscribers = marketSubscribersRef.current.get(marketId)
+            if (subscribers) {
+              subscribers.forEach((callback) => {
+                try {
+                  callback(data)
+                } catch (error) {
+                  console.error('Error in market subscriber callback:', error)
+                }
+              })
+            }
+          } else if (data.type === 'trade' && data.marketId) {
+            const marketId = data.marketId
+            const existing = marketDataRef.current.get(marketId) || {}
+            marketDataRef.current.set(marketId, { ...existing, lastTrade: data })
+            
+            const subscribers = marketSubscribersRef.current.get(marketId)
+            if (subscribers) {
+              subscribers.forEach((callback) => {
+                try {
+                  callback(data)
+                } catch (error) {
+                  console.error('Error in market subscriber callback:', error)
+                }
+              })
+            }
+          } else if (data.type === 'heartbeat') {
+            // Handle heartbeat - no action needed
+          } else if (data.type === 'pong') {
+            // Handle pong for keepalive
+          } else if (data.topic) {
+            // Legacy topic-based messages (backward compatibility)
             latestDataRef.current.set(data.topic, data.payload || data)
             
-            // Notify all subscribers for this topic
             const subscribers = subscribersRef.current.get(data.topic)
             if (subscribers) {
               subscribers.forEach((callback) => {
@@ -84,8 +139,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
                 }
               })
             }
-          } else if (data.type === 'pong') {
-            // Handle pong for keepalive
           } else {
             // Generic message handling
             console.log('WebSocket message:', data)
@@ -111,12 +164,16 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
         setIsConnected(false)
         wsRef.current = null
 
-        // Attempt to reconnect
+        // Attempt to reconnect with exponential backoff
         if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
           reconnectAttempts.current++
+          const delay = Math.min(
+            INITIAL_RECONNECT_DELAY * Math.pow(2, reconnectAttempts.current - 1),
+            MAX_RECONNECT_DELAY
+          )
           reconnectTimeoutRef.current = setTimeout(() => {
             connect()
-          }, RECONNECT_DELAY)
+          }, delay)
         }
       }
     } catch (error) {
@@ -170,8 +227,58 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     }
   }, [sendMessage])
 
+  const subscribeMarkets = useCallback((markets: string[], callback: (data: any) => void) => {
+    // Add subscribers for each market
+    for (const marketId of markets) {
+      if (!marketSubscribersRef.current.has(marketId)) {
+        marketSubscribersRef.current.set(marketId, new Set())
+      }
+      marketSubscribersRef.current.get(marketId)!.add(callback)
+      
+      // Track subscribed markets
+      subscribedMarketsRef.current.add(marketId)
+    }
+    
+    // Send subscription message using new protocol
+    sendMessage({
+      type: 'subscribe_markets',
+      markets: markets,
+    })
+    
+    // Return unsubscribe function
+    return () => {
+      for (const marketId of markets) {
+        const subscribers = marketSubscribersRef.current.get(marketId)
+        if (subscribers) {
+          subscribers.delete(callback)
+          if (subscribers.size === 0) {
+            marketSubscribersRef.current.delete(marketId)
+            subscribedMarketsRef.current.delete(marketId)
+          }
+        }
+      }
+      
+      // Unsubscribe from server if no more subscribers for these markets
+      const marketsToUnsubscribe = markets.filter(marketId => 
+        !marketSubscribersRef.current.has(marketId) || 
+        marketSubscribersRef.current.get(marketId)?.size === 0
+      )
+      
+      if (marketsToUnsubscribe.length > 0) {
+        sendMessage({
+          type: 'unsubscribe_markets',
+          markets: marketsToUnsubscribe,
+        })
+      }
+    }
+  }, [sendMessage])
+
   const getLatestData = useCallback((topic: string) => {
     return latestDataRef.current.get(topic) || null
+  }, [])
+
+  const getMarketData = useCallback((marketId: string) => {
+    return marketDataRef.current.get(marketId) || null
   }, [])
 
   useEffect(() => {
@@ -200,7 +307,9 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     isConnected,
     sendMessage,
     subscribe,
+    subscribeMarkets,
     getLatestData,
+    getMarketData,
   }
 
   return <WebSocketContext.Provider value={value}>{children}</WebSocketContext.Provider>

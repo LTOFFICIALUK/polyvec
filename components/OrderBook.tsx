@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useWebSocket } from '@/contexts/WebSocketContext'
 import { useTradingContext } from '@/contexts/TradingContext'
-import usePolymarketPrices from '@/hooks/usePolymarketPrices'
+import useCurrentMarket from '@/hooks/useCurrentMarket'
 
 interface OrderBookEntry {
   price: number
@@ -17,48 +17,97 @@ interface OrderBookData {
   tokenId?: string
 }
 
-const OrderBook = () => {
-  const { selectedPair, selectedTimeframe } = useTradingContext()
-  const { isConnected, subscribe, sendMessage } = useWebSocket()
-  const [orderBook, setOrderBook] = useState<OrderBookData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+const normalizeOrderbookData = (payload: any): OrderBookData => {
+  let bids: OrderBookEntry[] = []
+  let asks: OrderBookEntry[] = []
 
-  // Get token IDs for the selected pair/timeframe
-  const { prices } = usePolymarketPrices({
-    pair: selectedPair,
-    timeframe: selectedTimeframe,
-    interval: 5000,
-    useWebSocket: false,
+  const raw = Array.isArray(payload) ? payload[0] : payload
+  const data = raw?.data || raw
+
+  bids =
+    data?.bids ||
+    data?.buyOrders ||
+    data?.asks ||
+    data?.sellOrders ||
+    []
+  asks =
+    data?.asks ||
+    data?.sellOrders ||
+    data?.bids ||
+    data?.buyOrders ||
+    []
+
+  const normalize = (entries: any[]) =>
+    entries
+      .map((entry) => ({
+        price: typeof entry.price === 'string' ? parseFloat(entry.price) : entry.price,
+        size: typeof entry.size === 'string' ? parseFloat(entry.size) : entry.size,
+      }))
+      .filter((entry) => typeof entry.price === 'number' && typeof entry.size === 'number')
+
+  const normalizedBids = normalize(bids)
+  const normalizedAsks = normalize(asks)
+
+  normalizedBids.sort((a, b) => b.price - a.price)
+  normalizedAsks.sort((a, b) => a.price - b.price)
+
+  let bidTotal = 0
+  const bidsWithTotal = normalizedBids.map((bid) => {
+    bidTotal += bid.size
+    return { ...bid, total: bidTotal }
   })
 
-  useEffect(() => {
-    if (!isConnected) {
-      setError('WebSocket not connected')
-      setLoading(false)
+  let askTotal = 0
+  const asksWithTotal = normalizedAsks.map((ask) => {
+    askTotal += ask.size
+    return { ...ask, total: askTotal }
+  })
+
+  return {
+    bids: bidsWithTotal,
+    asks: asksWithTotal,
+  }
+}
+
+const OrderBook = () => {
+  const { selectedPair, selectedTimeframe } = useTradingContext()
+  const { isConnected, subscribeMarkets } = useWebSocket()
+  const { market, loading: marketLoading, error: marketError } = useCurrentMarket({
+    pair: selectedPair,
+    timeframe: selectedTimeframe,
+  })
+  const [orderBook, setOrderBook] = useState<OrderBookData | null>(null)
+  const [orderbookLoading, setOrderbookLoading] = useState(true)
+  const [orderbookError, setOrderbookError] = useState<string | null>(null)
+  const [currentMarketId, setCurrentMarketId] = useState<string | null>(null)
+  const previousMarketIdRef = useRef<string | null>(null)
+
+  const fetchOrderbook = useCallback(async () => {
+    if (!market?.tokenId) {
+      setOrderBook(null)
+      setOrderbookLoading(false)
+      setOrderbookError('No active market found')
+      setCurrentMarketId(null)
+      previousMarketIdRef.current = null
       return
     }
 
-    // Fetch initial orderbook data via REST API
-    const fetchInitialOrderbook = async () => {
-      try {
-        // First, get token IDs from market search
-        const searchResponse = await fetch(
-          `/api/polymarket/market-search?pair=${encodeURIComponent(selectedPair)}&timeframe=${encodeURIComponent(selectedTimeframe)}`
-        )
+    // Check if market changed
+    const marketChanged = previousMarketIdRef.current !== null && previousMarketIdRef.current !== market.marketId
+    if (marketChanged && market.marketId) {
+      console.log(`[OrderBook] Market changed: ${previousMarketIdRef.current} → ${market.marketId}, resetting orderbook`)
+      // Reset orderbook when market changes
+      setOrderBook(null)
+      setOrderbookError(null)
+    }
+    previousMarketIdRef.current = market.marketId ?? null
 
-        if (!searchResponse.ok) {
-          throw new Error('Failed to find market')
-        }
+    try {
+      setOrderbookLoading(true)
+      setOrderbookError(null)
 
-        const tokens = await searchResponse.json()
-        if (!tokens?.yes || !tokens?.no) {
-          throw new Error('Token IDs not found')
-        }
-
-        // Fetch orderbook for YES token
         const orderbookResponse = await fetch(
-          `/api/polymarket/orderbook?tokenId=${tokens.yes}`
+        `/api/polymarket/orderbook?tokenId=${market.tokenId}`
         )
 
         if (!orderbookResponse.ok) {
@@ -66,66 +115,54 @@ const OrderBook = () => {
         }
 
         const orderbookData = await orderbookResponse.json()
-        setOrderBook(orderbookData)
-        setLoading(false)
-        setError(null)
+      setCurrentMarketId(market.marketId ?? null)
+      setOrderBook(normalizeOrderbookData(orderbookData))
       } catch (err) {
         console.error('Error fetching orderbook:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load orderbook')
-        setLoading(false)
-      }
+      setOrderbookError(err instanceof Error ? err.message : 'Failed to load orderbook')
+      setOrderBook(null)
+      setCurrentMarketId(null)
+    } finally {
+      setOrderbookLoading(false)
     }
+  }, [market])
 
-    fetchInitialOrderbook()
+  useEffect(() => {
+    if (marketLoading) {
+      return
+    }
+    fetchOrderbook()
+  }, [fetchOrderbook, marketLoading])
 
-    // Subscribe to orderbook updates via WebSocket
-    // We need to get tokenId first, then subscribe
-    let unsubscribe: (() => void) | null = null
-    
-    const setupSubscription = async () => {
-      try {
-        const searchResponse = await fetch(
-          `/api/polymarket/market-search?pair=${encodeURIComponent(selectedPair)}&timeframe=${encodeURIComponent(selectedTimeframe)}`
-        )
-        
-        if (searchResponse.ok) {
-          const tokens = await searchResponse.json()
-          if (tokens?.yes) {
-            // Set up callback to receive orderbook updates
-            unsubscribe = subscribe('orderbook', (data: any) => {
-              if (data && !data.error) {
-                setOrderBook(data)
-                setLoading(false)
-                setError(null)
-              }
-            })
-            
-            // Send subscription message with tokenId
-            // Note: We send this manually because subscribe() doesn't support extra params
-            sendMessage({
-              type: 'subscribe',
-              topic: 'orderbook',
-              tokenId: tokens.yes,
+  const handleMarketUpdate = useCallback(
+    (data: any) => {
+      if (data?.type === 'orderbook_update' || data?.type === 'market_snapshot') {
+        setOrderBook((prev) => {
+          const normalized = normalizeOrderbookData(data)
+          if (!normalized.bids.length && !normalized.asks.length) {
+            return prev
+          }
+          return normalized
             })
           }
-        }
-      } catch (err) {
-        console.error('Error setting up orderbook subscription:', err)
-      }
-    }
-    
-    if (isConnected) {
-      setupSubscription()
-    }
+    },
+    []
+  )
+
+  useEffect(() => {
+    if (!currentMarketId || !isConnected) return
+
+    const unsubscribe = subscribeMarkets(
+      [currentMarketId],
+      handleMarketUpdate
+    )
 
     return () => {
-      if (unsubscribe) {
         unsubscribe()
-      }
     }
-  }, [isConnected, subscribe, sendMessage, selectedPair, selectedTimeframe])
+  }, [currentMarketId, handleMarketUpdate, isConnected, subscribeMarkets])
 
-  if (loading) {
+  if (marketLoading || orderbookLoading) {
     return (
       <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
         Loading orderbook...
@@ -133,10 +170,10 @@ const OrderBook = () => {
     )
   }
 
-  if (error) {
+  if (marketError || orderbookError) {
     return (
       <div className="w-full h-full flex items-center justify-center text-red-400 text-sm">
-        {error}
+        {marketError || orderbookError}
       </div>
     )
   }
