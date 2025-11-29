@@ -13,8 +13,8 @@ const TradingPanel = () => {
   const [executionType, setExecutionType] = useState<'market' | 'limit'>('market')
   const [amount, setAmount] = useState('')
   const [isBuy, setIsBuy] = useState(true)
-  const [buyType, setBuyType] = useState<'up' | 'down'>('up')
-  const [sellType, setSellType] = useState<'down' | 'up'>('up') // Synchronized with buyType: up -> up
+  // Single shared state for UP/DOWN selection - applies to both Buy and Sell
+  const [selectedOutcome, setSelectedOutcome] = useState<'up' | 'down'>('up')
   const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null)
   const [enabledStrategies, setEnabledStrategies] = useState<Record<string, boolean>>({
     'Momentum Breakout': false,
@@ -128,29 +128,13 @@ const TradingPanel = () => {
   }, [isDragging, dragOffset])
 
   const handleBuy = () => {
-    if (isBuy) {
-      // Toggle between up and down when Buy is already active
-      const newBuyType = buyType === 'up' ? 'down' : 'up'
-      setBuyType(newBuyType)
-      // Synchronize sell type: up -> up, down -> down
-      setSellType(newBuyType === 'up' ? 'up' : 'down')
-    } else {
-      // Switch to Buy mode
-      setIsBuy(true)
-    }
+    // Only switch to Buy mode, don't change UP/DOWN selection
+    setIsBuy(true)
   }
 
   const handleSell = () => {
-    if (!isBuy) {
-      // Toggle between down and up when Sell is already active
-      const newSellType = sellType === 'down' ? 'up' : 'down'
-      setSellType(newSellType)
-      // Synchronize buy type: up -> up, down -> down
-      setBuyType(newSellType === 'up' ? 'up' : 'down')
-    } else {
-      // Switch to Sell mode
-      setIsBuy(false)
-    }
+    // Only switch to Sell mode, don't change UP/DOWN selection
+    setIsBuy(false)
   }
 
   const {
@@ -241,9 +225,9 @@ const TradingPanel = () => {
     ? orderbookPrices.downBestBid.toFixed(1)
     : (error || !prices ? 'ERROR' : (prices.noPrice * 100).toFixed(1))
 
-  // Determine if we're trading UP (green) or DOWN (red)
-  const isTradingUp = isBuy ? (buyType === 'up') : (sellType === 'up')
-  const isTradingDown = !isTradingUp
+  // Determine if we're trading UP (green) or DOWN (red) - uses shared outcome
+  const isTradingUp = selectedOutcome === 'up'
+  const isTradingDown = selectedOutcome === 'down'
 
   const formattedMarketStart =
     currentMarket.startTime != null
@@ -545,16 +529,16 @@ const TradingPanel = () => {
                 <button
                   onClick={() => {
                     setIsBuy(true)
-                    setBuyType('up')
+                    setSelectedOutcome('up')
                     const upPrice = parseFloat(yesPriceFormatted) || 0
                     setLimitPrice(upPrice.toFixed(1))
                   }}
                   className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    buyType === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
+                    selectedOutcome === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
                   }`}
                 >
                   <span>Buy Up</span>
-                  <span className={`text-xs font-semibold ${buyType === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-semibold ${selectedOutcome === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
                     {yesPriceFormatted}¢
                   </span>
                 </button>
@@ -562,16 +546,16 @@ const TradingPanel = () => {
                 <button
                   onClick={() => {
                     setIsBuy(true)
-                    setBuyType('down')
+                    setSelectedOutcome('down')
                     const downPrice = parseFloat(noPriceFormatted) || 0
                     setLimitPrice(downPrice.toFixed(1))
                   }}
                   className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    buyType === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
+                    selectedOutcome === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
                   }`}
                 >
                   <span>Buy Down</span>
-                  <span className={`text-xs font-semibold ${buyType === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-semibold ${selectedOutcome === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
                     {noPriceFormatted}¢
                   </span>
                 </button>
@@ -582,16 +566,16 @@ const TradingPanel = () => {
                 <button
                   onClick={() => {
                     setIsBuy(false)
-                    setSellType('up')
+                    setSelectedOutcome('up')
                     const upPrice = parseFloat(yesSellPriceFormatted) || 0
                     setLimitPrice(upPrice.toFixed(1))
                   }}
                   className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    sellType === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
+                    selectedOutcome === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
                   }`}
                 >
                   <span>Sell Up</span>
-                  <span className={`text-xs font-semibold ${sellType === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-semibold ${selectedOutcome === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
                     {yesSellPriceFormatted}¢
                   </span>
                 </button>
@@ -599,16 +583,16 @@ const TradingPanel = () => {
                 <button
                   onClick={() => {
                     setIsBuy(false)
-                    setSellType('down')
+                    setSelectedOutcome('down')
                     const downPrice = parseFloat(noSellPriceFormatted) || 0
                     setLimitPrice(downPrice.toFixed(1))
                   }}
                   className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    sellType === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
+                    selectedOutcome === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
                   }`}
                 >
                   <span>Sell Down</span>
-                  <span className={`text-xs font-semibold ${sellType === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-semibold ${selectedOutcome === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
                     {noSellPriceFormatted}¢
                   </span>
                 </button>
@@ -674,14 +658,14 @@ const TradingPanel = () => {
                 <button
                   onClick={() => {
                     setIsBuy(true)
-                    setBuyType('up')
+                    setSelectedOutcome('up')
                   }}
                   className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    buyType === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
+                    selectedOutcome === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
                   }`}
                 >
                   <span>Buy Up</span>
-                  <span className={`text-xs font-semibold ${buyType === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-semibold ${selectedOutcome === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
                     {yesPriceFormatted}¢
                   </span>
                 </button>
@@ -689,14 +673,14 @@ const TradingPanel = () => {
                 <button
                   onClick={() => {
                     setIsBuy(true)
-                    setBuyType('down')
+                    setSelectedOutcome('down')
                   }}
                   className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    buyType === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
+                    selectedOutcome === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
                   }`}
                 >
                   <span>Buy Down</span>
-                  <span className={`text-xs font-semibold ${buyType === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-semibold ${selectedOutcome === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
                     {noPriceFormatted}¢
                   </span>
                 </button>
@@ -707,14 +691,14 @@ const TradingPanel = () => {
                 <button
                   onClick={() => {
                     setIsBuy(false)
-                    setSellType('up')
+                    setSelectedOutcome('up')
                   }}
                   className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    sellType === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
+                    selectedOutcome === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
                   }`}
                 >
                   <span>Sell Up</span>
-                  <span className={`text-xs font-semibold ${sellType === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-semibold ${selectedOutcome === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
                     {yesSellPriceFormatted}¢
                   </span>
                 </button>
@@ -722,14 +706,14 @@ const TradingPanel = () => {
                 <button
                   onClick={() => {
                     setIsBuy(false)
-                    setSellType('down')
+                    setSelectedOutcome('down')
                   }}
                   className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    sellType === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
+                    selectedOutcome === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
                   }`}
                 >
                   <span>Sell Down</span>
-                  <span className={`text-xs font-semibold ${sellType === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
+                  <span className={`text-xs font-semibold ${selectedOutcome === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
                     {noSellPriceFormatted}¢
                   </span>
                 </button>
@@ -893,8 +877,8 @@ const TradingPanel = () => {
           }`}
         >
           {executionType === 'limit'
-            ? `${isBuy ? 'BUY' : 'SELL'} ${isBuy ? (buyType === 'up' ? 'UP' : 'DOWN') : (sellType === 'down' ? 'DOWN' : 'UP')} @ LIMIT`
-            : `${isBuy ? 'BUY' : 'SELL'} ${isBuy ? (buyType === 'up' ? 'UP' : 'DOWN') : (sellType === 'down' ? 'DOWN' : 'UP')}`}
+            ? `${isBuy ? 'BUY' : 'SELL'} ${selectedOutcome === 'up' ? 'UP' : 'DOWN'} @ LIMIT`
+            : `${isBuy ? 'BUY' : 'SELL'} ${selectedOutcome === 'up' ? 'UP' : 'DOWN'}`}
         </button>
 
         <div className="rounded-lg border border-gray-800 bg-gray-900/40 px-3 py-2 text-xs text-gray-400 space-y-1">
@@ -1170,8 +1154,8 @@ const TradingPanel = () => {
                       }`}
                     >
                       {isBuy 
-                        ? `Buy ${buyType === 'up' ? 'Up' : 'Down'}`
-                        : `Sell ${sellType === 'down' ? 'Down' : 'Up'}`
+                        ? `Buy ${selectedOutcome === 'up' ? 'Up' : 'Down'}`
+                        : `Sell ${selectedOutcome === 'up' ? 'Up' : 'Down'}`
                       }
                     </button>
                   </div>
