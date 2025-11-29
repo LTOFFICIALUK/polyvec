@@ -170,9 +170,76 @@ const TradingPanel = () => {
     useWebSocket: false, // Set to true once WebSocket is properly configured
   })
 
-  // Format prices or show ERROR
-  const yesPriceFormatted = error || !prices ? 'ERROR' : (prices.yesPrice * 100).toFixed(1)
-  const noPriceFormatted = error || !prices ? 'ERROR' : (prices.noPrice * 100).toFixed(1)
+  // Fetch orderbook data for UP and DOWN tokens to get best bid/ask
+  const [orderbookPrices, setOrderbookPrices] = useState<{
+    upBestBid: number | null
+    upBestAsk: number | null
+    downBestBid: number | null
+    downBestAsk: number | null
+  }>({
+    upBestBid: null,
+    upBestAsk: null,
+    downBestBid: null,
+    downBestAsk: null,
+  })
+
+  useEffect(() => {
+    const fetchOrderbookPrices = async () => {
+      if (!currentMarket?.yesTokenId || !currentMarket?.noTokenId) return
+
+      try {
+        // Fetch orderbooks for both UP and DOWN tokens
+        const [upResponse, downResponse] = await Promise.all([
+          fetch(`/api/polymarket/orderbook?tokenId=${currentMarket.yesTokenId}`),
+          fetch(`/api/polymarket/orderbook?tokenId=${currentMarket.noTokenId}`),
+        ])
+
+        if (upResponse.ok && downResponse.ok) {
+          const upData = await upResponse.json()
+          const downData = await downResponse.json()
+
+          // Extract best bid (highest) and best ask (lowest)
+          // Bids are sorted highest first, asks are sorted lowest first
+          const upBestBid = upData.bids?.[0]?.price ? parseFloat(upData.bids[0].price) * 100 : null
+          const upBestAsk = upData.asks?.[0]?.price ? parseFloat(upData.asks[0].price) * 100 : null
+          const downBestBid = downData.bids?.[0]?.price ? parseFloat(downData.bids[0].price) * 100 : null
+          const downBestAsk = downData.asks?.[0]?.price ? parseFloat(downData.asks[0].price) * 100 : null
+
+          setOrderbookPrices({
+            upBestBid,
+            upBestAsk,
+            downBestBid,
+            downBestAsk,
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching orderbook prices:', err)
+      }
+    }
+
+    fetchOrderbookPrices()
+    // Poll every 2 seconds to keep prices fresh
+    const interval = setInterval(fetchOrderbookPrices, 2000)
+    return () => clearInterval(interval)
+  }, [currentMarket?.yesTokenId, currentMarket?.noTokenId])
+
+  // Use orderbook prices if available, fallback to pricing API
+  const yesPriceFormatted = orderbookPrices.upBestAsk !== null 
+    ? orderbookPrices.upBestAsk.toFixed(1)
+    : (error || !prices ? 'ERROR' : (prices.yesPrice * 100).toFixed(1))
+  
+  const noPriceFormatted = orderbookPrices.downBestAsk !== null
+    ? orderbookPrices.downBestAsk.toFixed(1)
+    : (error || !prices ? 'ERROR' : (prices.noPrice * 100).toFixed(1))
+
+  // For sell buttons, use best bid (what you'd get when selling)
+  const yesSellPriceFormatted = orderbookPrices.upBestBid !== null
+    ? orderbookPrices.upBestBid.toFixed(1)
+    : (error || !prices ? 'ERROR' : (prices.yesPrice * 100).toFixed(1))
+  
+  const noSellPriceFormatted = orderbookPrices.downBestBid !== null
+    ? orderbookPrices.downBestBid.toFixed(1)
+    : (error || !prices ? 'ERROR' : (prices.noPrice * 100).toFixed(1))
 
   // Determine if we're trading UP (green) or DOWN (red)
   const isTradingUp = isBuy ? (buyType === 'up') : (sellType === 'up')
@@ -472,56 +539,81 @@ const TradingPanel = () => {
         <div className="border-b border-gray-800 p-4 flex-shrink-0 space-y-4">
           {/* Price Target Buttons */}
           <div className="flex gap-2">
-            <button
-              onClick={() => {
-                handleBuy()
-                if (isBuy && buyType === 'up') {
-                  const upPrice = parseFloat(yesPriceFormatted) || 0
-                  setLimitPrice(upPrice.toFixed(1))
-                } else if (isBuy && buyType === 'down') {
-                  const downPrice = 100 - (parseFloat(yesPriceFormatted) || 0)
-                  setLimitPrice(downPrice.toFixed(1))
-                } else {
-                  const upPrice = parseFloat(yesPriceFormatted) || 0
-                  setLimitPrice(upPrice.toFixed(1))
-                }
-              }}
-              className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                isBuy
-                  ? (isTradingUp ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-red-500/10 border-red-500 text-red-400')
-                  : (isTradingUp ? 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60')
-              }`}
-            >
-              <span>Buy {buyType === 'up' ? 'Up' : 'Down'}</span>
-              <span className={`text-xs font-semibold ${isBuy ? (isTradingUp ? 'text-green-400' : 'text-red-400') : (isTradingUp ? 'text-green-400' : 'text-red-400')}`}>
-                {yesPriceFormatted}¢
-              </span>
-            </button>
-            <button
-              onClick={() => {
-                handleSell()
-                if (!isBuy && sellType === 'down') {
-                  const noPrice = parseFloat(noPriceFormatted) || 0
-                  setLimitPrice(noPrice.toFixed(1))
-                } else if (!isBuy && sellType === 'up') {
-                  const upPrice = parseFloat(yesPriceFormatted) || 0
-                  setLimitPrice(upPrice.toFixed(1))
-                } else {
-                  const noPrice = parseFloat(noPriceFormatted) || 0
-                  setLimitPrice(noPrice.toFixed(1))
-                }
-              }}
-              className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                !isBuy
-                  ? (isTradingUp ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-red-500/10 border-red-500 text-red-400')
-                  : (isTradingUp ? 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60')
-              }`}
-            >
-              <span>Sell {sellType === 'down' ? 'Down' : 'Up'}</span>
-              <span className={`text-xs font-semibold ${!isBuy ? (isTradingUp ? 'text-green-400' : 'text-red-400') : (isTradingUp ? 'text-green-400' : 'text-red-400')}`}>
-                {sellType === 'up' ? yesPriceFormatted : noPriceFormatted}¢
-              </span>
-            </button>
+            {isBuy ? (
+              <>
+                {/* Buy Up Button */}
+                <button
+                  onClick={() => {
+                    setIsBuy(true)
+                    setBuyType('up')
+                    const upPrice = parseFloat(yesPriceFormatted) || 0
+                    setLimitPrice(upPrice.toFixed(1))
+                  }}
+                  className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
+                    buyType === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
+                  }`}
+                >
+                  <span>Buy Up</span>
+                  <span className={`text-xs font-semibold ${buyType === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
+                    {yesPriceFormatted}¢
+                  </span>
+                </button>
+                {/* Buy Down Button */}
+                <button
+                  onClick={() => {
+                    setIsBuy(true)
+                    setBuyType('down')
+                    const downPrice = parseFloat(noPriceFormatted) || 0
+                    setLimitPrice(downPrice.toFixed(1))
+                  }}
+                  className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
+                    buyType === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
+                  }`}
+                >
+                  <span>Buy Down</span>
+                  <span className={`text-xs font-semibold ${buyType === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
+                    {noPriceFormatted}¢
+                  </span>
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Sell Up Button */}
+                <button
+                  onClick={() => {
+                    setIsBuy(false)
+                    setSellType('up')
+                    const upPrice = parseFloat(yesSellPriceFormatted) || 0
+                    setLimitPrice(upPrice.toFixed(1))
+                  }}
+                  className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
+                    sellType === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
+                  }`}
+                >
+                  <span>Sell Up</span>
+                  <span className={`text-xs font-semibold ${sellType === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
+                    {yesSellPriceFormatted}¢
+                  </span>
+                </button>
+                {/* Sell Down Button */}
+                <button
+                  onClick={() => {
+                    setIsBuy(false)
+                    setSellType('down')
+                    const downPrice = parseFloat(noSellPriceFormatted) || 0
+                    setLimitPrice(downPrice.toFixed(1))
+                  }}
+                  className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
+                    sellType === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
+                  }`}
+                >
+                  <span>Sell Down</span>
+                  <span className={`text-xs font-semibold ${sellType === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
+                    {noSellPriceFormatted}¢
+                  </span>
+                </button>
+              </>
+            )}
           </div>
 
           {/* Limit Price Input with +/- buttons */}
@@ -576,32 +668,73 @@ const TradingPanel = () => {
       {executionType === 'market' && (
         <div className="border-b border-gray-800 p-4 flex-shrink-0">
           <div className="flex gap-2">
-            <button
-              onClick={handleBuy}
-                className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                  isBuy
-                    ? (isTradingUp ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-red-500/10 border-red-500 text-red-400')
-                    : (isTradingUp ? 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60')
-                }`}
-            >
-              <span>Buy {buyType === 'up' ? 'Up' : 'Down'}</span>
-                <span className={`text-xs font-semibold ${isBuy ? (isTradingUp ? 'text-green-400' : 'text-red-400') : (isTradingUp ? 'text-green-400' : 'text-red-400')}`}>
-                {yesPriceFormatted}¢
-              </span>
-            </button>
-            <button
-              onClick={handleSell}
-              className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                !isBuy
-                  ? (isTradingUp ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-red-500/10 border-red-500 text-red-400')
-                  : (isTradingUp ? 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60')
-              }`}
-            >
-              <span>Sell {sellType === 'down' ? 'Down' : 'Up'}</span>
-              <span className={`text-xs font-semibold ${!isBuy ? (isTradingUp ? 'text-green-400' : 'text-red-400') : (isTradingUp ? 'text-green-400' : 'text-red-400')}`}>
-                {sellType === 'up' ? yesPriceFormatted : noPriceFormatted}¢
-              </span>
-            </button>
+            {isBuy ? (
+              <>
+                {/* Buy Up Button */}
+                <button
+                  onClick={() => {
+                    setIsBuy(true)
+                    setBuyType('up')
+                  }}
+                  className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
+                    buyType === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
+                  }`}
+                >
+                  <span>Buy Up</span>
+                  <span className={`text-xs font-semibold ${buyType === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
+                    {yesPriceFormatted}¢
+                  </span>
+                </button>
+                {/* Buy Down Button */}
+                <button
+                  onClick={() => {
+                    setIsBuy(true)
+                    setBuyType('down')
+                  }}
+                  className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
+                    buyType === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
+                  }`}
+                >
+                  <span>Buy Down</span>
+                  <span className={`text-xs font-semibold ${buyType === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
+                    {noPriceFormatted}¢
+                  </span>
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Sell Up Button */}
+                <button
+                  onClick={() => {
+                    setIsBuy(false)
+                    setSellType('up')
+                  }}
+                  className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
+                    sellType === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
+                  }`}
+                >
+                  <span>Sell Up</span>
+                  <span className={`text-xs font-semibold ${sellType === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
+                    {yesSellPriceFormatted}¢
+                  </span>
+                </button>
+                {/* Sell Down Button */}
+                <button
+                  onClick={() => {
+                    setIsBuy(false)
+                    setSellType('down')
+                  }}
+                  className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
+                    sellType === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
+                  }`}
+                >
+                  <span>Sell Down</span>
+                  <span className={`text-xs font-semibold ${sellType === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
+                    {noSellPriceFormatted}¢
+                  </span>
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
