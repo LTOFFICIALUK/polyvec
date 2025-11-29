@@ -18,8 +18,10 @@ const PolyLineChart = () => {
   })
   
   const [series, setSeries] = useState<ChartPoint[]>([])
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const previousMarketIdRef = useRef<string | null>(null)
+  const chartContainerRef = useRef<HTMLDivElement | null>(null)
 
   // Fetch current bid prices for both UP and DOWN tokens from orderbook
   const fetchPrices = useCallback(async (): Promise<{ upPrice: number | null; downPrice: number | null }> => {
@@ -208,6 +210,13 @@ const PolyLineChart = () => {
     const maxValue = 99
     const range = maxValue - minValue // 98
 
+    // Padding to keep data within visible chart area (avoid overlapping with axis labels)
+    // Top padding: 4% from top, Bottom padding: 4% from bottom
+    // This maps the full 0-100% Y range to 4%-96% of the viewBox
+    const TOP_PADDING = 4
+    const BOTTOM_PADDING = 4
+    const CHART_HEIGHT = 100 - TOP_PADDING - BOTTOM_PADDING // 92% usable height
+
     // Create path for UP line (green)
     const upPathParts: string[] = []
     series.forEach((point, idx) => {
@@ -217,12 +226,13 @@ const PolyLineChart = () => {
       const timeProgress = (point.time - eventStart) / (eventEnd - eventStart)
       const x = Math.max(0, Math.min(100, timeProgress * 100))
       
-      // Calculate Y position based on price (1c = bottom at 100%, 99c = top at 0%)
-      // Map price from 1-99 range to full height (0-100%)
-      // Formula: y = 100 - ((price - 1) / 98) * 100
-      // At price = 1c: y = 100 - 0 = 100 (bottom)
-      // At price = 99c: y = 100 - 100 = 0 (top)
-      const normalized = 100 - ((point.upPrice - minValue) / range) * 100
+      // Calculate Y position based on price (1c = bottom, 99c = top)
+      // Map price from 1-99 range to padded height (TOP_PADDING to 100-BOTTOM_PADDING)
+      // Formula: y = TOP_PADDING + (1 - ((price - 1) / 98)) * CHART_HEIGHT
+      // At price = 99c: y = TOP_PADDING (top with padding)
+      // At price = 1c: y = TOP_PADDING + CHART_HEIGHT (bottom with padding)
+      const pricePercent = (point.upPrice - minValue) / range
+      const normalized = TOP_PADDING + (1 - pricePercent) * CHART_HEIGHT
       
       if (upPathParts.length === 0) {
         upPathParts.push(`M ${x.toFixed(2)} ${normalized.toFixed(2)}`)
@@ -240,12 +250,10 @@ const PolyLineChart = () => {
       const timeProgress = (point.time - eventStart) / (eventEnd - eventStart)
       const x = Math.max(0, Math.min(100, timeProgress * 100))
       
-      // Calculate Y position based on price (1c = bottom at 100%, 99c = top at 0%)
-      // Map price from 1-99 range to full height (0-100%)
-      // Formula: y = 100 - ((price - 1) / 98) * 100
-      // At price = 1c: y = 100 - 0 = 100 (bottom)
-      // At price = 99c: y = 100 - 100 = 0 (top)
-      const normalized = 100 - ((point.downPrice - minValue) / range) * 100
+      // Calculate Y position based on price (1c = bottom, 99c = top)
+      // Map price from 1-99 range to padded height (TOP_PADDING to 100-BOTTOM_PADDING)
+      const pricePercent = (point.downPrice - minValue) / range
+      const normalized = TOP_PADDING + (1 - pricePercent) * CHART_HEIGHT
       
       if (downPathParts.length === 0) {
         downPathParts.push(`M ${x.toFixed(2)} ${normalized.toFixed(2)}`)
@@ -269,6 +277,72 @@ const PolyLineChart = () => {
   const latest = series[series.length - 1]
   const currentUpPrice = latest?.upPrice || null
   const currentDownPrice = latest?.downPrice || null
+
+  // Get the hovered point data or fall back to latest
+  const hoveredPoint = hoveredIndex !== null ? series[hoveredIndex] : null
+  const displayUpPrice = hoveredPoint?.upPrice ?? currentUpPrice
+  const displayDownPrice = hoveredPoint?.downPrice ?? currentDownPrice
+
+  // Calculate hovered point positions for rendering dots and crosshair
+  const hoveredPositions = useMemo(() => {
+    if (hoveredIndex === null || !series[hoveredIndex] || !eventStartTime || !eventEndTime) {
+      return null
+    }
+
+    const point = series[hoveredIndex]
+    const minValue = 1
+    const maxValue = 99
+    const range = maxValue - minValue
+    const TOP_PADDING = 4
+    const BOTTOM_PADDING = 4
+    const CHART_HEIGHT = 100 - TOP_PADDING - BOTTOM_PADDING
+
+    // Calculate X position
+    const timeProgress = (point.time - eventStartTime) / (eventEndTime - eventStartTime)
+    const x = Math.max(0, Math.min(100, timeProgress * 100))
+
+    // Calculate Y positions for both UP and DOWN
+    const upPricePercent = (point.upPrice - minValue) / range
+    const upY = TOP_PADDING + (1 - upPricePercent) * CHART_HEIGHT
+
+    const downPricePercent = (point.downPrice - minValue) / range
+    const downY = TOP_PADDING + (1 - downPricePercent) * CHART_HEIGHT
+
+    return { x, upY, downY, time: point.time }
+  }, [hoveredIndex, series, eventStartTime, eventEndTime])
+
+  // Handle mouse move over chart area
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!chartContainerRef.current || !eventStartTime || !eventEndTime || series.length === 0) {
+      return
+    }
+
+    const rect = chartContainerRef.current.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left
+    const chartWidth = rect.width
+
+    // Convert mouse position to time
+    const timeProgress = mouseX / chartWidth
+    const hoveredTime = eventStartTime + (eventEndTime - eventStartTime) * timeProgress
+
+    // Find the closest data point
+    let closestIndex = 0
+    let closestDistance = Infinity
+
+    series.forEach((point, index) => {
+      const distance = Math.abs(point.time - hoveredTime)
+      if (distance < closestDistance) {
+        closestDistance = distance
+        closestIndex = index
+      }
+    })
+
+    setHoveredIndex(closestIndex)
+  }, [eventStartTime, eventEndTime, series])
+
+  const handleMouseLeave = useCallback(() => {
+    setHoveredIndex(null)
+  }, [])
 
   // Format time for display
   const formatTime = (timestamp: number | null) => {
@@ -333,57 +407,106 @@ const PolyLineChart = () => {
             <p className="text-lg font-semibold">{selectedPair} • Live Bid</p>
           </div>
           <div className="flex items-center gap-4 text-sm">
-            {currentUpPrice !== null && (
+            {displayUpPrice !== null && (
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-green-400" />
-                <span className="text-green-400 font-semibold">UP {currentUpPrice.toFixed(2)}¢</span>
+                <span className="text-green-400 font-semibold">UP {displayUpPrice.toFixed(2)}¢</span>
               </div>
             )}
-            {currentDownPrice !== null && (
+            {displayDownPrice !== null && (
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-red-400" />
-                <span className="text-red-400 font-semibold">DOWN {currentDownPrice.toFixed(2)}¢</span>
+                <span className="text-red-400 font-semibold">DOWN {displayDownPrice.toFixed(2)}¢</span>
               </div>
+            )}
+            {hoveredPoint && (
+              <span className="text-gray-500 text-xs ml-2">
+                {formatTime(hoveredPoint.time)}
+              </span>
             )}
           </div>
         </div>
 
-        <div className="flex-1 relative min-h-0">
+        <div className="flex-1 relative min-h-0 mb-6">
           {upLinePath || downLinePath ? (
-            <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full absolute inset-0">
-              <defs>
-                <filter id="glowUp" x="-50%" y="-50%" width="200%" height="200%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="1.5" floodColor="#10b981" floodOpacity="0.5" />
-                </filter>
-                <filter id="glowDown" x="-50%" y="-50%" width="200%" height="200%">
-                  <feDropShadow dx="0" dy="0" stdDeviation="1.5" floodColor="#ef4444" floodOpacity="0.5" />
-                </filter>
-              </defs>
-              {/* UP line (green) */}
-              {upLinePath && (
-                <path
-                  d={upLinePath}
-                  fill="none"
-                  stroke="#10b981"
-                  strokeWidth="1"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  filter="url(#glowUp)"
-                />
+            <>
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="w-full h-full absolute left-14 right-0 top-0 bottom-0" style={{ width: 'calc(100% - 56px)' }}>
+                {/* UP line (green) */}
+                {upLinePath && (
+                  <path
+                    d={upLinePath}
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="0.1"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                )}
+                {/* DOWN line (red) */}
+                {downLinePath && (
+                  <path
+                    d={downLinePath}
+                    fill="none"
+                    stroke="#ef4444"
+                    strokeWidth="0.1"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                )}
+                
+                {/* Vertical dotted crosshair line */}
+                {hoveredPositions && (
+                  <line
+                    x1={hoveredPositions.x}
+                    y1="0"
+                    x2={hoveredPositions.x}
+                    y2="100"
+                    stroke="#6b7280"
+                    strokeWidth="0.15"
+                    strokeDasharray="1 1"
+                    opacity="0.7"
+                  />
+                )}
+              </svg>
+              
+              {/* Hover dots - rendered as HTML for proper circular shape */}
+              {hoveredPositions && (
+                <div 
+                  className="absolute left-14 top-0 bottom-0 pointer-events-none"
+                  style={{ width: 'calc(100% - 56px)' }}
+                >
+                  {/* UP price dot (green) */}
+                  <div
+                    className="absolute w-3 h-3 rounded-full bg-emerald-500 border-2 border-black"
+                    style={{
+                      left: `${hoveredPositions.x}%`,
+                      top: `${hoveredPositions.upY}%`,
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  />
+                  {/* DOWN price dot (red) */}
+                  <div
+                    className="absolute w-3 h-3 rounded-full bg-red-500 border-2 border-black"
+                    style={{
+                      left: `${hoveredPositions.x}%`,
+                      top: `${hoveredPositions.downY}%`,
+                      transform: 'translate(-50%, -50%)',
+                    }}
+                  />
+                </div>
               )}
-              {/* DOWN line (red) */}
-              {downLinePath && (
-                <path
-                  d={downLinePath}
-                  fill="none"
-                  stroke="#ef4444"
-                  strokeWidth="1"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  filter="url(#glowDown)"
-                />
-              )}
-            </svg>
+              
+              {/* Invisible hover area for mouse events - overlays the chart area */}
+              <div
+                ref={chartContainerRef}
+                className="absolute left-14 right-0 top-0 bottom-0 cursor-crosshair"
+                style={{ width: 'calc(100% - 56px)' }}
+                onMouseMove={handleMouseMove}
+                onMouseLeave={handleMouseLeave}
+                role="img"
+                aria-label="Price chart with hover interaction"
+              />
+            </>
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <p className="text-gray-500 text-sm">Loading chart data...</p>
@@ -391,14 +514,15 @@ const PolyLineChart = () => {
           )}
 
           {/* Y-axis labels (price) - Fixed range 1c to 99c */}
-          <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between pl-1 pt-2 pb-8 text-[10px] text-gray-500" style={{ paddingTop: '8px', paddingBottom: '24px' }}>
+          {/* Labels positioned to match the 4% top and 4% bottom padding in the chart */}
+          <div className="absolute left-0 top-0 bottom-0 flex flex-col justify-between pl-1 text-[10px] text-gray-500" style={{ paddingTop: '4%', paddingBottom: '4%' }}>
             {Array.from({ length: 5 }).map((_, idx) => {
               // Fixed values: 99c, 75c, 50c, 25c, 1c
               // Position: top (99c), 25%, 50%, 75%, bottom (1c)
               const values = [99, 75, 50, 25, 1]
               const value = values[idx]
               return (
-                <div key={idx} className="flex items-center gap-2">
+                <div key={idx} className="flex items-center gap-2 -translate-y-1/2 first:translate-y-0 last:translate-y-0">
                   <span className="block w-12 text-right font-semibold">{value}¢</span>
                   <span className="h-px flex-1 bg-gray-800/60" />
                 </div>
@@ -408,7 +532,7 @@ const PolyLineChart = () => {
 
           {/* X-axis labels (time) */}
           {eventStartTime && eventEndTime && (
-            <div className="absolute left-0 right-0 bottom-0 flex justify-between pl-14 pr-2 pb-1 text-[10px] text-gray-500" style={{ paddingLeft: '56px', paddingBottom: '4px' }}>
+            <div className="absolute left-14 right-2 -bottom-5 flex justify-between text-[10px] text-gray-500">
               {Array.from({ length: 5 }).map((_, idx) => {
                 const timeProgress = idx / 4
                 const timestamp = eventStartTime + (eventEndTime - eventStartTime) * timeProgress
