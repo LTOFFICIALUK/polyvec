@@ -810,7 +810,8 @@ const httpServer = http.createServer(async (req, res) => {
         // Select markets that are currently in their window (active RIGHT NOW)
         // OR markets that just ended (within 15 minutes) - for 15m markets, this handles the case
         // where the market just ended but we're still in the same 15-minute period
-        const inWindowMarkets = marketsWithWindows.filter(m => m.isInWindow)
+        // Filter out future markets (eventStart > now) to ensure we only select markets that have actually started
+        const inWindowMarkets = marketsWithWindows.filter(m => m.isInWindow && m.eventStart <= now)
         const justEndedMarkets = marketsWithWindows.filter(m => {
           if (m.isInWindow) return false // Already in window
           // Market ended within the last 15 minutes
@@ -1192,12 +1193,13 @@ const ensureMarketMetadataForPair = async (pair?: string, timeframe?: string): P
 function startOrderbookPolling(wsServer: WebSocketServer, markets: any[]): void {
   console.log('[Server] Starting orderbook polling for tracked markets...')
   
-  const POLL_INTERVAL = 5000 // 5 seconds
+  const POLL_INTERVAL = 1000 // 1 second - poll every second for real-time feel
   let pollCount = 0
   let errorCount = 0
   
-  // Poll a subset of markets each interval to avoid rate limits
-  let marketIndex = 0
+  // Pairs and timeframes we care about (8 markets total)
+  const TRACKED_PAIRS = ['BTC', 'SOL', 'ETH', 'XRP']
+  const TRACKED_TIMEFRAMES = ['15m', '1h']
   
   setInterval(async () => {
     const stateStore = wsServer.getStateStore()
@@ -1208,30 +1210,83 @@ function startOrderbookPolling(wsServer: WebSocketServer, markets: any[]): void 
     pollCount++
     let updatedCount = 0
     
-    // Filter to only active markets (not expired)
+    // Filter to only the 8 active markets we care about (4 pairs × 2 timeframes)
     const now = Date.now()
     const activeMarketsToPoll = allMarkets.filter(m => {
       const metadata = m.metadata
       if (!metadata) return false
-      // Market is active if it hasn't ended yet, or if endTime is not set
+      
+      // Market must be active (not expired)
+      const isActive = !metadata.endTime || metadata.endTime > now
+      if (!isActive) return false
+      
+      // Must have a token ID
       const primaryToken = metadata?.yesTokenId || metadata?.tokenId || metadata?.tokenIds?.[0]
-      return (!metadata.endTime || metadata.endTime > now) && Boolean(primaryToken)
+      if (!primaryToken) return false
+      
+      // Must match one of our tracked pairs
+      const question = (metadata.question || '').toUpperCase()
+      const pairMap: Record<string, string[]> = {
+        'BTC': ['BITCOIN', 'BTC'],
+        'SOL': ['SOLANA', 'SOL'],
+        'ETH': ['ETHEREUM', 'ETH'],
+        'XRP': ['XRP', 'RIPPLE'],
+      }
+      const matchesPair = TRACKED_PAIRS.some(pair => {
+        const variants = pairMap[pair] || [pair]
+        return variants.some(variant => question.includes(variant))
+      })
+      if (!matchesPair) return false
+      
+      // Must match one of our tracked timeframes
+      let marketTimeframe = metadata.eventTimeframe?.toLowerCase() || ''
+      if (!marketTimeframe && metadata.slug) {
+        if (metadata.slug.includes('-up-or-down-') && metadata.slug.endsWith('-et')) {
+          marketTimeframe = '1h'
+        } else if (metadata.slug.includes('-1h-') || metadata.slug.includes('-hourly-')) {
+          marketTimeframe = '1h'
+        } else if (metadata.slug.includes('-15m-')) {
+          marketTimeframe = '15m'
+        }
+      }
+      if (marketTimeframe === 'hourly') marketTimeframe = '1h'
+      
+      const matchesTimeframe = !marketTimeframe || TRACKED_TIMEFRAMES.includes(marketTimeframe)
+      
+      return matchesTimeframe
     })
     
-    // Poll 20 active markets per interval using batch API (rotate through active markets)
-    const marketsToPoll = activeMarketsToPoll.slice(marketIndex, marketIndex + 20)
-    marketIndex = (marketIndex + 20) % Math.max(activeMarketsToPoll.length, 1)
+    // Also get all subscribed tokenIds from clients (in case they subscribed to markets not in our filter)
+    const subscribedIds = wsServer.getAllSubscribedIds()
+    console.log(`[Server] Polling: ${activeMarketsToPoll.length} filtered markets, ${subscribedIds.size} client subscriptions`)
+    
+    // Poll ALL active tracked markets every interval (no rotation)
+    const marketsToPoll = activeMarketsToPoll
     
     // Collect token IDs for batch fetch
     const tokenIds: string[] = []
     const marketMap = new Map<string, typeof marketsToPoll[0]>()
+    const subscribedTokenIds = new Set<string>()
     
+    // First, collect tokenIds from filtered markets
     for (const marketState of marketsToPoll) {
       const metadata = marketState.metadata
       const primaryTokenId = metadata?.yesTokenId || metadata?.tokenId || metadata?.tokenIds?.[0]
       if (primaryTokenId) {
         tokenIds.push(primaryTokenId)
         marketMap.set(primaryTokenId, marketState)
+      }
+    }
+    
+    // Also add any subscribed tokenIds that aren't already in our list
+    for (const subscribedId of subscribedIds) {
+      // Check if this is a tokenId (long numeric string) or marketId
+      // If it's not in our marketMap, try to fetch it directly
+      if (!marketMap.has(subscribedId) && subscribedId.length > 20) {
+        // Likely a tokenId - add it to polling
+        tokenIds.push(subscribedId)
+        subscribedTokenIds.add(subscribedId)
+        console.log(`[Server] Adding subscribed tokenId to polling: ${subscribedId.substring(0, 20)}...`)
       }
     }
     
@@ -1243,31 +1298,61 @@ function startOrderbookPolling(wsServer: WebSocketServer, markets: any[]): void 
       
       // Process results
       for (const [tokenId, orderbook] of orderbooks.entries()) {
-        const marketState = marketMap.get(tokenId)
-        if (!marketState || !orderbook || orderbook.bids.length === 0 || orderbook.asks.length === 0) {
+        if (!orderbook || orderbook.bids.length === 0 || orderbook.asks.length === 0) {
           continue
         }
         
+        const marketState = marketMap.get(tokenId)
         const bestBid = parseFloat(orderbook.bids[0].price)
         const bestAsk = parseFloat(orderbook.asks[0].price)
         
         // Only update if values are valid
         if (!isNaN(bestBid) && !isNaN(bestAsk) && bestBid > 0 && bestAsk > 0) {
-          // Update state
-          stateStore.updateMarket({
-            type: 'orderbook',
-            marketId: marketState.marketId,
-            bestBid,
-            bestAsk,
-          })
+          // Convert orderbook data to number arrays for client
+          const bidsArray = orderbook.bids.map((b: any) => ({
+            price: parseFloat(b.price),
+            size: parseFloat(b.size),
+          }))
+          const asksArray = orderbook.asks.map((a: any) => ({
+            price: parseFloat(a.price),
+            size: parseFloat(a.size),
+          }))
           
-          // Trigger update broadcast
-          wsServer.getPolymarketConnector().emit('marketUpdate', {
-            type: 'orderbook',
-            marketId: marketState.marketId,
-            bestBid,
-            bestAsk,
-          })
+          // If this is a subscribed tokenId without a marketState, use tokenId as marketId
+          const marketId = marketState ? marketState.marketId : tokenId
+          
+          // Update state if we have marketState
+          if (marketState) {
+            stateStore.updateMarket({
+              type: 'orderbook',
+              marketId: marketState.marketId,
+              bestBid,
+              bestAsk,
+            })
+          }
+          
+          // Only broadcast if there are subscribers for this tokenId/marketId
+          const hasSubscribers = wsServer.hasSubscribers(marketId) || wsServer.hasSubscribers(tokenId)
+          if (!hasSubscribers) {
+            continue // Skip broadcasting if no one is subscribed
+          }
+          
+          // Broadcast full orderbook update to clients (by marketId and tokenId)
+          const firstBidPrice = bidsArray[0]?.price || 0
+          const firstAskPrice = asksArray[0]?.price || 0
+          const marketInfo = marketState ? `${marketState.metadata?.question || marketId}` : `tokenId: ${tokenId.substring(0, 20)}...`
+          console.log(`[Server] Broadcasting orderbook_update for ${marketInfo}, marketId: ${marketId}, tokenId: ${tokenId.substring(0, 20)}..., bids: ${bidsArray.length}, asks: ${asksArray.length}, bestBid: ${firstBidPrice} (${(firstBidPrice*100).toFixed(0)}c), bestAsk: ${firstAskPrice} (${(firstAskPrice*100).toFixed(0)}c)`)
+          wsServer.broadcastOrderbookUpdate(marketId, tokenId, bidsArray, asksArray)
+          
+          // Also emit for Polymarket connector (for other listeners)
+          if (marketState) {
+            wsServer.getPolymarketConnector().emit('marketUpdate', {
+              type: 'orderbook',
+              marketId: marketState.marketId,
+              bestBid,
+              bestAsk,
+            })
+          }
           
           updatedCount++
         }
@@ -1317,14 +1402,14 @@ function startOrderbookPolling(wsServer: WebSocketServer, markets: any[]): void 
       }
     }
     
-    // Log every 12 polls (1 minute) or when we get updates
-    if (pollCount % 12 === 0 || updatedCount > 0) {
+    // Log every 10 polls (10 seconds) or when we get updates
+    if (pollCount % 10 === 0 || updatedCount > 0) {
       const activeCount = activeMarketsToPoll.length
-      console.log(`[Server] Polling: Updated ${updatedCount}/${marketsToPoll.length} markets. Active: ${activeCount}. Errors: ${errorCount}`)
+      console.log(`[Server] Polling: Updated ${updatedCount}/${marketsToPoll.length} markets. Active tracked: ${activeCount}. Errors: ${errorCount}`)
     }
   }, POLL_INTERVAL)
   
-  console.log(`[Server] Polling orderbook every ${POLL_INTERVAL}ms (20 active markets per cycle, batch API)`)
+  console.log(`[Server] Polling orderbook every ${POLL_INTERVAL}ms (all ${TRACKED_PAIRS.length * TRACKED_TIMEFRAMES.length} tracked markets per cycle, batch API)`)
 }
 
 // Initialize markets on startup

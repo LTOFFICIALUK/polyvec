@@ -24,18 +24,25 @@ const normalizeOrderbookData = (payload: any): OrderBookData => {
   const raw = Array.isArray(payload) ? payload[0] : payload
   const data = raw?.data || raw
 
-  bids =
-    data?.bids ||
-    data?.buyOrders ||
-    data?.asks ||
-    data?.sellOrders ||
-    []
-  asks =
-    data?.asks ||
-    data?.sellOrders ||
-    data?.bids ||
-    data?.buyOrders ||
-    []
+  // Handle orderbook_update message format (bids/asks are direct arrays)
+  // Also handle nested formats from API responses
+  if (data?.bids && Array.isArray(data.bids)) {
+    bids = data.bids
+  } else if (data?.buyOrders && Array.isArray(data.buyOrders)) {
+    bids = data.buyOrders
+  } else if (data?.asks && Array.isArray(data.asks)) {
+    // Fallback: if only asks exist, might be reversed
+    bids = []
+  }
+
+  if (data?.asks && Array.isArray(data.asks)) {
+    asks = data.asks
+  } else if (data?.sellOrders && Array.isArray(data.sellOrders)) {
+    asks = data.sellOrders
+  } else if (data?.bids && Array.isArray(data.bids)) {
+    // Fallback: if only bids exist, might be reversed
+    asks = []
+  }
 
   const normalize = (entries: any[]) =>
     entries
@@ -76,14 +83,19 @@ const OrderBook = () => {
     pair: selectedPair,
     timeframe: selectedTimeframe,
   })
+  
+  console.log('[OrderBook] Render - isConnected:', isConnected, 'market:', market?.marketId, 'tokenId:', market?.tokenId)
   const [orderBook, setOrderBook] = useState<OrderBookData | null>(null)
   const [orderbookLoading, setOrderbookLoading] = useState(true)
   const [orderbookError, setOrderbookError] = useState<string | null>(null)
   const [currentMarketId, setCurrentMarketId] = useState<string | null>(null)
+  const [hasScrolledToSpread, setHasScrolledToSpread] = useState(false)
   const previousMarketIdRef = useRef<string | null>(null)
+  const orderbookScrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const spreadCenterRef = useRef<HTMLDivElement | null>(null)
 
   const fetchOrderbook = useCallback(async () => {
-    if (!market?.tokenId) {
+    if (!market?.tokenId && !market?.slug) {
       setOrderBook(null)
       setOrderbookLoading(false)
       setOrderbookError('No active market found')
@@ -105,23 +117,44 @@ const OrderBook = () => {
     try {
       setOrderbookLoading(true)
       setOrderbookError(null)
+      
+      // Prefer using slug (exact Polymarket market) when available so we can
+      // resolve clobTokenIds from Gamma and fetch the authoritative orderbook
+      const params = new URLSearchParams()
+      if (market.slug) {
+        params.set('slug', market.slug)
+      } else if (market.tokenId) {
+        params.set('tokenId', market.tokenId)
+      }
 
-        const orderbookResponse = await fetch(
-        `/api/polymarket/orderbook?tokenId=${market.tokenId}`
-        )
+      console.log('[OrderBook] Fetching orderbook with params:', {
+        marketId: market.marketId,
+        question: market.question,
+        slug: market.slug,
+        tokenId: market.tokenId,
+        query: params.toString(),
+      })
+
+      const orderbookResponse = await fetch(`/api/polymarket/orderbook?${params.toString()}`)
 
         if (!orderbookResponse.ok) {
           throw new Error('Failed to fetch orderbook')
         }
 
         const orderbookData = await orderbookResponse.json()
+      console.log('[OrderBook] HTTP orderbook response:', {
+        hasBids: Array.isArray(orderbookData?.bids) ? orderbookData.bids.length : null,
+        hasAsks: Array.isArray(orderbookData?.asks) ? orderbookData.asks.length : null,
+      })
       setCurrentMarketId(market.marketId ?? null)
+      setHasScrolledToSpread(false)
       setOrderBook(normalizeOrderbookData(orderbookData))
       } catch (err) {
         console.error('Error fetching orderbook:', err)
       setOrderbookError(err instanceof Error ? err.message : 'Failed to load orderbook')
       setOrderBook(null)
       setCurrentMarketId(null)
+      setHasScrolledToSpread(false)
     } finally {
       setOrderbookLoading(false)
     }
@@ -132,35 +165,68 @@ const OrderBook = () => {
       return
     }
     fetchOrderbook()
-  }, [fetchOrderbook, marketLoading])
+    
+    // Poll HTTP API every 2 seconds to keep orderbook fresh (since WebSocket is disabled)
+    const pollInterval = setInterval(() => {
+      if (market?.tokenId || market?.slug) {
+        fetchOrderbook()
+      }
+    }, 2000)
+    
+    return () => clearInterval(pollInterval)
+  }, [fetchOrderbook, marketLoading, market?.tokenId, market?.slug])
 
   const handleMarketUpdate = useCallback(
     (data: any) => {
+      // TEMPORARILY DISABLED: WebSocket orderbook updates are sending incorrect data (49/51c instead of 92/93c)
+      // The HTTP API route is working correctly, so we'll only use that for now
+      // TODO: Fix WebSocket service's fetchMultipleOrderbooks reverse logic, then re-enable
       if (data?.type === 'orderbook_update' || data?.type === 'market_snapshot') {
-        setOrderBook((prev) => {
-          const normalized = normalizeOrderbookData(data)
-          if (!normalized.bids.length && !normalized.asks.length) {
-            return prev
-          }
-          return normalized
-            })
-          }
+        console.log('[OrderBook] WebSocket orderbook updates temporarily disabled - using HTTP API only')
+        return
+      }
     },
-    []
+    [market?.tokenId, market?.marketId]
   )
 
   useEffect(() => {
-    if (!currentMarketId || !isConnected) return
-
-    const unsubscribe = subscribeMarkets(
-      [currentMarketId],
-      handleMarketUpdate
-    )
-
+    // TEMPORARILY DISABLED: WebSocket subscription for orderbook updates
+    // The WebSocket is sending incorrect data, so we're using HTTP API polling instead
+    // TODO: Re-enable after fixing WebSocket service's reverse logic
+    console.log('[OrderBook] WebSocket subscription disabled - using HTTP API only')
     return () => {
-        unsubscribe()
+      // No-op cleanup
     }
-  }, [currentMarketId, handleMarketUpdate, isConnected, subscribeMarkets])
+  }, [market?.tokenId, handleMarketUpdate, isConnected, subscribeMarkets])
+
+  // Scroll so that the spread (center panel) is in view by default
+  useEffect(() => {
+    if (hasScrolledToSpread) {
+      return
+    }
+
+    if (!orderBook) {
+      return
+    }
+
+    const scrollContainer = orderbookScrollContainerRef.current
+    const spreadElement = spreadCenterRef.current
+
+    if (!scrollContainer || !spreadElement) {
+      return
+    }
+
+    const spreadOffsetTop = spreadElement.offsetTop - scrollContainer.offsetTop
+    const targetScrollTop =
+      spreadOffsetTop - scrollContainer.clientHeight / 2 + spreadElement.clientHeight / 2
+
+    scrollContainer.scrollTo({
+      top: Math.max(0, targetScrollTop),
+      behavior: 'auto',
+    })
+
+    setHasScrolledToSpread(true)
+  }, [orderBook, hasScrolledToSpread])
 
   if (marketLoading || orderbookLoading) {
     return (
@@ -252,11 +318,16 @@ const OrderBook = () => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
+      <div ref={orderbookScrollContainerRef} className="flex-1 overflow-y-auto">
         {/* Asks (Sell Orders) - Red */}
         <div className="flex flex-col">
           {asksWithTotal.length > 0 ? (
-            asksWithTotal.map((ask, idx) => (
+            // Reverse asks so the closest-to-market ask is at the BOTTOM of the red section,
+            // matching Polymarket's visual layout (highest price at the top, best ask just above the spread).
+            [...asksWithTotal]
+              .slice()
+              .reverse()
+              .map((ask, idx) => (
               <div
                 key={`ask-${idx}`}
                 className="flex border-b border-gray-800/50 hover:bg-gray-900/30"
@@ -281,7 +352,10 @@ const OrderBook = () => {
 
         {/* Spread indicator */}
         {bids.length > 0 && asks.length > 0 && (
-          <div className="px-4 py-2 border-y border-gray-800 bg-gray-900/20">
+          <div
+            ref={spreadCenterRef}
+            className="px-4 py-2 border-y border-gray-800 bg-gray-900/20"
+          >
             <div className="text-center text-xs text-gray-400">
               Spread: ${(
                 (asks[0].price > 1 ? asks[0].price / 100 : asks[0].price) -

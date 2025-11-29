@@ -86,6 +86,7 @@ export class WebSocketServer {
   }
 
   private handleClientMessage(ws: WebSocket, message: ClientMessage): void {
+    console.log('[WebSocketServer] Received client message:', message)
     switch (message.type) {
       case 'subscribe_markets':
         // Handle async subscription
@@ -118,14 +119,15 @@ export class WebSocketServer {
       let state = this.stateStore.getMarketState(marketIdOrTokenId)
       
       // If no state exists, try to fetch orderbook data
+      let fullOrderbook: { bids: Array<{ price: string; size: string }>; asks: Array<{ price: string; size: string }> } | null = null
       if (!state) {
         try {
           // Try fetching orderbook - marketIdOrTokenId could be a token ID
-          const orderbook = await fetchOrderbook(marketIdOrTokenId)
-          if (orderbook && orderbook.bids.length > 0 && orderbook.asks.length > 0) {
+          fullOrderbook = await fetchOrderbook(marketIdOrTokenId)
+          if (fullOrderbook && fullOrderbook.bids.length > 0 && fullOrderbook.asks.length > 0) {
             // Create initial state from orderbook
-            const bestBid = parseFloat(orderbook.bids[0].price)
-            const bestAsk = parseFloat(orderbook.asks[0].price)
+            const bestBid = parseFloat(fullOrderbook.bids[0].price)
+            const bestAsk = parseFloat(fullOrderbook.asks[0].price)
             
             // Update state store
             this.stateStore.updateMarket({
@@ -142,16 +144,38 @@ export class WebSocketServer {
         }
       }
       
-      // Send immediate snapshot (even if null values - client knows we're fetching)
-      const snapshot: MarketSnapshotMessage = {
-        type: 'market_snapshot',
-        marketId: marketIdOrTokenId,
-        bestBid: state?.bestBid || null,
-        bestAsk: state?.bestAsk || null,
-        lastPrice: state?.lastPrice || null,
-        ts: state?.lastUpdateTs || Date.now(),
+      // Send full orderbook update if we have it, otherwise send snapshot
+      if (fullOrderbook && fullOrderbook.bids.length > 0 && fullOrderbook.asks.length > 0) {
+        // Send full orderbook_update with complete data
+        const bidsArray = fullOrderbook.bids.map((b: any) => ({
+          price: parseFloat(b.price),
+          size: parseFloat(b.size),
+        }))
+        const asksArray = fullOrderbook.asks.map((a: any) => ({
+          price: parseFloat(a.price),
+          size: parseFloat(a.size),
+        }))
+        
+        const orderbookUpdate: OrderbookUpdateMessage = {
+          type: 'orderbook_update',
+          marketId: marketIdOrTokenId,
+          bids: bidsArray,
+          asks: asksArray,
+          ts: Date.now(),
+        }
+        ws.send(JSON.stringify(orderbookUpdate))
+      } else {
+        // Fallback to snapshot if we don't have full orderbook
+        const snapshot: MarketSnapshotMessage = {
+          type: 'market_snapshot',
+          marketId: marketIdOrTokenId,
+          bestBid: state?.bestBid || null,
+          bestAsk: state?.bestAsk || null,
+          lastPrice: state?.lastPrice || null,
+          ts: state?.lastUpdateTs || Date.now(),
+        }
+        ws.send(JSON.stringify(snapshot))
       }
-      ws.send(JSON.stringify(snapshot))
     }
   }
 
@@ -180,6 +204,61 @@ export class WebSocketServer {
   private handlePing(ws: WebSocket, message: PingMessage): void {
     const pong: PongMessage = { type: 'pong' }
     ws.send(JSON.stringify(pong))
+  }
+
+  hasSubscribers(marketIdOrTokenId: string): boolean {
+    for (const subscriptions of this.clientSubscriptions.values()) {
+      if (subscriptions.has(marketIdOrTokenId)) {
+        return true
+      }
+    }
+    return false
+  }
+
+  broadcastOrderbookUpdate(marketId: string, tokenId: string, bids: Array<{ price: number; size: number }>, asks: Array<{ price: number; size: number }>): void {
+    // Throttle updates per market (use tokenId as key since that's what clients subscribe with)
+    const throttleKey = tokenId || marketId
+    const now = Date.now()
+    const lastUpdate = this.updateThrottle.get(throttleKey) || 0
+    const timeSinceLastUpdate = now - lastUpdate
+    const minInterval = this.THROTTLE_WINDOW / this.MAX_UPDATES_PER_SECOND
+
+    if (timeSinceLastUpdate < minInterval) {
+      console.log(`[WebSocketServer] Throttled orderbook update for ${throttleKey} (${timeSinceLastUpdate}ms < ${minInterval}ms)`)
+      return // Skip this update (throttled)
+    }
+
+    this.updateThrottle.set(throttleKey, now)
+
+    let sentCount = 0
+    // Find all clients subscribed to this market (by marketId or tokenId)
+    for (const [client, subscriptions] of this.clientSubscriptions.entries()) {
+      const isSubscribed = subscriptions.has(marketId) || subscriptions.has(tokenId)
+      if (client.readyState === WebSocket.OPEN && isSubscribed) {
+        try {
+          // Send with the ID the client subscribed with (tokenId or marketId)
+          const subscribedId = subscriptions.has(tokenId) ? tokenId : marketId
+          const orderbookUpdate: OrderbookUpdateMessage = {
+            type: 'orderbook_update',
+            marketId: subscribedId, // Use the ID the client subscribed with
+            bids: bids,
+            asks: asks,
+            ts: Date.now(),
+          }
+          const firstBidPrice = bids[0]?.price || 0
+          const firstAskPrice = asks[0]?.price || 0
+          console.log(`[WebSocketServer] Sent orderbook_update to client (subscribedId: ${subscribedId.substring(0, 20)}..., bids: ${bids.length}, asks: ${asks.length}, bestBid: ${firstBidPrice} (${(firstBidPrice*100).toFixed(0)}c), bestAsk: ${firstAskPrice} (${(firstAskPrice*100).toFixed(0)}c))`)
+          client.send(JSON.stringify(orderbookUpdate))
+          sentCount++
+        } catch (error) {
+          console.error('[WebSocketServer] Error sending orderbook update to client:', error)
+        }
+      }
+    }
+    if (sentCount === 0) {
+      console.warn(`[WebSocketServer] No clients subscribed to marketId: ${marketId} or tokenId: ${tokenId}`)
+      console.warn(`[WebSocketServer] Active subscriptions:`, Array.from(this.clientSubscriptions.values()).flatMap(s => Array.from(s)))
+    }
   }
 
   private broadcastMarketUpdate(update: MarketUpdate): void {
@@ -262,6 +341,19 @@ export class WebSocketServer {
 
   getPolymarketConnector(): PolymarketConnector {
     return this.polymarketConnector
+  }
+
+  /**
+   * Get all subscribed tokenIds/marketIds from all clients
+   */
+  getAllSubscribedIds(): Set<string> {
+    const subscribedIds = new Set<string>()
+    for (const subscriptions of this.clientSubscriptions.values()) {
+      for (const id of subscriptions) {
+        subscribedIds.add(id)
+      }
+    }
+    return subscribedIds
   }
 
   getHealthStatus(): {

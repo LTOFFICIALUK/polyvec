@@ -31,6 +31,9 @@ export interface MarketMetadata {
 export interface OrderbookData {
   bids: Array<{ price: string; size: string }>
   asks: Array<{ price: string; size: string }>
+  timestamp?: string
+  hash?: string
+  asset_id?: string
 }
 
 const parseDateValue = (value: string | number | undefined): number | undefined => {
@@ -128,12 +131,39 @@ export const fetchMultipleOrderbooks = async (tokenIds: string[]): Promise<Map<s
     const data = await response.json() as any[]
     
     // Map results back to token IDs
+    // Note: API returns array in same order as request (per Polymarket docs)
     for (let i = 0; i < data.length && i < tokenIds.length; i++) {
       const orderbook = data[i]
       if (orderbook && orderbook.bids && orderbook.asks) {
+        // IMPORTANT: Polymarket CLOB API returns bids/asks in REVERSE order:
+        // - Bids: sorted lowest to highest (we need highest to lowest)
+        // - Asks: sorted highest to lowest (we need lowest to highest)
+        // Reverse both arrays to get correct order
+        const originalFirstBid = orderbook.bids[0]?.price
+        const originalLastBid = orderbook.bids[orderbook.bids.length - 1]?.price
+        const originalFirstAsk = orderbook.asks[0]?.price
+        const originalLastAsk = orderbook.asks[orderbook.asks.length - 1]?.price
+        
+        const bids = Array.isArray(orderbook.bids) ? [...orderbook.bids].reverse() : []
+        const asks = Array.isArray(orderbook.asks) ? [...orderbook.asks].reverse() : []
+        
+        const reversedFirstBid = bids[0]?.price
+        const reversedFirstAsk = asks[0]?.price
+        
+        // Debug log to verify reverse is working
+        if (i === 0 && tokenIds.length > 0) {
+          console.log(`[clobClient] fetchMultipleOrderbooks - TokenId: ${tokenIds[i].substring(0, 20)}...`)
+          console.log(`[clobClient] Original: firstBid=${originalFirstBid}, lastBid=${originalLastBid}, firstAsk=${originalFirstAsk}, lastAsk=${originalLastAsk}`)
+          console.log(`[clobClient] After reverse: firstBid=${reversedFirstBid}, firstAsk=${reversedFirstAsk}`)
+        }
+        
+        // Extract full OrderBookSummary including timestamp and hash for change detection
         results.set(tokenIds[i], {
-          bids: orderbook.bids || [],
-          asks: orderbook.asks || [],
+          bids: bids,
+          asks: asks,
+          timestamp: orderbook.timestamp,
+          hash: orderbook.hash,
+          asset_id: orderbook.asset_id,
         })
       }
     }
@@ -527,9 +557,19 @@ export const fetchOrderbook = async (tokenId: string): Promise<OrderbookData | n
     }
 
     const data = await response.json() as any
+    // IMPORTANT: Polymarket CLOB API returns bids/asks in REVERSE order:
+    // - Bids: sorted lowest to highest (we need highest to lowest)
+    // - Asks: sorted highest to lowest (we need lowest to highest)
+    // Reverse both arrays to get correct order
+    const bids = Array.isArray(data.bids) ? [...data.bids].reverse() : []
+    const asks = Array.isArray(data.asks) ? [...data.asks].reverse() : []
+    // Return full OrderBookSummary structure
     return {
-      bids: data.bids || [],
-      asks: data.asks || [],
+      bids: bids,
+      asks: asks,
+      timestamp: data.timestamp,
+      hash: data.hash,
+      asset_id: data.asset_id,
     }
   } catch (error) {
     // Don't log DNS errors as they're network issues, not API issues

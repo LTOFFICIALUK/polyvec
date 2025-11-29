@@ -41,11 +41,14 @@ function TerminalContent() {
   const filteredOrders = ordersData.filter(order => order.asset === selectedPair)
   const filteredHistory = historyData.filter(hist => hist.asset === selectedPair)
 
+  const bottomSectionHeightClass =
+    activeTab === 'orderbook' ? 'h-[23rem]' : 'h-72'
+
   return (
     <div className="bg-black text-white">
       {/* Main Section - Chart and Trading Panel */}
       <div className="flex flex-col h-[calc(100vh-73px)] overflow-hidden">
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+        <div className="flex-1 flex flex-col lg:flex-row relative">
           {/* Left Panel - Chart */}
           <div className="flex-1 flex flex-col min-h-0">
             <ChartControls />
@@ -64,8 +67,8 @@ function TerminalContent() {
       {/* Horizontal Divider Line */}
       <div className="h-px bg-gray-800 w-full" />
 
-      {/* Bottom Section - Position, Orders, History */}
-      <div className="h-48 bg-black">
+      {/* Bottom Section - Position, Orders, History, Order Book */}
+      <div className={`bg-black ${bottomSectionHeightClass}`}>
         <div className="flex border-b border-gray-800">
           <button
             onClick={() => setActiveTab('position')}

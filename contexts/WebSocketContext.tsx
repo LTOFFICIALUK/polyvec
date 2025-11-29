@@ -96,8 +96,13 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
             const marketId = data.marketId
             marketDataRef.current.set(marketId, data)
             
+            console.log('[WebSocketContext] Received orderbook_update for marketId:', marketId)
+            console.log('[WebSocketContext] All subscriptions:', Array.from(marketSubscribersRef.current.keys()))
+            
+            // Notify subscribers by marketId (which could be a tokenId if client subscribed with tokenId)
             const subscribers = marketSubscribersRef.current.get(marketId)
             if (subscribers) {
+              console.log('[WebSocketContext] Found', subscribers.size, 'subscribers for', marketId)
               subscribers.forEach((callback) => {
                 try {
                   callback(data)
@@ -105,6 +110,10 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
                   console.error('Error in market subscriber callback:', error)
                 }
               })
+            } else {
+              console.warn('[WebSocketContext] No subscribers found for marketId:', marketId)
+              // Try to find any subscription that might match (in case of ID mismatch)
+              console.warn('[WebSocketContext] Available subscription keys:', Array.from(marketSubscribersRef.current.keys()))
             }
           } else if (data.type === 'trade' && data.marketId) {
             const marketId = data.marketId
@@ -186,13 +195,21 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
   }, [WEBSOCKET_URL])
 
   const sendMessage = useCallback((message: any) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(message))
+    const ws = wsRef.current
+    console.log('[WebSocketContext] sendMessage called:', message, 'readyState:', ws?.readyState)
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify(message))
+        console.log('[WebSocketContext] Message sent over WebSocket')
+      } catch (error) {
+        console.error('[WebSocketContext] Error sending WebSocket message:', error)
+      }
     } else {
+      console.log('[WebSocketContext] WebSocket not open, queueing message')
       // Queue message for when connection is established
       messageQueueRef.current.push(message)
-      // Try to connect if not already connecting
-      if (!wsRef.current || wsRef.current.readyState === WebSocket.CLOSED) {
+      // Try to connect if not already connecting or closed
+      if (!ws || ws.readyState === WebSocket.CLOSED) {
         connect()
       }
     }

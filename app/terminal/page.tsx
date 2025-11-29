@@ -44,7 +44,7 @@ function TerminalContent() {
     <div className="bg-black text-white">
       {/* Main Section - Chart and Trading Panel */}
       <div className="flex flex-col h-[calc(100vh-73px)] overflow-hidden">
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+        <div className="flex-1 flex flex-col lg:flex-row relative">
           {/* Left Panel - Chart */}
           <div className="flex-1 flex flex-col min-h-0">
             <ChartControls />
@@ -64,7 +64,7 @@ function TerminalContent() {
       <div className="h-px bg-gray-800 w-full" />
 
       {/* Bottom Section - Position, Orders, History */}
-      <div className="h-48 bg-black">
+      <div className="bg-black h-72">
         <div className="flex border-b border-gray-800">
           <button
             onClick={() => setActiveTab('position')}
