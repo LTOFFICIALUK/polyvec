@@ -178,7 +178,7 @@ function TerminalContent() {
         <div className="flex border-b border-gray-800">
           <button
             onClick={() => setActiveTab('position')}
-            className={`px-4 py-3 text-sm font-semibold transition-colors relative ${
+            className={`px-4 py-3 text-sm font-semibold transition-colors relative h-[49px] ${
               activeTab === 'position'
                 ? 'text-white'
                 : 'text-gray-400 hover:text-white'
@@ -191,7 +191,7 @@ function TerminalContent() {
           </button>
           <button
             onClick={() => setActiveTab('orders')}
-            className={`px-4 py-3 text-sm font-semibold transition-colors relative ${
+            className={`px-4 py-3 text-sm font-semibold transition-colors relative h-[49px] ${
               activeTab === 'orders'
                 ? 'text-white'
                 : 'text-gray-400 hover:text-white'
@@ -204,7 +204,7 @@ function TerminalContent() {
           </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`px-4 py-3 text-sm font-semibold transition-colors relative ${
+            className={`px-4 py-3 text-sm font-semibold transition-colors relative h-[49px] ${
               activeTab === 'history'
                 ? 'text-white'
                 : 'text-gray-400 hover:text-white'
@@ -217,7 +217,7 @@ function TerminalContent() {
           </button>
           <button
             onClick={() => setActiveTab('orderbook')}
-            className={`px-4 py-3 text-sm font-semibold transition-colors relative flex items-center gap-2 ${
+            className={`px-4 py-3 text-sm font-semibold transition-colors relative flex items-center gap-2 h-[49px] ${
               activeTab === 'orderbook'
                 ? 'text-white'
                 : 'text-gray-400 hover:text-white'
@@ -233,12 +233,12 @@ function TerminalContent() {
                     // Force re-render to update button appearance
                     forceUpdate({})
                   }}
-                  className="text-gray-400 hover:text-white transition-colors p-1"
+                  className="text-gray-400 hover:text-white transition-colors p-0.5 flex items-center justify-center"
                   aria-label="Toggle auto-center orderbook"
                   title={isAutoCentering ? "Disable auto-center (allow manual scroll)" : "Enable auto-center (lock to spread)"}
                 >
                   <svg
-                    className={`w-4 h-4 transition-opacity rotate-90 ${isAutoCentering ? '' : 'opacity-50'}`}
+                    className={`w-3.5 h-3.5 transition-opacity rotate-90 ${isAutoCentering ? '' : 'opacity-50'}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -257,35 +257,6 @@ function TerminalContent() {
           </button>
         </div>
         <div className="overflow-y-auto h-[calc(100%-49px)]">
-          {/* Refresh button */}
-          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800 bg-gray-900/30">
-            <span className="text-xs text-gray-500">
-              {lastRefresh ? `Last updated: ${lastRefresh.toLocaleTimeString()}` : 'Connect wallet to view data'}
-            </span>
-            <button
-              onClick={refreshData}
-              disabled={isLoading || !walletAddress}
-              className="text-xs text-purple-400 hover:text-purple-300 disabled:text-gray-600 disabled:cursor-not-allowed flex items-center gap-1"
-            >
-              {isLoading ? (
-                <>
-                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Refreshing...
-                </>
-              ) : (
-                <>
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  Refresh
-                </>
-              )}
-            </button>
-          </div>
-
           {activeTab === 'position' && (
             <div className="w-full">
               <table className="w-full text-sm">

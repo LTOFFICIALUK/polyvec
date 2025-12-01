@@ -22,7 +22,6 @@ const Header = () => {
   const [isProfileMenuVisible, setIsProfileMenuVisible] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement | null>(null)
   const [balances, setBalances] = useState<BalanceData>({ portfolioValue: 0, cashBalance: 0 })
-  const [isLoadingBalances, setIsLoadingBalances] = useState(false)
 
   // Format currency
   const formatCurrency = (value: number) => {
@@ -34,27 +33,42 @@ const Header = () => {
     }).format(value)
   }
 
-  // Fetch balances from API
+  // Fetch balances from API (silent refresh - only updates if values change)
   const fetchBalances = useCallback(async () => {
     if (!walletAddress) {
       setBalances({ portfolioValue: 0, cashBalance: 0 })
       return
     }
 
-    setIsLoadingBalances(true)
     try {
       const balanceRes = await fetch(`/api/user/balance?address=${walletAddress}`)
       const balanceData = await balanceRes.json()
       
-      setBalances({
-        portfolioValue: balanceData.portfolioValue || 0,
-        cashBalance: balanceData.cashBalance || 0,
+      const newPortfolioValue = balanceData.portfolioValue || 0
+      const newCashBalance = balanceData.cashBalance || 0
+
+      // Only update if values actually changed (prevent unnecessary re-renders)
+      setBalances((prevBalances) => {
+        const portfolioChanged = Math.abs(prevBalances.portfolioValue - newPortfolioValue) > 0.01
+        const cashChanged = Math.abs(prevBalances.cashBalance - newCashBalance) > 0.01
+
+        if (portfolioChanged || cashChanged) {
+          return {
+            portfolioValue: newPortfolioValue,
+            cashBalance: newCashBalance,
+          }
+        }
+        return prevBalances
       })
     } catch (error) {
       console.error('Failed to fetch balances:', error)
-      setBalances({ portfolioValue: 0, cashBalance: 0 })
-    } finally {
-      setIsLoadingBalances(false)
+      // Only set to 0 if we don't have any existing balance data
+      setBalances((prev) => {
+        if (prev.portfolioValue === 0 && prev.cashBalance === 0) {
+          return { portfolioValue: 0, cashBalance: 0 }
+        }
+        return prev
+      })
     }
   }, [walletAddress])
 
@@ -62,8 +76,8 @@ const Header = () => {
   useEffect(() => {
     fetchBalances()
     
-    // Refresh balances every 30 seconds
-    const interval = setInterval(fetchBalances, 30000)
+    // Refresh balances every 5 seconds
+    const interval = setInterval(fetchBalances, 5000)
     return () => clearInterval(interval)
   }, [fetchBalances])
 
@@ -228,15 +242,21 @@ const Header = () => {
             {/* Portfolio Balance */}
             <div className="flex flex-col">
               <span className="text-xs text-gray-400">Portfolio</span>
-              <span className={`text-sm font-semibold ${isLoadingBalances ? 'text-gray-500' : 'text-green-400'}`}>
-                {isLoadingBalances ? '...' : formatCurrency(balances.portfolioValue)}
+              <span 
+                key={`portfolio-${balances.portfolioValue}`}
+                className="text-sm font-semibold text-green-400 transition-all duration-300"
+              >
+                {formatCurrency(balances.portfolioValue)}
               </span>
             </div>
             {/* Cash Balance */}
             <div className="flex flex-col">
               <span className="text-xs text-gray-400">Cash</span>
-              <span className={`text-sm font-semibold ${isLoadingBalances ? 'text-gray-500' : 'text-green-400'}`}>
-                {isLoadingBalances ? '...' : formatCurrency(balances.cashBalance)}
+              <span 
+                key={`cash-${balances.cashBalance}`}
+                className="text-sm font-semibold text-green-400 transition-all duration-300"
+              >
+                {formatCurrency(balances.cashBalance)}
               </span>
             </div>
             {/* Deposit Button */}
