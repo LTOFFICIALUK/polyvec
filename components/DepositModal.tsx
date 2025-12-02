@@ -24,12 +24,15 @@ interface BalanceData {
   lastUpdated: string
 }
 
+const USDC_E_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'
+
 export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
   const { walletAddress, isConnected } = useWallet()
   const [mounted, setMounted] = useState(false)
   const [balances, setBalances] = useState<BalanceData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [copiedAddress, setCopiedAddress] = useState(false)
+  const [copiedUsdce, setCopiedUsdce] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
 
   useEffect(() => {
@@ -76,6 +79,16 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
       await navigator.clipboard.writeText(walletAddress)
       setCopiedAddress(true)
       setTimeout(() => setCopiedAddress(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
+  const handleCopyUsdce = async () => {
+    try {
+      await navigator.clipboard.writeText(USDC_E_ADDRESS)
+      setCopiedUsdce(true)
+      setTimeout(() => setCopiedUsdce(false), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
     }
@@ -130,7 +143,7 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
               {/* Balance Summary */}
               <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-purple-900/20 to-transparent border border-purple-800/30">
                 <div>
-                  <p className="text-xs text-gray-400 mb-0.5">USDC Available to Trade</p>
+                  <p className="text-xs text-gray-400 mb-0.5">USDC.e Balance</p>
                   <p className="text-2xl font-bold text-white">
                     {isLoading ? '...' : `$${totalUsdc.toFixed(2)}`}
                   </p>
@@ -145,6 +158,33 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                 </button>
+              </div>
+
+              {/* USDC.e Note */}
+              <div className="px-3 py-2.5 rounded-lg bg-blue-950/30 border border-blue-800/30">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <svg className="w-4 h-4 text-blue-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-xs text-blue-200/80">
+                    Use <strong>USDC.e</strong> (Bridged USDC) — not regular USDC
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 px-2 py-1.5 rounded bg-black/40 font-mono text-[11px] text-blue-300/90 truncate">
+                    {USDC_E_ADDRESS}
+                  </div>
+                  <button
+                    onClick={handleCopyUsdce}
+                    className={`px-2 py-1.5 rounded text-[10px] font-medium transition-all ${
+                      copiedUsdce
+                        ? 'bg-green-600 text-white'
+                        : 'bg-blue-800/50 text-blue-200 hover:bg-blue-700/50'
+                    }`}
+                  >
+                    {copiedUsdce ? '✓' : 'Copy'}
+                  </button>
+                </div>
               </div>
 
               {/* Status Indicators */}
@@ -183,7 +223,7 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
               {/* Deposit Address */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-gray-400">Send to (Polygon Network)</span>
+                  <span className="text-xs text-gray-400">Your Polygon Address</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 px-3 py-2.5 rounded-lg bg-black/50 border border-gray-800/60 font-mono text-xs text-gray-300 truncate">
@@ -215,48 +255,48 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
 
               {/* Help Content */}
               {showHelp && (
-                <div className="space-y-3 pt-2 border-t border-gray-800/60">
+                <div className="space-y-2.5 pt-2 border-t border-gray-800/60">
                   <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-                      <img 
-                        src="https://assets.coingecko.com/coins/images/6319/large/USD_Coin_icon.png"
-                        alt="USDC"
-                        className="w-6 h-6 object-contain"
-                        onError={(e) => {
-                          // Fallback to alternative source
-                          e.currentTarget.src = 'https://cryptologos.cc/logos/usd-coin-usdc-logo.png'
-                        }}
-                      />
+                    <div className="w-5 h-5 rounded-full bg-green-900/50 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">USDC</p>
-                      <p className="text-xs text-gray-500">Stablecoin for trading. 1 USDC = $1</p>
+                    <div className="flex-1">
+                      <span className="text-sm text-white">USDC.e</span>
+                      <span className="text-xs text-gray-500 ml-2">Bridged · for trading</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-                      <img 
-                        src="https://assets.coingecko.com/coins/images/4713/large/matic-token-icon.png"
-                        alt="POL"
-                        className="w-6 h-6 object-contain"
-                        onError={(e) => {
-                          // Fallback to alternative source
-                          e.currentTarget.src = 'https://cryptologos.cc/logos/polygon-matic-logo.png'
-                        }}
-                      />
+                    <div className="w-5 h-5 rounded-full bg-green-900/50 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">POL</p>
-                      <p className="text-xs text-gray-500">Gas token for fees. Need ~$0.10 worth</p>
+                    <div className="flex-1">
+                      <span className="text-sm text-white">POL</span>
+                      <span className="text-xs text-gray-500 ml-2">~$0.10 · for gas fees</span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-950/20 border border-red-800/30">
-                    <svg className="w-4 h-4 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <p className="text-xs text-red-200/80">
-                      Only send on <strong>Polygon</strong> network. Other networks = lost funds.
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-5 h-5 rounded-full bg-red-900/50 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-sm text-gray-500">Regular USDC</span>
+                      <span className="text-xs text-gray-600 ml-2">won't work</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-[10px] text-gray-500 font-mono flex-1 truncate">{USDC_E_ADDRESS}</span>
+                    <button
+                      onClick={handleCopyUsdce}
+                      className="text-[10px] text-gray-500 hover:text-white transition-colors"
+                    >
+                      {copiedUsdce ? '✓' : 'copy'}
+                    </button>
                   </div>
                 </div>
               )}

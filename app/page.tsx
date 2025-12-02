@@ -9,6 +9,7 @@ import OrderBook, { OrderBookHandle } from '@/components/OrderBook'
 import AnimatedPrice from '@/components/AnimatedPrice'
 import { TradingProvider, useTradingContext } from '@/contexts/TradingContext'
 import { useWallet } from '@/contexts/WalletContext'
+import useCurrentMarket from '@/hooks/useCurrentMarket'
 
 interface Position {
   market: string
@@ -18,6 +19,8 @@ interface Position {
   avgPrice: number
   currentPrice: number
   pnl: number
+  tokenId?: string
+  conditionId?: string
 }
 
 interface Order {
@@ -43,11 +46,18 @@ interface Trade {
 }
 
 function TerminalContent() {
-  const { selectedPair, showTradingView } = useTradingContext()
-  const { walletAddress } = useWallet()
+  const { selectedPair, showTradingView, selectedTimeframe, marketOffset } = useTradingContext()
+  const { walletAddress, polymarketCredentials } = useWallet()
   const [activeTab, setActiveTab] = useState<'position' | 'orders' | 'history' | 'orderbook'>('position')
   const [, forceUpdate] = useState({})
   const orderBookRef = useRef<OrderBookHandle>(null)
+  
+  // Get current market for live price matching
+  const { market: currentMarket } = useCurrentMarket({
+    pair: selectedPair,
+    timeframe: selectedTimeframe,
+    offset: marketOffset,
+  })
   
   // Real data from Polymarket
   const [positions, setPositions] = useState<Position[]>([])
@@ -55,6 +65,20 @@ function TerminalContent() {
   const [trades, setTrades] = useState<Trade[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
+  
+  // Live orderbook prices for current market (same as TradingPanel)
+  // For positions, we need bid prices (what you can sell for) and ask prices (what you can buy at)
+  const [livePrices, setLivePrices] = useState<{
+    upBidPrice: number | null  // Best bid (sell price for UP)
+    upAskPrice: number | null  // Best ask (buy price for UP)
+    downBidPrice: number | null  // Best bid (sell price for DOWN)
+    downAskPrice: number | null  // Best ask (buy price for DOWN)
+  }>({ 
+    upBidPrice: null,
+    upAskPrice: null,
+    downBidPrice: null,
+    downAskPrice: null,
+  })
   
   // Helper to get current auto-centering state
   const isAutoCentering = orderBookRef.current?.isAutoCentering() ?? true
@@ -74,6 +98,8 @@ function TerminalContent() {
           avgPrice: parseFloat(pos.avgPrice || '0'),
           currentPrice: parseFloat(pos.curPrice || pos.currentPrice || '0'),
           pnl: parseFloat(pos.cashPnl || pos.pnl || '0'),
+          tokenId: pos.asset || pos.tokenId || pos.token_id || '',
+          conditionId: pos.conditionId || pos.condition_id || '',
         }))
         setPositions(formattedPositions)
       }
@@ -86,25 +112,55 @@ function TerminalContent() {
   const fetchOrders = useCallback(async () => {
     if (!walletAddress) return
     try {
-      const response = await fetch(`/api/user/orders?address=${walletAddress}`)
+      // Build URL with credentials if available (required for Polymarket API)
+      let url = `/api/user/orders?address=${walletAddress}`
+      if (polymarketCredentials) {
+        url += `&credentials=${encodeURIComponent(JSON.stringify(polymarketCredentials))}`
+      }
+      
+      const response = await fetch(url)
       if (response.ok) {
         const data = await response.json()
-        const formattedOrders: Order[] = (data.orders || []).map((order: any) => ({
-          id: order.id || '',
-          market: order.market || order.title || 'Unknown Market',
-          outcome: order.outcome || 'Yes',
-          type: order.type || 'Limit',
-          side: order.side || 'BUY',
-          size: parseFloat(order.size || '0'),
-          price: parseFloat(order.price || '0'),
-          status: order.status || 'live',
-        }))
+        console.log('[Home] Orders API response:', { 
+          orderCount: Array.isArray(data.orders) ? data.orders.length : 0,
+          orders: data.orders?.slice(0, 2) // Log first 2 orders for debugging
+        })
+        const formattedOrders: Order[] = (data.orders || []).map((order: any) => {
+          // Parse size - could be in different formats
+          let size = 0
+          if (order.size) size = parseFloat(order.size)
+          else if (order.original_size) size = parseFloat(order.original_size)
+          else if (order.maker_amount) {
+            // maker_amount is in base units, convert to shares
+            size = parseFloat(order.maker_amount) / 1e6
+          }
+          
+          // Parse price
+          let price = 0
+          if (order.price) price = parseFloat(order.price)
+          else if (order.limit_price) price = parseFloat(order.limit_price)
+          else if (order.maker_amount && order.taker_amount) {
+            // Calculate price from maker/taker amounts
+            price = parseFloat(order.taker_amount) / parseFloat(order.maker_amount)
+          }
+          
+          return {
+            id: order.id || order.order_id || order.hash || order.orderHash || '',
+            market: order.market || order.title || order.market_title || order.question || 'Unknown Market',
+            outcome: order.outcome || (order.side === 'BUY' ? 'Yes' : 'No'),
+            type: order.orderType || order.type || order.order_type || 'Limit',
+            side: order.side || 'BUY',
+            size: size,
+            price: price,
+            status: order.status || order.order_status || 'live',
+          }
+        })
         setOrders(formattedOrders)
       }
     } catch (error) {
       console.error('[Home] Error fetching orders:', error)
     }
-  }, [walletAddress])
+  }, [walletAddress, polymarketCredentials])
 
   // Fetch trade history
   const fetchTrades = useCallback(async () => {
@@ -137,6 +193,53 @@ function TerminalContent() {
     setLastRefresh(new Date())
     setIsLoading(false)
   }, [fetchPositions, fetchOrders, fetchTrades])
+
+  // Fetch live orderbook prices for current market (same as TradingPanel)
+  useEffect(() => {
+    const fetchLivePrices = async () => {
+      if (!currentMarket?.yesTokenId || !currentMarket?.noTokenId) {
+        setLivePrices({ 
+          upBidPrice: null,
+          upAskPrice: null,
+          downBidPrice: null,
+          downAskPrice: null,
+        })
+        return
+      }
+
+      try {
+        const [upResponse, downResponse] = await Promise.all([
+          fetch(`/api/polymarket/orderbook?tokenId=${currentMarket.yesTokenId}`),
+          fetch(`/api/polymarket/orderbook?tokenId=${currentMarket.noTokenId}`),
+        ])
+
+        if (upResponse.ok && downResponse.ok) {
+          const upData = await upResponse.json()
+          const downData = await downResponse.json()
+
+          // Get best bid (sell price) and best ask (buy price) for both tokens
+          const upBestBid = upData.bids?.[0]?.price ? parseFloat(upData.bids[0].price) * 100 : null
+          const upBestAsk = upData.asks?.[0]?.price ? parseFloat(upData.asks[0].price) * 100 : null
+          const downBestBid = downData.bids?.[0]?.price ? parseFloat(downData.bids[0].price) * 100 : null
+          const downBestAsk = downData.asks?.[0]?.price ? parseFloat(downData.asks[0].price) * 100 : null
+
+          setLivePrices({
+            upBidPrice: upBestBid,
+            upAskPrice: upBestAsk,
+            downBidPrice: downBestBid,
+            downAskPrice: downBestAsk,
+          })
+        }
+      } catch (err) {
+        console.error('[Home] Error fetching live prices:', err)
+      }
+    }
+
+    fetchLivePrices()
+    // Poll every 2 seconds to keep prices fresh (same as TradingPanel)
+    const interval = setInterval(fetchLivePrices, 2000)
+    return () => clearInterval(interval)
+  }, [currentMarket?.yesTokenId, currentMarket?.noTokenId])
 
   // Auto-refresh on wallet connect
   useEffect(() => {
@@ -279,31 +382,67 @@ function TerminalContent() {
                       </td>
                     </tr>
                   ) : positions.length > 0 ? (
-                    positions.map((position, idx) => (
-                      <tr key={idx} className="border-b border-gray-800 hover:bg-gray-900/30">
-                        <td className="py-3 px-4 text-white max-w-xs truncate" title={position.market}>{position.market}</td>
-                        <td className="py-3 px-4 text-gray-300">{position.outcome}</td>
-                        <td className="py-3 px-4">
-                          <span className={position.side === 'BUY' ? 'text-green-400' : 'text-red-400'}>
-                            {position.side}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right text-white">{position.size.toFixed(2)}</td>
-                        <td className="py-3 px-4 text-right text-gray-400">{(position.avgPrice * 100).toFixed(1)}¢</td>
-                        <td className="py-3 px-4 text-right text-white">
-                          <>
-                            <AnimatedPrice
-                              value={position.currentPrice * 100}
-                              format={(val) => val.toFixed(1)}
-                            />
-                            ¢
-                          </>
-                        </td>
-                        <td className={`py-3 px-4 text-right ${position.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {position.pnl >= 0 ? '+' : ''}${position.pnl.toFixed(2)}
-                        </td>
-                      </tr>
-                    ))
+                    positions.map((position, idx) => {
+                      // Check if position matches current market by tokenId or outcome
+                      const positionIsUp = position.outcome?.toLowerCase().includes('yes') || 
+                                          position.outcome?.toLowerCase().includes('up') ||
+                                          position.tokenId === currentMarket?.yesTokenId
+                      const positionIsDown = position.outcome?.toLowerCase().includes('no') || 
+                                            position.outcome?.toLowerCase().includes('down') ||
+                                            position.tokenId === currentMarket?.noTokenId
+                      
+                      const matchesCurrentMarket = currentMarket?.yesTokenId && currentMarket?.noTokenId && 
+                        (position.tokenId === currentMarket.yesTokenId || 
+                         position.tokenId === currentMarket.noTokenId ||
+                         (positionIsUp && currentMarket.yesTokenId) ||
+                         (positionIsDown && currentMarket.noTokenId))
+                      
+                      // Use live price if position matches current market
+                      // For positions, use bid price (what you can sell for) - this is the market value
+                      let livePriceCents: number | null = null
+                      if (matchesCurrentMarket) {
+                        if (position.tokenId === currentMarket?.yesTokenId || positionIsUp) {
+                          livePriceCents = livePrices.upBidPrice
+                        } else if (position.tokenId === currentMarket?.noTokenId || positionIsDown) {
+                          livePriceCents = livePrices.downBidPrice
+                        }
+                      }
+                      
+                      const currentPrice = livePriceCents !== null 
+                        ? livePriceCents / 100 
+                        : position.currentPrice
+                      
+                      // Recalculate PnL based on live price if available
+                      const calculatedPnl = matchesCurrentMarket && livePriceCents !== null
+                        ? (currentPrice - position.avgPrice) * position.size
+                        : position.pnl
+                      
+                      return (
+                        <tr key={idx} className="border-b border-gray-800 hover:bg-gray-900/30">
+                          <td className="py-3 px-4 text-white max-w-xs truncate" title={position.market}>{position.market}</td>
+                          <td className="py-3 px-4 text-gray-300">{position.outcome}</td>
+                          <td className="py-3 px-4">
+                            <span className={position.side === 'BUY' ? 'text-green-400' : 'text-red-400'}>
+                              {position.side}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right text-white">{position.size.toFixed(2)}</td>
+                          <td className="py-3 px-4 text-right text-gray-400">{(position.avgPrice * 100).toFixed(1)}¢</td>
+                          <td className="py-3 px-4 text-right text-white">
+                            <>
+                              <AnimatedPrice
+                                value={currentPrice * 100}
+                                format={(val) => val.toFixed(1)}
+                              />
+                              ¢
+                            </>
+                          </td>
+                          <td className={`py-3 px-4 text-right ${calculatedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {calculatedPnl >= 0 ? '+' : ''}${calculatedPnl.toFixed(2)}
+                          </td>
+                        </tr>
+                      )
+                    })
                   ) : (
                     <tr>
                       <td colSpan={7} className="py-8 px-4 text-center text-gray-500 text-sm">

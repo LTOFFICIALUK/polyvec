@@ -628,7 +628,7 @@ const TradingPanel = () => {
       return
     }
 
-    // For SELL orders, validate user has enough shares
+    // For SELL orders, validate user has enough shares and check approval
     if (!isBuy) {
       const maxShares = selectedOutcome === 'up' ? currentPosition.upShares : currentPosition.downShares
       if (shares > maxShares) {
@@ -638,6 +638,11 @@ const TradingPanel = () => {
       if (maxShares <= 0) {
         showToast(`You don't have any ${selectedOutcome === 'up' ? 'UP' : 'DOWN'} shares to sell`, 'error')
         return
+      }
+      
+      // Check if conditional tokens are approved (warn but don't block - let API error handle it)
+      if (ctfApprovalStatus?.needsApproval) {
+        showToast('Warning: Conditional tokens may not be approved. If the order fails, please approve your tokens for selling.', 'warning', 5000)
       }
     }
 
@@ -736,7 +741,35 @@ const TradingPanel = () => {
         console.error('[Trading] Order placement failed:', result)
         console.error('[Trading] Full error details:', JSON.stringify(result.details, null, 2))
         console.error('[Trading] Error code:', result.errorCode)
-        throw new Error(result.error || result.details?.error || result.details?.errorMsg || 'Failed to place order')
+        
+        // Show detailed error toast based on error code
+        let errorMessage = result.error || result.details?.errorMsg || 'Failed to place order'
+        
+        // Provide user-friendly error messages based on error codes
+        if (result.errorCode === 'FOK_ORDER_NOT_FILLED_ERROR' || errorMessage.includes('FOK')) {
+          errorMessage = `Market order failed: Not enough liquidity to fill ${shares} shares. Try a smaller size or use a limit order.`
+        } else if (result.errorCode === 'INVALID_ORDER_NOT_ENOUGH_BALANCE' || 
+                   result.errorCode === 'not enough balance / allowance' ||
+                   errorMessage.toLowerCase().includes('not enough balance') ||
+                   errorMessage.toLowerCase().includes('allowance')) {
+          // Different messages for BUY vs SELL orders
+          if (!isBuy) {
+            errorMessage = 'Sell order failed: Not enough conditional tokens or they are not approved. Please approve your tokens for selling or check your position.'
+          } else {
+            errorMessage = 'Buy order failed: Not enough USDC balance or allowance. Please approve USDC for trading or check your balance.'
+          }
+        } else if (result.errorCode === 'INVALID_ORDER_MIN_SIZE') {
+          errorMessage = 'Order size is below the minimum requirement.'
+        } else if (result.errorCode === 'INVALID_ORDER_MIN_TICK_SIZE') {
+          errorMessage = 'Order price breaks minimum tick size rules. Please adjust your price.'
+        } else if (result.errorCode === 'AUTH_FAILED') {
+          errorMessage = 'Authentication failed. Please re-authenticate with Polymarket.'
+        } else if (result.errorCode === 'INVALID_ORDER_DUPLICATED') {
+          errorMessage = 'This order has already been placed. Please check your open orders.'
+        }
+        
+        showToast(errorMessage, 'error')
+        throw new Error(errorMessage)
       }
 
       // Build success message with order details
@@ -747,7 +780,7 @@ const TradingPanel = () => {
         ? `@ ${limitPrice}¢` 
         : `@ ${(priceDecimal * 100).toFixed(0)}¢`
       
-      const successMessage = `Order placed! ${sideText} ${outcomeText} ${shares} shares ${priceText} (${orderTypeText})${result.orderId ? ` | ID: ${result.orderId}` : ''}`
+      const successMessage = `✓ Order placed! ${sideText} ${outcomeText} ${shares} shares ${priceText} (${orderTypeText})${result.orderId ? ` | ID: ${result.orderId}` : ''}`
       
       showToast(successMessage, 'success')
       
@@ -761,8 +794,9 @@ const TradingPanel = () => {
       
       // Check if user rejected the signature
       if (error.message?.includes('rejected') || error.message?.includes('User rejected')) {
-        showToast('Order cancelled - signature rejected', 'warning')
-      } else {
+        showToast('Order cancelled - signature rejected by user', 'warning')
+      } else if (!error.message?.includes('FOK') && !error.message?.includes('liquidity') && !error.message?.includes('balance')) {
+        // Only show generic error if we haven't already shown a specific one
         showToast(error.message || 'Failed to place order. Please try again.', 'error')
       }
     } finally {
