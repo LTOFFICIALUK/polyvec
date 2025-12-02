@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTradingContext } from '@/contexts/TradingContext'
 import { useToast } from '@/contexts/ToastContext'
+import useCurrentMarket from '@/hooks/useCurrentMarket'
 
 const ChartControls = () => {
   const { selectedTimeframe, selectedPair, showTradingView, marketOffset, setSelectedTimeframe, setSelectedPair, setShowTradingView, setMarketOffset } =
@@ -11,6 +12,13 @@ const ChartControls = () => {
   const [showMarketDropdown, setShowMarketDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [countdown, setCountdown] = useState({ minutes: 0, seconds: 0 })
+  
+  // Get current market data to access actual start/end times
+  const { market: currentMarket } = useCurrentMarket({
+    pair: selectedPair,
+    timeframe: selectedTimeframe,
+    offset: marketOffset,
+  })
   
   // Check if current market is a future market
   const isFutureMarket = marketOffset > 0
@@ -21,13 +29,81 @@ const ChartControls = () => {
   // Market offsets: -3 to +3 (past 3, current, future 3)
   const marketOffsets = [-3, -2, -1, 0, 1, 2, 3]
 
-  // Calculate market window time range based on offset
+  // Format market window time range using actual market times in ET
   const getMarketWindowLabel = (offset: number, includeDate: boolean = false): string => {
+    // Get market data for the specified offset
+    // For now, we'll use the current market data and calculate relative to it
+    // In a more complete implementation, we'd fetch market data for each offset
+    // But for the main display (offset === marketOffset), we use the actual market times
+    
+    if (offset === marketOffset && currentMarket.startTime && currentMarket.endTime) {
+      // Use actual market times and format in ET timezone
+      const startDate = new Date(currentMarket.startTime)
+      const endDate = new Date(currentMarket.endTime)
+      
+      // Format start time in ET
+      const startFormatted = startDate.toLocaleString('en-US', {
+        timeZone: 'America/New_York',
+        month: includeDate ? 'short' : undefined,
+        day: includeDate ? 'numeric' : undefined,
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      })
+      
+      // Format end time in ET
+      const endFormatted = endDate.toLocaleString('en-US', {
+        timeZone: 'America/New_York',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      })
+      
+      if (includeDate) {
+        // Extract date part from start (e.g., "Dec 2")
+        const datePart = startDate.toLocaleString('en-US', {
+          timeZone: 'America/New_York',
+          month: 'short',
+          day: 'numeric',
+        })
+        
+        // Extract time parts (e.g., "10:00 AM" and "11:00 AM")
+        const startTimePart = startDate.toLocaleString('en-US', {
+          timeZone: 'America/New_York',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        })
+        
+        const endTimePart = endDate.toLocaleString('en-US', {
+          timeZone: 'America/New_York',
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true,
+        })
+        
+        return `${datePart}, ${startTimePart}-${endTimePart} ET`
+      } else {
+        // Just time range without date
+        return `${startFormatted}-${endFormatted}`
+      }
+    }
+    
+    // Fallback: calculate from ET time (for dropdown options when market data not available)
     const now = new Date()
     const timeframeMinutes = selectedTimeframe === '15m' ? 15 : 60
     
-    // Calculate the start of the current market window
-    const currentMinutes = now.getHours() * 60 + now.getMinutes()
+    // Get current time in ET timezone
+    const nowETString = now.toLocaleString('en-US', { 
+      timeZone: 'America/New_York',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+    const [etHours, etMinutes] = nowETString.split(':').map(Number)
+    
+    // Calculate the start of the current market window in ET
+    const currentMinutes = etHours * 60 + etMinutes
     const windowStartMinutes = Math.floor(currentMinutes / timeframeMinutes) * timeframeMinutes
     
     // Apply offset to get target window start
@@ -64,16 +140,26 @@ const ChartControls = () => {
       : `${startTime}${startPeriod}-${endTime}`
     
     if (includeDate) {
-      // Calculate the actual date
-      const targetDate = new Date(now)
+      // Get current date in ET timezone
+      const etDateString = now.toLocaleString('en-US', { 
+        timeZone: 'America/New_York',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+      const [month, day] = etDateString.split(' ')
+      const targetDate = new Date(etDateString)
       targetDate.setDate(targetDate.getDate() + daysOffset)
       
-      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+      const fullMonthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
                           'July', 'August', 'September', 'October', 'November', 'December']
-      const month = monthNames[targetDate.getMonth()]
-      const day = targetDate.getDate()
+      const monthIndex = monthNames.indexOf(month)
+      const fullMonth = monthIndex >= 0 ? fullMonthNames[monthIndex] : month
+      const targetDay = targetDate.getDate()
       
-      return `${month} ${day}, ${timeRange} ET`
+      return `${fullMonth} ${targetDay}, ${timeRange} ET`
     }
     
     return timeRange
@@ -94,39 +180,58 @@ const ChartControls = () => {
   // Countdown timer to market close
   useEffect(() => {
     const calculateCountdown = () => {
-      const now = new Date()
-      const timeframeMinutes = selectedTimeframe === '15m' ? 15 : 60
-      
-      // Calculate the start of the current market window
-      const currentMinutes = now.getHours() * 60 + now.getMinutes()
-      const windowStartMinutes = Math.floor(currentMinutes / timeframeMinutes) * timeframeMinutes
-      
-      // Apply offset to get target window end
-      const targetEndMinutes = windowStartMinutes + ((marketOffset + 1) * timeframeMinutes)
-      
-      // Calculate seconds until window closes
-      const currentSeconds = now.getSeconds()
-      const totalSecondsNow = currentMinutes * 60 + currentSeconds
-      const targetEndSeconds = targetEndMinutes * 60
-      
-      let remainingSeconds = targetEndSeconds - totalSecondsNow
-      
-      // Handle day boundary
-      if (remainingSeconds < 0) {
-        remainingSeconds += 24 * 60 * 60
+      // Use actual market end time if available
+      if (currentMarket.endTime && marketOffset === 0) {
+        const now = Date.now()
+        const endTime = currentMarket.endTime
+        
+        let remainingSeconds = Math.floor((endTime - now) / 1000)
+        
+        // Handle case where market has already ended
+        if (remainingSeconds < 0) {
+          remainingSeconds = 0
+        }
+        
+        const mins = Math.floor(remainingSeconds / 60)
+        const secs = remainingSeconds % 60
+        
+        setCountdown({ minutes: mins, seconds: secs })
+      } else {
+        // Fallback: calculate from local time
+        const now = new Date()
+        const timeframeMinutes = selectedTimeframe === '15m' ? 15 : 60
+        
+        // Calculate the start of the current market window
+        const currentMinutes = now.getHours() * 60 + now.getMinutes()
+        const windowStartMinutes = Math.floor(currentMinutes / timeframeMinutes) * timeframeMinutes
+        
+        // Apply offset to get target window end
+        const targetEndMinutes = windowStartMinutes + ((marketOffset + 1) * timeframeMinutes)
+        
+        // Calculate seconds until window closes
+        const currentSeconds = now.getSeconds()
+        const totalSecondsNow = currentMinutes * 60 + currentSeconds
+        const targetEndSeconds = targetEndMinutes * 60
+        
+        let remainingSeconds = targetEndSeconds - totalSecondsNow
+        
+        // Handle day boundary
+        if (remainingSeconds < 0) {
+          remainingSeconds += 24 * 60 * 60
+        }
+        
+        const mins = Math.floor(remainingSeconds / 60)
+        const secs = remainingSeconds % 60
+        
+        setCountdown({ minutes: mins, seconds: secs })
       }
-      
-      const mins = Math.floor(remainingSeconds / 60)
-      const secs = remainingSeconds % 60
-      
-      setCountdown({ minutes: mins, seconds: secs })
     }
 
     calculateCountdown()
     const interval = setInterval(calculateCountdown, 1000)
     
     return () => clearInterval(interval)
-  }, [selectedTimeframe, marketOffset])
+  }, [selectedTimeframe, marketOffset, currentMarket.endTime])
 
   const handleTimeframeClick = (tf: string) => {
     if (selectedTimeframe === tf) {
