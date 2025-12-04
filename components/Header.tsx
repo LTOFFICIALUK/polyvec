@@ -300,14 +300,15 @@ const Header = () => {
                   style={{ zIndex: 9999 }}
                 >
                   <div className="w-40 rounded-lg border border-gray-800 bg-black/95 text-white shadow-lg backdrop-blur overflow-hidden">
-                    <a
-                      href="https://docs.polymarket.com"
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      onClick={() => {
+                        setIsProfileMenuVisible(false)
+                        router.push('/docs')
+                      }}
                       className="block w-full px-4 py-2.5 text-left text-sm text-gray-200 hover:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-primary transition-colors"
                     >
                       Docs
-                    </a>
+                    </button>
                     <div className="h-px bg-gray-800" />
                     <button
                       onClick={handleLogoutClick}

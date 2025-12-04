@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
 import './globals.css'
-import Header from '@/components/Header'
 import { WalletProvider } from '@/contexts/WalletContext'
 import { WebSocketProvider } from '@/contexts/WebSocketContext'
 import { ToastProvider } from '@/contexts/ToastContext'
+import { ConditionalHeader } from '@/components/ConditionalHeader'
 
 export const metadata: Metadata = {
   title: 'PolyTrade - Terminal Trading Platform',
@@ -21,7 +21,7 @@ export default function RootLayout({
         <ToastProvider>
         <WalletProvider>
           <WebSocketProvider>
-            <Header />
+            <ConditionalHeader />
             {children}
           </WebSocketProvider>
         </WalletProvider>
