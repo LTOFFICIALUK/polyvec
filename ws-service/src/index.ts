@@ -14,8 +14,12 @@ import { initializePriceRecorder, recordPrice, closePriceRecorder } from './db/p
 
 const POLYMARKET_GAMMA_API = process.env.POLYMARKET_GAMMA_API || 'https://gamma-api.polymarket.com'
 
-const PORT = process.env.PORT ? parseInt(process.env.PORT) : 8080
-const HTTP_PORT = process.env.HTTP_PORT ? parseInt(process.env.HTTP_PORT) : 8081
+// Railway provides PORT environment variable - use it for both HTTP and WebSocket
+// For local development, fallback to HTTP_PORT if set, otherwise 8081
+const HTTP_PORT = process.env.PORT 
+  ? parseInt(process.env.PORT) 
+  : (process.env.HTTP_PORT ? parseInt(process.env.HTTP_PORT) : 8081)
+const PORT = HTTP_PORT // WebSocket uses same port as HTTP server
 
 const PAIR_SLUG_MAP: Record<string, string> = {
   BTC: 'btc',
