@@ -486,14 +486,38 @@ export const fetchMarketsList = async (): Promise<MarketMetadata[]> => {
                 eventEndTime = eventStartTime + (timeframeMinutes * 60 * 1000)
               }
               
-              // Create metadata for the Up token (first token typically)
+              // IMPORTANT: Determine correct UP/DOWN token mapping based on outcomes
+              // Polymarket's clobTokenIds order matches the outcomes array order
+              // outcomes = ["Up", "Down"] means tokenIds[0] = Up, tokenIds[1] = Down
+              // outcomes = ["Down", "Up"] means tokenIds[0] = Down, tokenIds[1] = Up
+              let upTokenId = tokenIds[0]
+              let downTokenId = tokenIds[1]
+              
+              // Check outcomes field to determine correct mapping
+              const outcomes = fullMarketData.outcomes || market.outcomes
+              if (Array.isArray(outcomes) && outcomes.length >= 2) {
+                const upIndex = outcomes.findIndex((o: string) => 
+                  o.toLowerCase() === 'up' || o.toLowerCase() === 'yes'
+                )
+                const downIndex = outcomes.findIndex((o: string) => 
+                  o.toLowerCase() === 'down' || o.toLowerCase() === 'no'
+                )
+                
+                if (upIndex !== -1 && downIndex !== -1 && upIndex < tokenIds.length && downIndex < tokenIds.length) {
+                  upTokenId = tokenIds[upIndex]
+                  downTokenId = tokenIds[downIndex]
+                  console.log(`[clobClient] Token mapping from outcomes: Up=${upIndex}, Down=${downIndex}`)
+                }
+              }
+              
+              // Create metadata with correct UP/DOWN token mapping
               markets.push({
                 marketId: fullMarketData.id || fullMarketData.slug || market.id || market.slug,
                 question: fullMarketData.question || fullMarketData.title || market.question || market.title || '',
                 conditionId: fullMarketData.conditionId || fullMarketData.condition_id || market.conditionId || market.condition_id || '',
-                tokenId: tokenIds[0], // default to Up token for compatibility
-                yesTokenId: tokenIds[0],
-                noTokenId: tokenIds[1],
+                tokenId: upTokenId, // default to Up token for compatibility
+                yesTokenId: upTokenId,
+                noTokenId: downTokenId,
                 tokenIds,
                 slug: marketSlug,
                 tickSize: fullMarketData.orderPriceMinTickSize?.toString() || market.orderPriceMinTickSize?.toString() || '0.01',
@@ -506,7 +530,7 @@ export const fetchMarketsList = async (): Promise<MarketMetadata[]> => {
                 closed: fullMarketData.closed !== undefined ? fullMarketData.closed : market.closed,
                 acceptingOrders: fullMarketData.acceptingOrders !== undefined ? fullMarketData.acceptingOrders : market.acceptingOrders,
               })
-              console.log(`[clobClient] Found market: ${fullMarketData.id || market.id} - ${fullMarketData.question || market.question || market.title}${eventStartTime ? ' (with eventStartTime)' : ''}`)
+              console.log(`[clobClient] Found market: ${fullMarketData.id || market.id} - ${fullMarketData.question || market.question || market.title}${eventStartTime ? ' (with eventStartTime)' : ''} [Up: ${upTokenId.substring(0,8)}..., Down: ${downTokenId.substring(0,8)}...]`)
             }
             break // Found a match, move to next market
           }
@@ -650,13 +674,35 @@ export const fetchMarketBySlug = async (slug: string): Promise<MarketMetadata | 
       eventEndTime = eventStartTime + (timeframeMinutes * 60 * 1000)
     }
 
+    // IMPORTANT: Determine correct UP/DOWN token mapping based on outcomes
+    // Polymarket's clobTokenIds order matches the outcomes array order
+    let upTokenId = tokenIds[0]
+    let downTokenId = tokenIds[1]
+    
+    // Check outcomes field to determine correct mapping
+    const outcomes = market.outcomes
+    if (Array.isArray(outcomes) && outcomes.length >= 2) {
+      const upIndex = outcomes.findIndex((o: string) => 
+        o.toLowerCase() === 'up' || o.toLowerCase() === 'yes'
+      )
+      const downIndex = outcomes.findIndex((o: string) => 
+        o.toLowerCase() === 'down' || o.toLowerCase() === 'no'
+      )
+      
+      if (upIndex !== -1 && downIndex !== -1 && upIndex < tokenIds.length && downIndex < tokenIds.length) {
+        upTokenId = tokenIds[upIndex]
+        downTokenId = tokenIds[downIndex]
+        console.log(`[clobClient] fetchMarketBySlug token mapping: Up=${upIndex}, Down=${downIndex}`)
+      }
+    }
+
     return {
       marketId: market.id || market.slug,
       question: market.question || market.title || '',
       conditionId: market.conditionId || market.condition_id || '',
-      tokenId: tokenIds[0],
-      yesTokenId: tokenIds[0],
-      noTokenId: tokenIds[1],
+      tokenId: upTokenId,
+      yesTokenId: upTokenId,
+      noTokenId: downTokenId,
       tokenIds,
       slug: market.slug,
       tickSize: market.orderPriceMinTickSize?.toString() || '0.01',
