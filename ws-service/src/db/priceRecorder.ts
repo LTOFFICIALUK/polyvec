@@ -270,9 +270,9 @@ export const recordMarketPrices = async (
     }
     currentBuffer.prices.push(newPoint)
     
-    // Log periodically
+    // Log periodically - show BOTH prices
     if (currentBuffer.prices.length % 30 === 1) {
-      console.log(`[PriceRecorder] Buffer ${marketId.substring(0, 25)}... has ${currentBuffer.prices.length} points. Latest: yb=${newPoint.yb}c nb=${newPoint.nb}c`)
+      console.log(`[PriceRecorder] Buffer ${marketId.substring(0, 25)}... has ${currentBuffer.prices.length} points. UP(yb)=${newPoint.yb}c DOWN(nb)=${newPoint.nb}c`)
     }
   } else if (lastPrice) {
     // Update existing point - only update non-zero values
@@ -280,6 +280,13 @@ export const recordMarketPrices = async (
     if (yesAskCents > 0) lastPrice.ya = yesAskCents
     if (noBidCents > 0) lastPrice.nb = noBidCents
     if (noAskCents > 0) lastPrice.na = noAskCents
+    
+    // Log when updating to see both values
+    const updateCount = ((recordMarketPrices as any).updateCount || 0) + 1
+    ;(recordMarketPrices as any).updateCount = updateCount
+    if (updateCount % 60 === 0) {
+      console.log(`[PriceRecorder] Updated point: UP(yb)=${lastPrice.yb}c DOWN(nb)=${lastPrice.nb}c`)
+    }
   }
 }
 

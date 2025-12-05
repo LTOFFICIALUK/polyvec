@@ -1488,6 +1488,14 @@ function startOrderbookPolling(wsServer: WebSocketServer, markets: any[]): void 
           if (marketState && marketState.metadata) {
             const meta = marketState.metadata
             const isYesToken = tokenId === meta.yesTokenId || tokenId === meta.tokenId
+            
+            // Debug log to trace what's being recorded
+            const recordCount = ((recordMarketPrices as any).callCount || 0) + 1
+            ;(recordMarketPrices as any).callCount = recordCount
+            if (recordCount % 30 === 0) {
+              console.log(`[Server] Recording: ${isYesToken ? 'UP' : 'DOWN'} token, bid=${(bestBid*100).toFixed(0)}c for market ${marketId.substring(0,20)}...`)
+            }
+            
             // Use recordMarketPrices for optimized storage
             // The priceRecorder will buffer and batch these into JSONB
             recordMarketPrices(
