@@ -197,6 +197,9 @@ export const recordPrice = async (
   }
 }
 
+// Track all active market buffers for debugging
+const getActiveBufferKeys = (): string[] => Array.from(marketBuffers.keys())
+
 /**
  * Record prices for both YES and NO tokens of a market
  * Note: This may be called with partial data (either YES or NO, not both)
@@ -224,8 +227,9 @@ export const recordMarketPrices = async (
   
   // Get or create buffer
   let buffer = marketBuffers.get(marketId)
+  const isNewBuffer = !buffer || (eventStart && buffer.eventStart !== eventStart)
   
-  if (!buffer || (eventStart && buffer.eventStart !== eventStart)) {
+  if (isNewBuffer) {
     buffer = {
       eventStart: eventStart || now,
       eventEnd: eventEnd || now + 3600000,
@@ -235,6 +239,7 @@ export const recordMarketPrices = async (
       lastFlush: now,
     }
     marketBuffers.set(marketId, buffer)
+    console.log(`[PriceRecorder] NEW buffer for marketId: ${marketId.substring(0, 30)}... (total buffers: ${marketBuffers.size})`)
   }
   
   // Update metadata
@@ -336,7 +341,9 @@ export const queryPriceHistory = async (
   startTime: Date | null,
   endTime: Date | null
 ): Promise<Array<{ time: number; upPrice: number; downPrice: number }>> => {
-  console.log(`[PriceRecorder] Query: marketId=${marketId?.substring(0,20)}... startTime=${startTime?.toISOString()} endTime=${endTime?.toISOString()}`)
+  const activeBuffers = getActiveBufferKeys()
+  console.log(`[PriceRecorder] Query: marketId=${marketId}`)
+  console.log(`[PriceRecorder] Active buffers (${activeBuffers.length}): ${activeBuffers.map(k => k.substring(0, 25) + '...').join(', ')}`)
   
   const chartData: Array<{ time: number; upPrice: number; downPrice: number }> = []
   
