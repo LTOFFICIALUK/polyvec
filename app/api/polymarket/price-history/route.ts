@@ -15,6 +15,8 @@ export async function GET(req: Request) {
   const startTime = searchParams.get('startTime')
   const endTime = searchParams.get('endTime')
 
+  console.log(`[price-history] Request: marketId=${marketId} yesTokenId=${yesTokenId?.substring(0,12)}... wsUrl=${WEBSOCKET_SERVER_HTTP_URL}`)
+
   // We need either marketId OR both tokenIds
   if (!marketId && (!yesTokenId || !noTokenId)) {
     return NextResponse.json(
@@ -32,15 +34,21 @@ export async function GET(req: Request) {
     if (startTime) params.append('startTime', startTime)
     if (endTime) params.append('endTime', endTime)
 
-    const response = await fetch(`${WEBSOCKET_SERVER_HTTP_URL}/api/price-history?${params.toString()}`, {
+    const url = `${WEBSOCKET_SERVER_HTTP_URL}/api/price-history?${params.toString()}`
+    console.log(`[price-history] Fetching: ${url}`)
+    
+    const response = await fetch(url, {
       cache: 'no-store',
     })
 
     if (!response.ok) {
+      const errorText = await response.text()
+      console.error(`[price-history] ws-service error: ${response.status} - ${errorText}`)
       throw new Error(`Railway ws-service error: ${response.status}`)
     }
 
     const data = await response.json()
+    console.log(`[price-history] Response: success=${data.success} count=${data.count}`)
     return NextResponse.json(data)
   } catch (error: any) {
     console.error('[price-history] Error fetching price history from Railway:', error)
