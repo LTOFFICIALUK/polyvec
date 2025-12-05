@@ -104,12 +104,16 @@ export const initializePriceRecorder = async (): Promise<void> => {
   }
 
   try {
+    // Railway internal connections don't need SSL
+    // Only use SSL for external/public connections
+    const useSSL = databaseUrl.includes('proxy.rlwy.net') || databaseUrl.includes('railway.app')
+    
     pool = new Pool({
       connectionString: databaseUrl,
       max: 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
-      ssl: databaseUrl.includes('railway') ? { rejectUnauthorized: false } : undefined,
+      ssl: useSSL ? { rejectUnauthorized: false } : false,
     })
 
     // Test connection
