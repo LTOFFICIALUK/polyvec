@@ -98,6 +98,9 @@ const PolyLineChart = () => {
           const bestBid = bids[0]
           let price = typeof bestBid.price === 'string' ? parseFloat(bestBid.price) : bestBid.price
           
+          // Debug log to see what we're getting
+          console.log(`[PolyLineChart] UP bids: ${bids.length}, best=${bestBid.price}, last=${bids[bids.length-1]?.price}`)
+          
           // Convert to cents if needed (if price > 1, it's already in cents)
           if (price <= 1) {
             price = price * 100
@@ -115,6 +118,9 @@ const PolyLineChart = () => {
           // Get best bid (highest price, first in sorted array)
           const bestBid = bids[0]
           let price = typeof bestBid.price === 'string' ? parseFloat(bestBid.price) : bestBid.price
+          
+          // Debug log
+          console.log(`[PolyLineChart] DOWN bids: ${bids.length}, best=${bestBid.price}, last=${bids[bids.length-1]?.price}`)
           
           // Convert to cents if needed (if price > 1, it's already in cents)
           if (price <= 1) {
