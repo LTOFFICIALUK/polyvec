@@ -199,6 +199,8 @@ export const recordPrice = async (
 
 /**
  * Record prices for both YES and NO tokens of a market
+ * Note: This may be called with partial data (either YES or NO, not both)
+ * So we only update non-zero values to preserve previous data
  */
 export const recordMarketPrices = async (
   marketId: string,
@@ -213,11 +215,11 @@ export const recordMarketPrices = async (
 ): Promise<void> => {
   if (!isInitialized) return
   
-  // Convert to cents
-  const yesBidCents = Math.round(yesBid <= 1 ? yesBid * 100 : yesBid)
-  const yesAskCents = Math.round(yesAsk <= 1 ? yesAsk * 100 : yesAsk)
-  const noBidCents = Math.round(noBid <= 1 ? noBid * 100 : noBid)
-  const noAskCents = Math.round(noAsk <= 1 ? noAsk * 100 : noAsk)
+  // Convert to cents (only if value is provided/non-zero)
+  const yesBidCents = yesBid > 0 ? Math.round(yesBid <= 1 ? yesBid * 100 : yesBid) : 0
+  const yesAskCents = yesAsk > 0 ? Math.round(yesAsk <= 1 ? yesAsk * 100 : yesAsk) : 0
+  const noBidCents = noBid > 0 ? Math.round(noBid <= 1 ? noBid * 100 : noBid) : 0
+  const noAskCents = noAsk > 0 ? Math.round(noAsk <= 1 ? noAsk * 100 : noAsk) : 0
   const now = Date.now()
   
   // Get or create buffer
@@ -236,27 +238,30 @@ export const recordMarketPrices = async (
   }
   
   // Update metadata
-  buffer.yesTokenId = yesTokenId
-  buffer.noTokenId = noTokenId
+  if (yesTokenId) buffer.yesTokenId = yesTokenId
+  if (noTokenId) buffer.noTokenId = noTokenId
   if (eventEnd) buffer.eventEnd = eventEnd
   
-  // Add price point (combine both tokens into one point)
+  // Add or update price point
+  // Only update non-zero values to preserve data from other token updates
   const lastPrice = buffer.prices[buffer.prices.length - 1]
   const shouldAddNew = !lastPrice || (now - lastPrice.t) >= 900
   
   if (shouldAddNew) {
+    // Create new point, preserving previous values for fields not being updated
     buffer.prices.push({
       t: now,
-      yb: yesBidCents,
-      ya: yesAskCents,
-      nb: noBidCents,
-      na: noAskCents,
+      yb: yesBidCents > 0 ? yesBidCents : (lastPrice?.yb || 0),
+      ya: yesAskCents > 0 ? yesAskCents : (lastPrice?.ya || 0),
+      nb: noBidCents > 0 ? noBidCents : (lastPrice?.nb || 0),
+      na: noAskCents > 0 ? noAskCents : (lastPrice?.na || 0),
     })
   } else {
-    lastPrice.yb = yesBidCents
-    lastPrice.ya = yesAskCents
-    lastPrice.nb = noBidCents
-    lastPrice.na = noAskCents
+    // Update existing point - only update non-zero values
+    if (yesBidCents > 0) lastPrice.yb = yesBidCents
+    if (yesAskCents > 0) lastPrice.ya = yesAskCents
+    if (noBidCents > 0) lastPrice.nb = noBidCents
+    if (noAskCents > 0) lastPrice.na = noAskCents
   }
 }
 
@@ -331,51 +336,49 @@ export const queryPriceHistory = async (
   startTime: Date | null,
   endTime: Date | null
 ): Promise<Array<{ time: number; upPrice: number; downPrice: number }>> => {
-  if (!isInitialized || !pool) {
-    throw new Error('Database not initialized')
+  console.log(`[PriceRecorder] Query: marketId=${marketId?.substring(0,20)}... startTime=${startTime?.toISOString()} endTime=${endTime?.toISOString()}`)
+  
+  const chartData: Array<{ time: number; upPrice: number; downPrice: number }> = []
+  
+  // FIRST: Check in-memory buffer (most recent data, not yet flushed)
+  if (marketId) {
+    const buffer = marketBuffers.get(marketId)
+    if (buffer && buffer.prices.length > 0) {
+      console.log(`[PriceRecorder] Found ${buffer.prices.length} prices in memory buffer for market`)
+      for (const p of buffer.prices) {
+        // Filter by time range if specified
+        if (startTime && p.t < startTime.getTime()) continue
+        if (endTime && p.t > endTime.getTime()) continue
+        
+        chartData.push({
+          time: p.t,
+          upPrice: p.yb / 100,
+          downPrice: p.nb / 100,
+        })
+      }
+    }
+  }
+  
+  // THEN: Query database for persisted data
+  if (!pool) {
+    console.log(`[PriceRecorder] No DB pool, returning ${chartData.length} points from memory only`)
+    return chartData.sort((a, b) => a.time - b.time)
   }
 
   try {
-    // Query price events
+    // Query price events - simplified query, just match marketId
     let query = `
       SELECT market_id, event_start, event_end, yes_token_id, no_token_id, prices
       FROM price_events
-      WHERE 1=1
+      WHERE market_id = $1
+      ORDER BY event_start ASC
+      LIMIT 100
     `
-    const params: any[] = []
-    let paramIndex = 1
     
-    if (marketId) {
-      query += ` AND market_id = $${paramIndex}`
-      params.push(marketId)
-      paramIndex++
-    }
-    
-    if (yesTokenId) {
-      query += ` AND yes_token_id = $${paramIndex}`
-      params.push(yesTokenId)
-      paramIndex++
-    }
-    
-    if (startTime) {
-      query += ` AND event_start >= $${paramIndex}`
-      params.push(startTime)
-      paramIndex++
-    }
-    
-    if (endTime) {
-      query += ` AND event_start <= $${paramIndex}`
-      params.push(endTime)
-      paramIndex++
-    }
-    
-    query += ' ORDER BY event_start ASC LIMIT 100'
-    
-    const result = await pool.query(query, params)
+    const result = await pool.query(query, [marketId])
+    console.log(`[PriceRecorder] DB returned ${result.rows.length} event rows`)
     
     // Flatten all price points from all matching events
-    const chartData: Array<{ time: number; upPrice: number; downPrice: number }> = []
-    
     for (const row of result.rows) {
       const prices = row.prices as PricePoint[]
       
@@ -384,30 +387,13 @@ export const queryPriceHistory = async (
         if (startTime && p.t < startTime.getTime()) continue
         if (endTime && p.t > endTime.getTime()) continue
         
-        chartData.push({
-          time: p.t,
-          upPrice: p.yb / 100, // Convert cents to dollars
-          downPrice: p.nb / 100,
-        })
-      }
-    }
-    
-    // Also check in-memory buffer for recent data
-    if (marketId) {
-      const buffer = marketBuffers.get(marketId)
-      if (buffer) {
-        for (const p of buffer.prices) {
-          if (startTime && p.t < startTime.getTime()) continue
-          if (endTime && p.t > endTime.getTime()) continue
-          
-          // Only add if not already in chartData
-          if (!chartData.some(d => Math.abs(d.time - p.t) < 500)) {
-            chartData.push({
-              time: p.t,
-              upPrice: p.yb / 100,
-              downPrice: p.nb / 100,
-            })
-          }
+        // Avoid duplicates (might be in both memory and DB)
+        if (!chartData.some(d => Math.abs(d.time - p.t) < 500)) {
+          chartData.push({
+            time: p.t,
+            upPrice: p.yb / 100,
+            downPrice: p.nb / 100,
+          })
         }
       }
     }
@@ -415,10 +401,13 @@ export const queryPriceHistory = async (
     // Sort by time
     chartData.sort((a, b) => a.time - b.time)
     
+    console.log(`[PriceRecorder] Returning ${chartData.length} total price points`)
     return chartData
   } catch (error: any) {
     console.error('[PriceRecorder] Query error:', error)
-    throw error
+    // Return memory data even if DB query fails
+    console.log(`[PriceRecorder] DB error, returning ${chartData.length} points from memory`)
+    return chartData.sort((a, b) => a.time - b.time)
   }
 }
 
