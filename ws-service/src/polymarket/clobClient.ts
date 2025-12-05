@@ -146,12 +146,20 @@ export const fetchMultipleOrderbooks = async (tokenIds: string[]): Promise<Map<s
         // Use asset_id from response to match to correct token (more reliable than index)
         const tokenId = orderbook.asset_id
         
-        // IMPORTANT: Polymarket CLOB API returns bids/asks in REVERSE order:
-        // - Bids: sorted lowest to highest (we need highest to lowest)
-        // - Asks: sorted highest to lowest (we need lowest to highest)
-        // Reverse both arrays to get correct order
-        const bids = Array.isArray(orderbook.bids) ? [...orderbook.bids].reverse() : []
-        const asks = Array.isArray(orderbook.asks) ? [...orderbook.asks].reverse() : []
+        // IMPORTANT: Sort bids/asks properly regardless of API order
+        // Best bid = HIGHEST buy price (what buyers will pay)
+        // Best ask = LOWEST sell price (what sellers will accept)
+        const bids = Array.isArray(orderbook.bids) 
+          ? [...orderbook.bids].sort((a: any, b: any) => parseFloat(b.price) - parseFloat(a.price))  // Highest first
+          : []
+        const asks = Array.isArray(orderbook.asks)
+          ? [...orderbook.asks].sort((a: any, b: any) => parseFloat(a.price) - parseFloat(b.price))  // Lowest first
+          : []
+        
+        // Debug: Log the best prices we found
+        if (bids.length > 0 && asks.length > 0) {
+          console.log(`[clobClient] Token ${tokenId.substring(0,12)}... bestBid=${bids[0].price} bestAsk=${asks[0].price}`)
+        }
         
         // Extract full OrderBookSummary including timestamp and hash for change detection
         results.set(tokenId, {
@@ -577,12 +585,15 @@ export const fetchOrderbook = async (tokenId: string): Promise<OrderbookData | n
     }
 
     const data = await response.json() as any
-    // IMPORTANT: Polymarket CLOB API returns bids/asks in REVERSE order:
-    // - Bids: sorted lowest to highest (we need highest to lowest)
-    // - Asks: sorted highest to lowest (we need lowest to highest)
-    // Reverse both arrays to get correct order
-    const bids = Array.isArray(data.bids) ? [...data.bids].reverse() : []
-    const asks = Array.isArray(data.asks) ? [...data.asks].reverse() : []
+    // IMPORTANT: Sort bids/asks properly regardless of API order
+    // Best bid = HIGHEST buy price (what buyers will pay)
+    // Best ask = LOWEST sell price (what sellers will accept)
+    const bids = Array.isArray(data.bids) 
+      ? [...data.bids].sort((a: any, b: any) => parseFloat(b.price) - parseFloat(a.price))  // Highest first
+      : []
+    const asks = Array.isArray(data.asks)
+      ? [...data.asks].sort((a: any, b: any) => parseFloat(a.price) - parseFloat(b.price))  // Lowest first
+      : []
     // Return full OrderBookSummary structure
     return {
       bids: bids,
