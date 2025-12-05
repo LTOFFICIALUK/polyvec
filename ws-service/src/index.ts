@@ -1057,8 +1057,8 @@ const httpServer = http.createServer(async (req, res) => {
           const stateStore = wsServer.getStateStore()
           const enrichedMetadata = {
             ...currentMarket.metadata,
-            eventStartTime: eventStart,
-            eventEndTime: eventEnd,
+            eventStartTime: eventStart || undefined,
+            eventEndTime: eventEnd || undefined,
           }
           stateStore.setMarketMetadata(currentMarket.marketId, enrichedMetadata)
           console.log(`[Server] Ensured market ${currentMarket.marketId} is in state store for polling`)
