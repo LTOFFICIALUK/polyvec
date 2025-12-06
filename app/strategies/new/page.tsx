@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, KeyboardEvent, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
-import { createStrategyAPI, Strategy } from '@/hooks/useStrategies'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { createStrategyAPI, updateStrategyAPI, fetchStrategy, Strategy } from '@/hooks/useStrategies'
 import { useWallet } from '@/contexts/WalletContext'
 
 type TabType = 'basics' | 'tradingview' | 'polymarket' | 'risk' | 'schedule'
@@ -95,10 +95,13 @@ interface StrategyConfig {
 
 export default function StrategyEditorPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const editId = searchParams.get('edit')
   const { walletAddress: address } = useWallet()
   const [activeTab, setActiveTab] = useState<TabType>('basics')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(!!editId)
   const [config, setConfig] = useState<StrategyConfig>({
     name: '',
     description: '',
@@ -148,6 +151,80 @@ export default function StrategyEditorPage() {
     orderLadder: [],
   })
 
+  // Load existing strategy if editing
+  useEffect(() => {
+    if (!editId) {
+      setIsLoading(false)
+      return
+    }
+
+    const loadStrategy = async () => {
+      try {
+        const result = await fetchStrategy(editId)
+        if (result.success && result.data) {
+          const s = result.data
+          setConfig({
+            name: s.name || '',
+            description: s.description || '',
+            asset: s.asset || 'BTC',
+            direction: s.direction || 'UP',
+            timeframe: s.timeframe || '15m',
+            isLive: s.isLive || false,
+            indicators: s.indicators || [],
+            conditionLogic: s.conditionLogic || 'all',
+            conditions: s.conditions || [],
+            actions: s.actions || [],
+            market: s.market || '',
+            side: s.side || 'Buy YES',
+            orderType: s.orderType || 'Limit',
+            positionSize: '',
+            maxOpenPositions: '',
+            maxDailyLoss: s.maxDailyLoss?.toString() || '',
+            maxOrdersPerHour: s.maxOrdersPerHour?.toString() || '',
+            useTakeProfit: s.useTakeProfit || false,
+            takeProfitPercent: s.takeProfitPercent?.toString() || '',
+            useStopLoss: s.useStopLoss || false,
+            stopLossPercent: s.stopLossPercent?.toString() || '',
+            selectedDays: s.selectedDays || [],
+            timeRange: s.timeRange || { start: '09:00', end: '22:00' },
+            runOnNewCandle: s.runOnNewCandle || false,
+            pauseOnSettlement: s.pauseOnSettlement || false,
+            orderbookRules: s.orderbookRules || [],
+            tradeOnEventsCount: s.tradeOnEventsCount || 1,
+            orderSizeMode: s.orderSizeMode || 'fixed_dollar',
+            fixedDollarAmount: s.fixedDollarAmount?.toString() || '',
+            fixedSharesAmount: s.fixedSharesAmount?.toString() || '',
+            percentageOfBalance: s.percentageOfBalance?.toString() || '',
+            dynamicBaseSize: s.dynamicBaseSize?.toString() || '',
+            dynamicMaxSize: s.dynamicMaxSize?.toString() || '',
+            limitOrderPrice: s.limitOrderPrice || 'best_ask',
+            customLimitPrice: s.customLimitPrice?.toString() || '',
+            adjustPriceAboveBid: s.adjustPriceAboveBid || false,
+            adjustPriceBelowAsk: s.adjustPriceBelowAsk || false,
+            maxTradesPerEvent: s.maxTradesPerEvent?.toString() || '',
+            maxOpenOrders: s.maxOpenOrders?.toString() || '',
+            dailyTradeCap: s.dailyTradeCap?.toString() || '',
+            maxPositionShares: s.maxPositionShares?.toString() || '',
+            maxPositionDollar: s.maxPositionDollar?.toString() || '',
+            unfilledOrderBehavior: s.unfilledOrderBehavior || 'keep_open',
+            cancelAfterSeconds: s.cancelAfterSeconds?.toString() || '',
+            useOrderLadder: s.useOrderLadder || false,
+            orderLadder: s.orderLadder || [],
+          })
+        } else {
+          setSaveError('Failed to load strategy')
+        }
+      } catch (error) {
+        console.error('Error loading strategy:', error)
+        setSaveError('Error loading strategy')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadStrategy()
+  }, [editId])
+
   const handleSave = async () => {
     if (!address) {
       setSaveError('Please connect your wallet to save strategies')
@@ -159,7 +236,7 @@ export default function StrategyEditorPage() {
 
     try {
       // Convert config to API format
-      const strategyData: Omit<Strategy, 'id' | 'createdAt' | 'updatedAt'> = {
+      const strategyData: Partial<Strategy> = {
         userAddress: address,
         name: config.name,
         description: config.description || undefined,
@@ -167,7 +244,6 @@ export default function StrategyEditorPage() {
         direction: config.direction,
         timeframe: config.timeframe,
         isLive: config.isLive,
-        isActive: false, // Start as inactive
         indicators: config.indicators,
         conditionLogic: config.conditionLogic,
         conditions: config.conditions,
@@ -208,11 +284,18 @@ export default function StrategyEditorPage() {
         pauseOnSettlement: config.pauseOnSettlement,
       }
 
-      const result = await createStrategyAPI(strategyData)
+      let result
+      if (editId) {
+        // Update existing strategy
+        result = await updateStrategyAPI(editId, strategyData)
+      } else {
+        // Create new strategy
+        result = await createStrategyAPI({ ...strategyData, isActive: false } as Omit<Strategy, 'id' | 'createdAt' | 'updatedAt'>)
+      }
 
       if (result.success && result.data) {
-        // Navigate to strategies list on success
-        router.push('/strategies')
+        // Navigate back to the strategy detail page or list
+        router.push(editId ? `/strategies/${editId}` : '/strategies')
       } else {
         setSaveError(result.error || 'Failed to save strategy')
       }
@@ -225,7 +308,7 @@ export default function StrategyEditorPage() {
   }
 
   const handleCancel = () => {
-    router.push('/strategies')
+    router.push(editId ? `/strategies/${editId}` : '/strategies')
   }
 
   const updateConfig = (updates: Partial<StrategyConfig>) => {
@@ -243,12 +326,26 @@ export default function StrategyEditorPage() {
 
   const isValidConfig = config.name.length > 0 && config.asset && config.timeframe
 
+  // Show loading state while fetching strategy for edit
+  if (isLoading) {
+    return (
+      <div className="bg-black text-white min-h-screen">
+        <div className="px-4 sm:px-6 py-6 sm:py-8">
+          <div className="py-16 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-primary mx-auto mb-4" />
+            <p className="text-gray-400 text-sm">Loading strategy...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-black text-white min-h-screen">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl sm:text-3xl font-bold">Strategy Editor</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold">{editId ? 'Edit Strategy' : 'New Strategy'}</h1>
           <div className="flex gap-3">
             <button
               type="button"
@@ -263,7 +360,7 @@ export default function StrategyEditorPage() {
               disabled={!isValidConfig || saving || !address}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors duration-200 focus:outline-none"
             >
-              {saving ? 'Saving...' : !address ? 'Connect Wallet' : 'Save Strategy'}
+              {saving ? 'Saving...' : !address ? 'Connect Wallet' : editId ? 'Update Strategy' : 'Save Strategy'}
             </button>
           </div>
         </div>
@@ -749,6 +846,7 @@ function TradingViewTab({
     'Stochastic',
     'VWAP',
     'ATR',
+    'Rolling Up %',
   ]
 
   const getPresetImage = (presetValue: string): string => {
@@ -791,6 +889,12 @@ function TradingViewTab({
           { value: 'custom', label: 'Custom' },
           { value: 'bb_upper', label: 'BB Breakout (Upper)' },
           { value: 'bb_lower', label: 'BB Breakout (Lower)' },
+        ]
+      case 'Rolling Up %':
+        return [
+          { value: 'custom', label: 'Custom' },
+          { value: 'up_pct_bullish', label: 'Bullish (≥58%)' },
+          { value: 'up_pct_bearish', label: 'Bearish (≤42%)' },
         ]
       default:
         return [{ value: 'custom', label: 'Custom' }]
@@ -1140,6 +1244,8 @@ function TradingViewTab({
         ]
       case 'ATR':
         return [{ name: 'Length', key: 'length', default: 14 }]
+      case 'Rolling Up %':
+        return [{ name: 'Lookback', key: 'length', default: 50 }]
       default:
         return []
     }

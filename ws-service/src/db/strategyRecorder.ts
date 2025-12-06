@@ -535,6 +535,26 @@ export const getAllStrategies = async (limit = 50, offset = 0): Promise<Strategy
 }
 
 /**
+ * Get all active strategies (for monitoring)
+ * Returns strategies where is_active = true
+ */
+export const getActiveStrategies = async (): Promise<Strategy[]> => {
+  if (!pool) return []
+
+  try {
+    const result = await pool.query(
+      'SELECT * FROM strategies WHERE is_active = TRUE ORDER BY created_at DESC'
+    )
+
+    return result.rows.map(mapRowToStrategy)
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('[StrategyRecorder] Get active strategies error:', errorMessage)
+    return []
+  }
+}
+
+/**
  * Update a strategy
  */
 export const updateStrategy = async (

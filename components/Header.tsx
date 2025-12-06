@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
+import Image from 'next/image'
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useWallet } from '@/contexts/WalletContext'
 import ConnectWalletModal from './ConnectWalletModal'
@@ -195,10 +196,14 @@ const Header = () => {
               aria-label="Navigate to home"
               className="cursor-pointer focus:outline-none rounded"
             >
-              <h1 className="text-white font-bold text-2xl tracking-tight">
-                <span className="text-purple-primary">Poly</span>
-                <span className="text-white">Trade</span>
-              </h1>
+              <Image
+                src="/logo.png"
+                alt="PolyTrade"
+                width={112}
+                height={36}
+                className="h-7 w-auto"
+                priority
+              />
             </div>
             <nav className="flex items-center space-x-6">
               {navigationItems.map((item) => {

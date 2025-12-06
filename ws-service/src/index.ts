@@ -27,6 +27,15 @@ import {
   updateStrategyAnalytics,
   Strategy,
 } from './db/strategyRecorder'
+import { getCryptoPriceFeeder } from './polymarket/cryptoPriceFeeder'
+import { closeCandleRecorder, getCandleStats } from './db/candleRecorder'
+import { 
+  calculateIndicator, 
+  getLatestIndicatorValue,
+  IndicatorType,
+  Candle as IndicatorCandle
+} from './indicators/indicatorCalculator'
+import { getStrategyMonitor, StrategyTrigger } from './strategies/strategyMonitor'
 
 const POLYMARKET_GAMMA_API = process.env.POLYMARKET_GAMMA_API || 'https://gamma-api.polymarket.com'
 
@@ -165,6 +174,262 @@ const httpServer = http.createServer(async (req, res) => {
     const health = wsServer.getHealthStatus()
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify(health))
+    return
+  }
+
+  // Crypto prices endpoint - get current BTC/ETH/SOL/XRP prices
+  if (path === '/api/crypto/prices' && req.method === 'GET') {
+    const feeder = getCryptoPriceFeeder()
+    const prices = feeder.getAllPrices()
+    const status = feeder.getStatus()
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({
+      success: true,
+      connected: status.connected,
+      prices,
+      candleCount: status.candleCount,
+    }))
+    return
+  }
+
+  // Crypto candles endpoint - get candle history for indicators
+  if (path === '/api/crypto/candles' && req.method === 'GET') {
+    const symbol = url.searchParams.get('symbol')?.toLowerCase() || 'btcusdt'
+    const timeframe = url.searchParams.get('timeframe') || '15m'
+    const count = parseInt(url.searchParams.get('count') || '50')
+
+    const feeder = getCryptoPriceFeeder()
+    const candles = feeder.getCandleHistory(symbol as any, timeframe as any, count)
+    const current = feeder.getCurrentCandle(symbol as any, timeframe as any)
+
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({
+      success: true,
+      symbol,
+      timeframe,
+      candles,
+      current,
+      count: candles.length,
+    }))
+    return
+  }
+
+  // Crypto candle stats endpoint - get database storage stats
+  if (path === '/api/crypto/stats' && req.method === 'GET') {
+    try {
+      const stats = await getCandleStats()
+      const feeder = getCryptoPriceFeeder()
+      const status = feeder.getStatus()
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        success: true,
+        connected: status.connected,
+        memoryCandles: status.candleCount,
+        database: {
+          totalCandles: stats.totalCandles,
+          symbols: stats.symbols,
+          oldestCandle: stats.oldestCandle,
+          newestCandle: stats.newestCandle,
+        },
+      }))
+    } catch (error: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: error.message }))
+    }
+    return
+  }
+
+  // Strategy monitor status endpoint
+  if (path === '/api/strategies/monitor' && req.method === 'GET') {
+    const monitor = getStrategyMonitor()
+    const status = monitor.getStatus()
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({
+      success: true,
+      monitor: {
+        isRunning: status.isRunning,
+        lastCheckTime: status.lastCheckTime,
+        lastCheckTimeFormatted: status.lastCheckTime ? new Date(status.lastCheckTime).toISOString() : null,
+        cacheSize: status.cacheSize,
+      },
+    }))
+    return
+  }
+
+  // Manually trigger strategy check (for testing)
+  if (path === '/api/strategies/monitor/check' && req.method === 'POST') {
+    const monitor = getStrategyMonitor()
+    await monitor.triggerCheck()
+    
+    res.writeHead(200, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({
+      success: true,
+      message: 'Strategy check triggered',
+    }))
+    return
+  }
+
+  // Calculate indicator endpoint
+  if (path === '/api/crypto/indicator' && req.method === 'GET') {
+    const symbol = url.searchParams.get('symbol')?.toLowerCase() || 'btcusdt'
+    const timeframe = url.searchParams.get('timeframe') || '15m'
+    const type = url.searchParams.get('type') || 'RSI'
+    
+    // Parse parameters from query string
+    const parameters: Record<string, number> = {}
+    for (const [key, value] of url.searchParams.entries()) {
+      if (!['symbol', 'timeframe', 'type'].includes(key)) {
+        const num = parseFloat(value)
+        if (!isNaN(num)) {
+          parameters[key] = num
+        }
+      }
+    }
+
+    try {
+      const feeder = getCryptoPriceFeeder()
+      const rawCandles = feeder.getCandleHistory(symbol as any, timeframe as any, 100)
+      
+      // Convert to indicator candle format
+      const candles: IndicatorCandle[] = rawCandles.map(c => ({
+        timestamp: c.timestamp,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
+      }))
+
+      if (candles.length === 0) {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          success: true,
+          symbol,
+          timeframe,
+          type,
+          parameters,
+          values: [],
+          latest: null,
+          message: 'Not enough candle data yet. Wait for candles to accumulate.',
+        }))
+        return
+      }
+
+      const results = calculateIndicator(candles, {
+        type: type as IndicatorType,
+        parameters,
+      })
+
+      const latest = results.length > 0 ? results[results.length - 1] : null
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        success: true,
+        symbol,
+        timeframe,
+        type,
+        parameters,
+        candleCount: candles.length,
+        values: results.slice(-20),  // Return last 20 values
+        latest,
+      }))
+    } catch (error: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: error.message }))
+    }
+    return
+  }
+
+  // Get all indicators for a symbol (current values)
+  if (path === '/api/crypto/indicators' && req.method === 'GET') {
+    const symbol = url.searchParams.get('symbol')?.toLowerCase() || 'btcusdt'
+    const timeframe = url.searchParams.get('timeframe') || '15m'
+
+    try {
+      const feeder = getCryptoPriceFeeder()
+      const rawCandles = feeder.getCandleHistory(symbol as any, timeframe as any, 100)
+      
+      const candles: IndicatorCandle[] = rawCandles.map(c => ({
+        timestamp: c.timestamp,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
+      }))
+
+      if (candles.length < 26) {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          success: true,
+          symbol,
+          timeframe,
+          candleCount: candles.length,
+          indicators: {},
+          message: `Need at least 26 candles for indicators. Currently have ${candles.length}.`,
+        }))
+        return
+      }
+
+      // Calculate all standard indicators
+      const indicators: Record<string, any> = {}
+
+      // RSI
+      const rsi = getLatestIndicatorValue(candles, { type: 'RSI', parameters: { length: 14 } })
+      if (rsi) indicators.rsi = { value: rsi.value, period: 14 }
+
+      // MACD
+      const macd = getLatestIndicatorValue(candles, { type: 'MACD', parameters: { fast: 12, slow: 26, signal: 9 } })
+      if (macd) indicators.macd = { ...macd.values, parameters: { fast: 12, slow: 26, signal: 9 } }
+
+      // EMAs
+      const ema9 = getLatestIndicatorValue(candles, { type: 'EMA', parameters: { length: 9 } })
+      const ema21 = getLatestIndicatorValue(candles, { type: 'EMA', parameters: { length: 21 } })
+      if (ema9) indicators.ema9 = { value: ema9.value }
+      if (ema21) indicators.ema21 = { value: ema21.value }
+
+      // Bollinger Bands
+      const bb = getLatestIndicatorValue(candles, { type: 'Bollinger Bands', parameters: { length: 20, stdDev: 2 } })
+      if (bb) indicators.bollingerBands = { ...bb.values, parameters: { length: 20, stdDev: 2 } }
+
+      // Stochastic
+      const stoch = getLatestIndicatorValue(candles, { type: 'Stochastic', parameters: { k: 14, d: 3 } })
+      if (stoch) indicators.stochastic = { ...stoch.values, parameters: { k: 14, d: 3 } }
+
+      // ATR
+      const atr = getLatestIndicatorValue(candles, { type: 'ATR', parameters: { length: 14 } })
+      if (atr) indicators.atr = { value: atr.value, period: 14 }
+
+      // Rolling Up % (custom)
+      const upPct = getLatestIndicatorValue(candles, { type: 'Rolling Up %', parameters: { length: 50 } })
+      if (upPct) indicators.rollingUpPercent = { value: upPct.value, period: 50 }
+
+      // Current price
+      const currentCandle = feeder.getCurrentCandle(symbol as any, timeframe as any)
+      if (currentCandle) {
+        indicators.price = {
+          open: currentCandle.open,
+          high: currentCandle.high,
+          low: currentCandle.low,
+          close: currentCandle.close,
+        }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        success: true,
+        symbol,
+        timeframe,
+        candleCount: candles.length,
+        indicators,
+      }))
+    } catch (error: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: error.message }))
+    }
     return
   }
 
@@ -1989,6 +2254,33 @@ function startAutomaticMarketRefresh() {
 initializePriceRecorder()
 initializeStrategyRecorder()
 
+// Start crypto price feeder (BTC, ETH, SOL, XRP from Polymarket RTDS)
+const cryptoPriceFeeder = getCryptoPriceFeeder()
+cryptoPriceFeeder.start()
+cryptoPriceFeeder.on('price', (data) => {
+  // Log price updates periodically (every 30 seconds per symbol)
+  const logKey = `price_log_${data.symbol}`
+  const now = Date.now()
+  const lastLog = (cryptoPriceFeeder as any)[logKey] || 0
+  if (now - lastLog > 30000) {
+    console.log(`[CryptoPrices] ${data.symbol.toUpperCase()}: $${data.price.toFixed(2)}`)
+    ;(cryptoPriceFeeder as any)[logKey] = now
+  }
+})
+cryptoPriceFeeder.on('candleClosed', (candle) => {
+  console.log(`[CryptoPrices] ${candle.symbol} ${candle.timeframe} candle closed: O=${candle.open.toFixed(2)} C=${candle.close.toFixed(2)}`)
+})
+
+// Start strategy monitor (checks active strategies every minute)
+const strategyMonitor = getStrategyMonitor()
+strategyMonitor.start()
+strategyMonitor.on('strategyTriggered', (trigger: StrategyTrigger) => {
+  console.log(`[StrategyMonitor] 🎯 TRIGGERED: "${trigger.strategyName}" for ${trigger.asset}`)
+  console.log(`[StrategyMonitor]   User: ${trigger.userAddress}`)
+  console.log(`[StrategyMonitor]   Conditions: ${trigger.triggeredConditions.map((c: { description: string }) => c.description).join(', ')}`)
+  // TODO: Step 5 - Execute trade or send notification
+})
+
 // Start server
 httpServer.listen(HTTP_PORT, () => {
   console.log(`[Server] HTTP server listening on http://localhost:${HTTP_PORT}`)
@@ -2005,20 +2297,24 @@ httpServer.listen(HTTP_PORT, () => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('[Server] SIGTERM received, shutting down gracefully...')
+  strategyMonitor.stop()
   httpServer.close(async () => {
     console.log('[Server] HTTP server closed')
     await closePriceRecorder()
     await closeStrategyRecorder()
+    await closeCandleRecorder()
     process.exit(0)
   })
 })
 
 process.on('SIGINT', async () => {
   console.log('[Server] SIGINT received, shutting down gracefully...')
+  strategyMonitor.stop()
   httpServer.close(async () => {
     console.log('[Server] HTTP server closed')
     await closePriceRecorder()
     await closeStrategyRecorder()
+    await closeCandleRecorder()
     process.exit(0)
   })
 })

@@ -104,13 +104,13 @@ export default function StrategiesPage() {
     const result = await toggleActive(id)
     if (result) {
       // Update local state with new isActive value
-      setStrategies((prev) =>
-        prev.map((strategy) =>
-          strategy.id === id
+    setStrategies((prev) =>
+      prev.map((strategy) =>
+        strategy.id === id
             ? { ...strategy, isActive: result.isActive }
-            : strategy
-        )
+          : strategy
       )
+    )
     }
   }
 
@@ -190,21 +190,21 @@ export default function StrategiesPage() {
           </div>
         )}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-gray-400 border-b border-gray-800">
-              <tr>
-                <th className="text-left py-3 px-4 font-medium w-16">Status</th>
-                <th className="text-left py-3 px-4 font-medium">Strategy Name</th>
-                <th className="text-left py-3 px-4 font-medium">Type</th>
-                <th className="text-right py-3 px-4 font-medium">PnL</th>
-                <th className="text-right py-3 px-4 font-medium">Total Trades</th>
-                <th className="text-right py-3 px-4 font-medium">Win Rate</th>
-                <th className="text-right py-3 px-4 font-medium">Last Updated</th>
-                <th className="text-right py-3 px-4 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-gray-400 border-b border-gray-800">
+                <tr>
+                  <th className="text-left py-3 px-4 font-medium w-16">Status</th>
+                  <th className="text-left py-3 px-4 font-medium">Strategy Name</th>
+                  <th className="text-left py-3 px-4 font-medium">Type</th>
+                  <th className="text-right py-3 px-4 font-medium">PnL</th>
+                  <th className="text-right py-3 px-4 font-medium">Total Trades</th>
+                  <th className="text-right py-3 px-4 font-medium">Win Rate</th>
+                  <th className="text-right py-3 px-4 font-medium">Last Updated</th>
+                  <th className="text-right py-3 px-4 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
               {loading ? (
                 <tr>
                   <td colSpan={8} className="py-16 text-center">
@@ -329,9 +329,9 @@ export default function StrategiesPage() {
                     </tr>
                 ))
               )}
-            </tbody>
-          </table>
-        </div>
+              </tbody>
+            </table>
+          </div>
       </div>
     </div>
   )

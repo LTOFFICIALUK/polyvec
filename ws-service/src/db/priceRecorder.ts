@@ -96,7 +96,7 @@ const runMigrations = async (pool: Pool): Promise<void> => {
  */
 export const initializePriceRecorder = async (): Promise<void> => {
   if (isInitialized) return
-  
+
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) {
     console.log('[PriceRecorder] No DATABASE_URL - price recording disabled')
