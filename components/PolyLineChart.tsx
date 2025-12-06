@@ -21,10 +21,11 @@ const PolyLineChart = () => {
   
   const [series, setSeries] = useState<ChartPoint[]>([])
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const workerRef = useRef<Worker | null>(null)
   const previousMarketIdRef = useRef<string | null>(null)
   const chartContainerRef = useRef<HTMLDivElement | null>(null)
   const historyFetchedRef = useRef<string | null>(null)
+  const fetchPricesRef = useRef<typeof fetchPrices | null>(null)
 
   // Fetch historical price data from database
   const fetchHistoricalData = useCallback(async (): Promise<ChartPoint[]> => {
@@ -62,11 +63,16 @@ const PolyLineChart = () => {
 
       console.log(`[PolyLineChart] Fetched ${historicalData.length} historical data points`)
       
-      return historicalData.map((point: any) => ({
-        time: point.time,
-        upPrice: point.upPrice || 0,
-        downPrice: point.downPrice || 0,
-      }))
+      // Convert decimal prices (0-1) to cents (0-100) for chart
+      return historicalData.map((point: any) => {
+        const up = point.upPrice || 0
+        const down = point.downPrice || 0
+        return {
+          time: point.time,
+          upPrice: up <= 1 ? up * 100 : up,
+          downPrice: down <= 1 ? down * 100 : down,
+        }
+      })
     } catch (error) {
       console.error('[PolyLineChart] Error fetching historical data:', error)
       return []
@@ -96,17 +102,13 @@ const PolyLineChart = () => {
         if (bids.length > 0) {
           // Get best bid (highest price, first in sorted array)
           const bestBid = bids[0]
-          let price = typeof bestBid.price === 'string' ? parseFloat(bestBid.price) : bestBid.price
+          const price = typeof bestBid.price === 'string' ? parseFloat(bestBid.price) : bestBid.price
           
           // Debug log to see what we're getting
           console.log(`[PolyLineChart] UP bids: ${bids.length}, best=${bestBid.price}, last=${bids[bids.length-1]?.price}`)
           
-          // Convert to cents if needed (if price > 1, it's already in cents)
-          if (price <= 1) {
-            price = price * 100
-          }
-          
-          upPrice = price
+          // Convert decimal (0-1) to cents (0-100) for chart
+          upPrice = price <= 1 ? price * 100 : price
         }
       }
 
@@ -117,17 +119,13 @@ const PolyLineChart = () => {
         if (bids.length > 0) {
           // Get best bid (highest price, first in sorted array)
           const bestBid = bids[0]
-          let price = typeof bestBid.price === 'string' ? parseFloat(bestBid.price) : bestBid.price
+          const price = typeof bestBid.price === 'string' ? parseFloat(bestBid.price) : bestBid.price
           
           // Debug log
           console.log(`[PolyLineChart] DOWN bids: ${bids.length}, best=${bestBid.price}, last=${bids[bids.length-1]?.price}`)
           
-          // Convert to cents if needed (if price > 1, it's already in cents)
-          if (price <= 1) {
-            price = price * 100
-          }
-          
-          downPrice = price
+          // Convert decimal (0-1) to cents (0-100) for chart
+          downPrice = price <= 1 ? price * 100 : price
         }
       }
 
@@ -141,7 +139,12 @@ const PolyLineChart = () => {
   // Check if this is a past market (ended)
   const isMarketEnded = market?.isPast === true || market?.marketStatus === 'ended'
 
-  // Update chart data every second (or load historical for past markets)
+  // Keep fetchPrices ref updated for use in worker callback
+  useEffect(() => {
+    fetchPricesRef.current = fetchPrices
+  }, [fetchPrices])
+
+  // Update chart data every second using Web Worker (avoids background tab throttling)
   useEffect(() => {
     // Check if market changed
     const marketChanged = previousMarketIdRef.current !== null && previousMarketIdRef.current !== market?.marketId
@@ -155,9 +158,10 @@ const PolyLineChart = () => {
     // Only start charting if we have event start/end times
     if (!market?.startTime || !market?.endTime) {
       setSeries([])
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
+      if (workerRef.current) {
+        workerRef.current.postMessage({ type: 'STOP' })
+        workerRef.current.terminate()
+        workerRef.current = null
       }
       return
     }
@@ -168,10 +172,11 @@ const PolyLineChart = () => {
 
     // For PAST markets: Load historical data and DON'T poll for new prices
     if (isMarketEnded || now > eventEndTime) {
-      // Stop any existing polling
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
+      // Stop any existing worker
+      if (workerRef.current) {
+        workerRef.current.postMessage({ type: 'STOP' })
+        workerRef.current.terminate()
+        workerRef.current = null
       }
 
       // Fetch historical data for the past market
@@ -226,9 +231,10 @@ const PolyLineChart = () => {
     // Don't chart if event hasn't started yet
     if (now < eventStartTime) {
       setSeries([])
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-        intervalRef.current = null
+      if (workerRef.current) {
+        workerRef.current.postMessage({ type: 'STOP' })
+        workerRef.current.terminate()
+        workerRef.current = null
       }
       return
     }
@@ -254,7 +260,9 @@ const PolyLineChart = () => {
 
     // Update chart with current prices (LIVE market only)
     const updateChart = async () => {
-      const { upPrice, downPrice } = await fetchPrices()
+      if (!fetchPricesRef.current) return
+      
+      const { upPrice, downPrice } = await fetchPricesRef.current()
       if (upPrice === null && downPrice === null) return
 
       const currentTime = Date.now()
@@ -293,16 +301,42 @@ const PolyLineChart = () => {
     // Initial fetch
     updateChart()
 
-    // Update every second (LIVE market only)
-    intervalRef.current = setInterval(updateChart, 1000)
+    // Create Web Worker for background-safe timing (avoids browser throttling)
+    // Web Workers run independently of the main thread and aren't throttled in background tabs
+    if (typeof Worker !== 'undefined') {
+      try {
+        const worker = new Worker('/workers/timer-worker.js')
+        workerRef.current = worker
+
+        worker.onmessage = (e) => {
+          if (e.data.type === 'TICK') {
+            updateChart()
+          }
+        }
+
+        worker.onerror = (error) => {
+          console.error('[PolyLineChart] Worker error:', error)
+          // Fallback to setInterval if worker fails
+          worker.terminate()
+          workerRef.current = null
+        }
+
+        // Start the worker with 1 second interval
+        worker.postMessage({ type: 'START', payload: { interval: 1000 } })
+        console.log('[PolyLineChart] Started Web Worker for background-safe updates')
+      } catch (error) {
+        console.error('[PolyLineChart] Failed to create Web Worker:', error)
+      }
+    }
 
       return () => {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current)
-          intervalRef.current = null
+      if (workerRef.current) {
+        workerRef.current.postMessage({ type: 'STOP' })
+        workerRef.current.terminate()
+        workerRef.current = null
         }
       }
-    }, [market?.startTime, market?.endTime, market?.marketId, market?.yesTokenId, market?.noTokenId, market?.isPast, market?.marketStatus, isMarketEnded, fetchPrices, fetchHistoricalData])
+  }, [market?.startTime, market?.endTime, market?.marketId, market?.yesTokenId, market?.noTokenId, market?.isPast, market?.marketStatus, isMarketEnded, fetchHistoricalData])
 
   const { upLinePath, downLinePath, minPrice, maxPrice, paddedMin, paddedMax, eventStartTime, eventEndTime } = useMemo(() => {
     if (!series.length || !market?.startTime || !market?.endTime) {

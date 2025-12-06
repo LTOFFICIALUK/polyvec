@@ -11,6 +11,22 @@ import { WebSocketServer } from './ws/server'
 import { MarketsStateStore } from './state/marketsState'
 import { fetchMarketsList, fetchOrderbook, fetchMultipleOrderbooks, fetchMarketBySlug, MarketMetadata } from './polymarket/clobClient'
 import { initializePriceRecorder, recordMarketPrices, closePriceRecorder, queryPriceHistory } from './db/priceRecorder'
+import {
+  initializeStrategyRecorder,
+  closeStrategyRecorder,
+  createStrategy,
+  getStrategy,
+  getUserStrategies,
+  getAllStrategies,
+  updateStrategy,
+  deleteStrategy,
+  toggleStrategyActive,
+  recordTrade,
+  getStrategyTrades,
+  getStrategyAnalytics,
+  updateStrategyAnalytics,
+  Strategy,
+} from './db/strategyRecorder'
 
 const POLYMARKET_GAMMA_API = process.env.POLYMARKET_GAMMA_API || 'https://gamma-api.polymarket.com'
 
@@ -1171,6 +1187,284 @@ const httpServer = http.createServer(async (req, res) => {
     return
   }
 
+  // ============================================
+  // STRATEGY API ENDPOINTS
+  // ============================================
+
+  // Create a new strategy
+  if (path === '/api/strategies' && req.method === 'POST') {
+    let body = ''
+    req.on('data', (chunk) => { body += chunk.toString() })
+    req.on('end', async () => {
+      try {
+        const strategyData = JSON.parse(body)
+        
+        if (!strategyData.userAddress) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'Missing userAddress' }))
+          return
+        }
+        
+        if (!strategyData.name) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'Missing strategy name' }))
+          return
+        }
+
+        const strategy = await createStrategy(strategyData)
+        
+        if (strategy) {
+          console.log(`[Server] Created strategy: ${strategy.name} (${strategy.id})`)
+          res.writeHead(201, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: true, data: strategy }))
+        } else {
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'Failed to create strategy' }))
+        }
+      } catch (error: any) {
+        console.error('[Server] Error creating strategy:', error)
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: error.message || 'Invalid request' }))
+      }
+    })
+    return
+  }
+
+  // Get all strategies (for browsing/scraping)
+  if (path === '/api/strategies' && req.method === 'GET') {
+    try {
+      const limit = parseInt(url.searchParams.get('limit') || '50')
+      const offset = parseInt(url.searchParams.get('offset') || '0')
+      
+      const strategies = await getAllStrategies(limit, offset)
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: true, data: strategies, count: strategies.length }))
+    } catch (error: any) {
+      console.error('[Server] Error fetching strategies:', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: error.message || 'Failed to fetch strategies' }))
+    }
+    return
+  }
+
+  // Get strategies for a specific user
+  if (path === '/api/strategies/user' && req.method === 'GET') {
+    const userAddress = url.searchParams.get('address')
+    
+    if (!userAddress) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: 'Missing address parameter' }))
+      return
+    }
+
+    try {
+      const strategies = await getUserStrategies(userAddress)
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: true, data: strategies, count: strategies.length }))
+    } catch (error: any) {
+      console.error('[Server] Error fetching user strategies:', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: error.message || 'Failed to fetch strategies' }))
+    }
+    return
+  }
+
+  // Get/Update/Delete a specific strategy by ID
+  const strategyIdMatch = path.match(/^\/api\/strategies\/([a-f0-9-]+)$/)
+  if (strategyIdMatch) {
+    const strategyId = strategyIdMatch[1]
+    
+    // GET - Get strategy by ID
+    if (req.method === 'GET') {
+      try {
+        const strategy = await getStrategy(strategyId)
+        
+        if (strategy) {
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: true, data: strategy }))
+        } else {
+          res.writeHead(404, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'Strategy not found' }))
+        }
+      } catch (error: any) {
+        console.error('[Server] Error fetching strategy:', error)
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: error.message || 'Failed to fetch strategy' }))
+      }
+      return
+    }
+    
+    // PUT - Update strategy
+    if (req.method === 'PUT') {
+      let body = ''
+      req.on('data', (chunk) => { body += chunk.toString() })
+      req.on('end', async () => {
+        try {
+          const updates = JSON.parse(body)
+          const strategy = await updateStrategy(strategyId, updates)
+          
+          if (strategy) {
+            console.log(`[Server] Updated strategy: ${strategy.name} (${strategy.id})`)
+            res.writeHead(200, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ success: true, data: strategy }))
+          } else {
+            res.writeHead(404, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({ success: false, error: 'Strategy not found' }))
+          }
+        } catch (error: any) {
+          console.error('[Server] Error updating strategy:', error)
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: error.message || 'Invalid request' }))
+        }
+      })
+      return
+    }
+    
+    // DELETE - Delete strategy
+    if (req.method === 'DELETE') {
+      try {
+        const deleted = await deleteStrategy(strategyId)
+        
+        if (deleted) {
+          console.log(`[Server] Deleted strategy: ${strategyId}`)
+          res.writeHead(200, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: true }))
+        } else {
+          res.writeHead(404, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'Strategy not found' }))
+        }
+      } catch (error: any) {
+        console.error('[Server] Error deleting strategy:', error)
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: error.message || 'Failed to delete strategy' }))
+      }
+      return
+    }
+  }
+
+  // Toggle strategy active status
+  const toggleMatch = path.match(/^\/api\/strategies\/([a-f0-9-]+)\/toggle$/)
+  if (toggleMatch && req.method === 'POST') {
+    const strategyId = toggleMatch[1]
+    
+    try {
+      const strategy = await toggleStrategyActive(strategyId)
+      
+      if (strategy) {
+        console.log(`[Server] Toggled strategy ${strategyId} active status to ${strategy.isActive}`)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: strategy }))
+      } else {
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: 'Strategy not found' }))
+      }
+    } catch (error: any) {
+      console.error('[Server] Error toggling strategy:', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: error.message || 'Failed to toggle strategy' }))
+    }
+    return
+  }
+
+  // Get strategy analytics
+  const analyticsMatch = path.match(/^\/api\/strategies\/([a-f0-9-]+)\/analytics$/)
+  if (analyticsMatch && req.method === 'GET') {
+    const strategyId = analyticsMatch[1]
+    
+    try {
+      const analytics = await getStrategyAnalytics(strategyId)
+      
+      if (analytics) {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: analytics }))
+      } else {
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: 'Analytics not found' }))
+      }
+    } catch (error: any) {
+      console.error('[Server] Error fetching analytics:', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: error.message || 'Failed to fetch analytics' }))
+    }
+    return
+  }
+
+  // Recalculate strategy analytics
+  const recalcMatch = path.match(/^\/api\/strategies\/([a-f0-9-]+)\/analytics\/recalculate$/)
+  if (recalcMatch && req.method === 'POST') {
+    const strategyId = recalcMatch[1]
+    
+    try {
+      const analytics = await updateStrategyAnalytics(strategyId)
+      
+      if (analytics) {
+        console.log(`[Server] Recalculated analytics for strategy ${strategyId}`)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: true, data: analytics }))
+      } else {
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: 'Strategy not found' }))
+      }
+    } catch (error: any) {
+      console.error('[Server] Error recalculating analytics:', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: error.message || 'Failed to recalculate analytics' }))
+    }
+    return
+  }
+
+  // Get trades for a strategy
+  const tradesMatch = path.match(/^\/api\/strategies\/([a-f0-9-]+)\/trades$/)
+  if (tradesMatch && req.method === 'GET') {
+    const strategyId = tradesMatch[1]
+    const limit = parseInt(url.searchParams.get('limit') || '100')
+    const offset = parseInt(url.searchParams.get('offset') || '0')
+    
+    try {
+      const trades = await getStrategyTrades(strategyId, limit, offset)
+      
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: true, data: trades, count: trades.length }))
+    } catch (error: any) {
+      console.error('[Server] Error fetching trades:', error)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: error.message || 'Failed to fetch trades' }))
+    }
+    return
+  }
+
+  // Record a new trade for a strategy
+  if (tradesMatch && req.method === 'POST') {
+    const strategyId = tradesMatch[1]
+    
+    let body = ''
+    req.on('data', (chunk) => { body += chunk.toString() })
+    req.on('end', async () => {
+      try {
+        const tradeData = JSON.parse(body)
+        tradeData.strategyId = strategyId
+        
+        const trade = await recordTrade(tradeData)
+        
+        if (trade) {
+          console.log(`[Server] Recorded trade for strategy ${strategyId}`)
+          res.writeHead(201, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: true, data: trade }))
+        } else {
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'Failed to record trade' }))
+        }
+      } catch (error: any) {
+        console.error('[Server] Error recording trade:', error)
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: error.message || 'Invalid request' }))
+      }
+    })
+    return
+  }
+
   // API endpoints for user data (kept for backward compatibility)
   const address = url.searchParams.get('address')
   
@@ -1691,8 +1985,9 @@ function startAutomaticMarketRefresh() {
   }, 60 * 1000) // 1 minute after startup
 }
 
-// Initialize price recorder (database connection)
+// Initialize database recorders (price and strategy)
 initializePriceRecorder()
+initializeStrategyRecorder()
 
 // Start server
 httpServer.listen(HTTP_PORT, () => {
@@ -1713,6 +2008,7 @@ process.on('SIGTERM', async () => {
   httpServer.close(async () => {
     console.log('[Server] HTTP server closed')
     await closePriceRecorder()
+    await closeStrategyRecorder()
     process.exit(0)
   })
 })
@@ -1722,6 +2018,7 @@ process.on('SIGINT', async () => {
   httpServer.close(async () => {
     console.log('[Server] HTTP server closed')
     await closePriceRecorder()
+    await closeStrategyRecorder()
     process.exit(0)
   })
 })

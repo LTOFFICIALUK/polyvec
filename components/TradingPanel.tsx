@@ -185,11 +185,14 @@ const TradingPanel = () => {
   })
 
   // Get real-time Polymarket prices with minimal delay
+  // Pass token IDs from currentMarket (fetched via Railway ws-service)
   const { prices, loading, error } = usePolymarketPrices({
     pair: selectedPair,
     timeframe: selectedTimeframe,
     interval: 5000, // Update every 5 seconds to reduce load
     useWebSocket: false, // Set to true once WebSocket is properly configured
+    yesTokenId: currentMarket?.yesTokenId || undefined,
+    noTokenId: currentMarket?.noTokenId || undefined,
   })
 
   // Fetch orderbook data for UP and DOWN tokens to get best bid/ask

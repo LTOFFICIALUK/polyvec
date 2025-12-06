@@ -2,6 +2,8 @@
 
 import { useState, KeyboardEvent, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { createStrategyAPI, Strategy } from '@/hooks/useStrategies'
+import { useWallet } from '@/contexts/WalletContext'
 
 type TabType = 'basics' | 'tradingview' | 'polymarket' | 'risk' | 'schedule'
 
@@ -93,7 +95,10 @@ interface StrategyConfig {
 
 export default function StrategyEditorPage() {
   const router = useRouter()
+  const { walletAddress: address } = useWallet()
   const [activeTab, setActiveTab] = useState<TabType>('basics')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [config, setConfig] = useState<StrategyConfig>({
     name: '',
     description: '',
@@ -143,9 +148,80 @@ export default function StrategyEditorPage() {
     orderLadder: [],
   })
 
-  const handleSave = () => {
-    // TODO: Implement save functionality
-    console.log('Save strategy:', config)
+  const handleSave = async () => {
+    if (!address) {
+      setSaveError('Please connect your wallet to save strategies')
+      return
+    }
+
+    setSaving(true)
+    setSaveError(null)
+
+    try {
+      // Convert config to API format
+      const strategyData: Omit<Strategy, 'id' | 'createdAt' | 'updatedAt'> = {
+        userAddress: address,
+        name: config.name,
+        description: config.description || undefined,
+        asset: config.asset,
+        direction: config.direction,
+        timeframe: config.timeframe,
+        isLive: config.isLive,
+        isActive: false, // Start as inactive
+        indicators: config.indicators,
+        conditionLogic: config.conditionLogic,
+        conditions: config.conditions,
+        actions: config.actions,
+        tradeOnEventsCount: config.tradeOnEventsCount,
+        market: config.market || undefined,
+        side: config.side || undefined,
+        orderType: config.orderType || undefined,
+        orderbookRules: config.orderbookRules,
+        orderSizeMode: config.orderSizeMode,
+        fixedDollarAmount: config.fixedDollarAmount ? parseFloat(config.fixedDollarAmount) : undefined,
+        fixedSharesAmount: config.fixedSharesAmount ? parseInt(config.fixedSharesAmount) : undefined,
+        percentageOfBalance: config.percentageOfBalance ? parseFloat(config.percentageOfBalance) : undefined,
+        dynamicBaseSize: config.dynamicBaseSize ? parseFloat(config.dynamicBaseSize) : undefined,
+        dynamicMaxSize: config.dynamicMaxSize ? parseFloat(config.dynamicMaxSize) : undefined,
+        limitOrderPrice: config.limitOrderPrice,
+        customLimitPrice: config.customLimitPrice ? parseFloat(config.customLimitPrice) : undefined,
+        adjustPriceAboveBid: config.adjustPriceAboveBid,
+        adjustPriceBelowAsk: config.adjustPriceBelowAsk,
+        maxTradesPerEvent: config.maxTradesPerEvent ? parseInt(config.maxTradesPerEvent) : undefined,
+        maxOpenOrders: config.maxOpenOrders ? parseInt(config.maxOpenOrders) : undefined,
+        dailyTradeCap: config.dailyTradeCap ? parseInt(config.dailyTradeCap) : undefined,
+        maxDailyLoss: config.maxDailyLoss ? parseFloat(config.maxDailyLoss) : undefined,
+        maxOrdersPerHour: config.maxOrdersPerHour ? parseInt(config.maxOrdersPerHour) : undefined,
+        maxPositionShares: config.maxPositionShares ? parseInt(config.maxPositionShares) : undefined,
+        maxPositionDollar: config.maxPositionDollar ? parseFloat(config.maxPositionDollar) : undefined,
+        useTakeProfit: config.useTakeProfit,
+        takeProfitPercent: config.takeProfitPercent ? parseFloat(config.takeProfitPercent) : undefined,
+        useStopLoss: config.useStopLoss,
+        stopLossPercent: config.stopLossPercent ? parseFloat(config.stopLossPercent) : undefined,
+        unfilledOrderBehavior: config.unfilledOrderBehavior,
+        cancelAfterSeconds: config.cancelAfterSeconds ? parseInt(config.cancelAfterSeconds) : undefined,
+        useOrderLadder: config.useOrderLadder,
+        orderLadder: config.orderLadder,
+        selectedDays: config.selectedDays,
+        timeRange: config.timeRange,
+        runOnNewCandle: config.runOnNewCandle,
+        pauseOnSettlement: config.pauseOnSettlement,
+      }
+
+      const result = await createStrategyAPI(strategyData)
+
+      if (result.success && result.data) {
+        // Navigate to strategies list on success
+        router.push('/strategies')
+      } else {
+        setSaveError(result.error || 'Failed to save strategy')
+      }
+    } catch (error) {
+      console.error('Error saving strategy:', error)
+      setSaveError('An error occurred while saving')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleCancel = () => {
@@ -184,13 +260,20 @@ export default function StrategyEditorPage() {
             <button
               type="button"
               onClick={handleSave}
-              disabled={!isValidConfig}
+              disabled={!isValidConfig || saving || !address}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white text-sm font-medium rounded transition-colors duration-200 focus:outline-none"
             >
-              Save Strategy
+              {saving ? 'Saving...' : !address ? 'Connect Wallet' : 'Save Strategy'}
             </button>
           </div>
         </div>
+
+        {/* Error Display */}
+        {saveError && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+            <p className="text-red-400 text-sm">{saveError}</p>
+          </div>
+        )}
 
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

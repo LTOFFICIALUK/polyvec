@@ -1,110 +1,117 @@
 'use client'
 
-import { useState, KeyboardEvent, MouseEvent } from 'react'
+import { useState, useEffect, KeyboardEvent, MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
+import { useStrategies, Strategy, fetchStrategyAnalytics } from '@/hooks/useStrategies'
+import { useWallet } from '@/contexts/WalletContext'
 
-interface Strategy {
-  id: string
-  name: string
-  type: string
-  isActive: boolean
-  pnl: string
-  pnlColor: string
-  totalTrades: number
-  winRate: string
-  lastUpdated: string
+interface StrategyWithAnalytics extends Strategy {
+  pnl?: string
+  pnlColor?: string
+  totalTrades?: number
+  winRate?: string
+  lastUpdated?: string
+  type?: string
 }
 
 export default function StrategiesPage() {
   const router = useRouter()
-  const [strategies, setStrategies] = useState<Strategy[]>([
-    {
-      id: '1',
-      name: 'Momentum Breakout',
-      type: 'Technical',
-      isActive: true,
-      pnl: '+$125.50',
-      pnlColor: 'text-green-400',
-      totalTrades: 45,
-      winRate: '68%',
-      lastUpdated: '2 min ago',
-    },
-    {
-      id: '2',
-      name: 'RSI Reversal',
-      type: 'Technical',
-      isActive: true,
-      pnl: '+$89.20',
-      pnlColor: 'text-green-400',
-      totalTrades: 32,
-      winRate: '72%',
-      lastUpdated: '5 min ago',
-    },
-    {
-      id: '3',
-      name: 'MACD Crossover',
-      type: 'Technical',
-      isActive: true,
-      pnl: '+$156.80',
-      pnlColor: 'text-green-400',
-      totalTrades: 58,
-      winRate: '65%',
-      lastUpdated: '1 min ago',
-    },
-    {
-      id: '4',
-      name: 'Bollinger Squeeze',
-      type: 'Technical',
-      isActive: true,
-      pnl: '-$23.40',
-      pnlColor: 'text-red-400',
-      totalTrades: 28,
-      winRate: '54%',
-      lastUpdated: '8 min ago',
-    },
-    {
-      id: '5',
-      name: 'Volume Surge',
-      type: 'Technical',
-      isActive: false,
-      pnl: '+$45.60',
-      pnlColor: 'text-green-400',
-      totalTrades: 19,
-      winRate: '63%',
-      lastUpdated: '2 hours ago',
-    },
-    {
-      id: '6',
-      name: 'Mean Reversion',
-      type: 'Statistical',
-      isActive: false,
-      pnl: '+$12.30',
-      pnlColor: 'text-green-400',
-      totalTrades: 15,
-      winRate: '60%',
-      lastUpdated: '1 day ago',
-    },
-    {
-      id: '7',
-      name: 'Support/Resistance',
-      type: 'Technical',
-      isActive: false,
-      pnl: '-$8.90',
-      pnlColor: 'text-red-400',
-      totalTrades: 22,
-      winRate: '55%',
-      lastUpdated: '3 days ago',
-    },
-  ])
+  const { walletAddress: address } = useWallet()
+  
+  // Use the hook with user's address if connected, otherwise fetch all
+  const { 
+    strategies: rawStrategies, 
+    loading, 
+    error, 
+    refetch, 
+    toggleActive, 
+    deleteStrategy: deleteStrategyHook 
+  } = useStrategies({ 
+    userAddress: address || undefined,
+    autoFetch: true 
+  })
 
-  const toggleStrategy = (id: string) => {
-    setStrategies((prev) =>
-      prev.map((strategy) =>
-        strategy.id === id
-          ? { ...strategy, isActive: !strategy.isActive }
-          : strategy
+  // Store strategies with analytics
+  const [strategies, setStrategies] = useState<StrategyWithAnalytics[]>([])
+
+  // Fetch analytics for each strategy
+  useEffect(() => {
+    const fetchAnalyticsForStrategies = async () => {
+      const strategiesWithAnalytics = await Promise.all(
+        rawStrategies.map(async (strategy) => {
+          try {
+            const analyticsResult = await fetchStrategyAnalytics(strategy.id!)
+            const analytics = analyticsResult.data
+            
+            const pnl = analytics?.totalPnl || 0
+            const pnlFormatted = pnl >= 0 ? `+$${pnl.toFixed(2)}` : `-$${Math.abs(pnl).toFixed(2)}`
+            const pnlColor = pnl >= 0 ? 'text-green-400' : 'text-red-400'
+            
+            // Determine "type" from indicators
+            const hasIndicators = strategy.indicators && strategy.indicators.length > 0
+            const type = hasIndicators ? 'Technical' : 'Custom'
+            
+            // Format last updated
+            const updatedAt = strategy.updatedAt ? new Date(strategy.updatedAt) : new Date()
+            const now = new Date()
+            const diffMs = now.getTime() - updatedAt.getTime()
+            const diffMins = Math.floor(diffMs / 60000)
+            const diffHours = Math.floor(diffMins / 60)
+            const diffDays = Math.floor(diffHours / 24)
+            
+            let lastUpdated = 'just now'
+            if (diffDays > 0) {
+              lastUpdated = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+            } else if (diffHours > 0) {
+              lastUpdated = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+            } else if (diffMins > 0) {
+              lastUpdated = `${diffMins} min${diffMins > 1 ? 's' : ''} ago`
+            }
+            
+            return {
+              ...strategy,
+              pnl: pnlFormatted,
+              pnlColor,
+              totalTrades: analytics?.totalTrades || 0,
+              winRate: analytics ? `${analytics.winRate.toFixed(0)}%` : '0%',
+              lastUpdated,
+              type,
+            }
+          } catch {
+            return {
+              ...strategy,
+              pnl: '$0.00',
+              pnlColor: 'text-gray-400',
+              totalTrades: 0,
+              winRate: '0%',
+              lastUpdated: 'unknown',
+              type: 'Custom',
+            }
+          }
+        })
       )
-    )
+      setStrategies(strategiesWithAnalytics)
+    }
+
+    if (rawStrategies.length > 0) {
+      fetchAnalyticsForStrategies()
+    } else {
+      setStrategies([])
+    }
+  }, [rawStrategies])
+
+  const handleToggleStrategy = async (id: string) => {
+    const result = await toggleActive(id)
+    if (result) {
+      // Update local state with new isActive value
+      setStrategies((prev) =>
+        prev.map((strategy) =>
+          strategy.id === id
+            ? { ...strategy, isActive: result.isActive }
+            : strategy
+        )
+      )
+    }
   }
 
   const handleStrategyClick = (id: string) => {
@@ -124,22 +131,28 @@ export default function StrategiesPage() {
     handleCreateNew()
   }
 
-  const handleDelete = (id: string, event: MouseEvent<HTMLButtonElement>) => {
+  const handleDelete = async (id: string, event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
-    // TODO: Implement delete strategy functionality
-    console.log('Delete strategy:', id)
+    
+    if (!confirm('Are you sure you want to delete this strategy?')) {
+      return
+    }
+    
+    const deleted = await deleteStrategyHook(id)
+    if (deleted) {
+      setStrategies((prev) => prev.filter((s) => s.id !== id))
+    }
   }
 
   const handleClone = (id: string, event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
-    // TODO: Implement clone strategy functionality
-    console.log('Clone strategy:', id)
+    // Navigate to new strategy with clone parameter
+    router.push(`/strategies/new?clone=${id}`)
   }
 
   const handleEdit = (id: string, event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
-    // TODO: Implement edit strategy functionality
-    console.log('Edit strategy:', id)
+    router.push(`/strategies/${id}/edit`)
   }
 
   const sortedStrategies = [...strategies].sort((a, b) => {
@@ -164,11 +177,29 @@ export default function StrategiesPage() {
           </button>
         </div>
 
-        {sortedStrategies.length === 0 ? (
+        {loading ? (
+          <div className="py-16 text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-primary mx-auto mb-4" />
+            <p className="text-gray-400 text-sm">Loading strategies...</p>
+          </div>
+        ) : error ? (
+          <div className="py-16 text-center">
+            <p className="text-red-400 text-sm mb-4">{error}</p>
+            <button
+              type="button"
+              onClick={refetch}
+              className="inline-block px-6 py-2.5 bg-purple-primary hover:bg-purple-hover text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        ) : sortedStrategies.length === 0 ? (
           <div className="py-16 text-center">
             <h2 className="text-base font-medium text-gray-400 mb-1">No Strategies</h2>
             <p className="text-sm text-gray-500 mb-6">
-              Create your first trading strategy to get started.
+              {address 
+                ? 'Create your first trading strategy to get started.'
+                : 'Connect your wallet to view your strategies, or browse public strategies.'}
             </p>
             <button
               type="button"
@@ -194,10 +225,10 @@ export default function StrategiesPage() {
                 </tr>
               </thead>
               <tbody>
-                {sortedStrategies.map((strategy) => (
+                {sortedStrategies.map((strategy, index) => (
                 <tr
-                  key={strategy.id}
-                  onClick={() => handleStrategyClick(strategy.id)}
+                  key={strategy.id || `strategy-${index}`}
+                  onClick={() => strategy.id && handleStrategyClick(strategy.id)}
                   className={`border-b border-gray-800 hover:bg-gray-900/30 cursor-pointer ${
                     !strategy.isActive ? 'opacity-70' : ''
                   }`}
@@ -206,7 +237,7 @@ export default function StrategiesPage() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
-                            toggleStrategy(strategy.id)
+                            if (strategy.id) handleToggleStrategy(strategy.id)
                           }}
                           className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary focus:ring-offset-2 focus:ring-offset-black ${
                             strategy.isActive ? 'bg-purple-primary' : 'bg-gray-600'
@@ -237,7 +268,7 @@ export default function StrategiesPage() {
                       <td className="py-3 px-4">
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={(e) => handleEdit(strategy.id, e)}
+                            onClick={(e) => strategy.id && handleEdit(strategy.id, e)}
                             className="p-1.5 text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary focus:ring-offset-2 focus:ring-offset-black rounded"
                             aria-label={`Edit ${strategy.name}`}
                             tabIndex={0}
@@ -258,7 +289,7 @@ export default function StrategiesPage() {
                             </svg>
                           </button>
                           <button
-                            onClick={(e) => handleClone(strategy.id, e)}
+                            onClick={(e) => strategy.id && handleClone(strategy.id, e)}
                             className="p-1.5 text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary focus:ring-offset-2 focus:ring-offset-black rounded"
                             aria-label={`Clone ${strategy.name}`}
                             tabIndex={0}
@@ -279,7 +310,7 @@ export default function StrategiesPage() {
                             </svg>
                           </button>
                           <button
-                            onClick={(e) => handleDelete(strategy.id, e)}
+                            onClick={(e) => strategy.id && handleDelete(strategy.id, e)}
                             className="p-1.5 text-gray-400 hover:text-red-400 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary focus:ring-offset-2 focus:ring-offset-black rounded"
                             aria-label={`Delete ${strategy.name}`}
                             tabIndex={0}
