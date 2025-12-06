@@ -5,6 +5,257 @@ import { useRouter } from 'next/navigation'
 import { useStrategies, Strategy, fetchStrategyAnalytics } from '@/hooks/useStrategies'
 import { useWallet } from '@/contexts/WalletContext'
 
+// ============================================
+// Auto-Trading Setup Component
+// ============================================
+
+interface TradingKeyStatus {
+  hasKey: boolean
+  metadata?: {
+    isActive: boolean
+    createdAt: string
+    lastUsedAt?: string
+  } | null
+}
+
+const WS_SERVICE_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8081'
+
+function AutoTradingSetup({ userAddress }: { userAddress: string }) {
+  const [status, setStatus] = useState<TradingKeyStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [showKeyInput, setShowKeyInput] = useState(false)
+  const [privateKey, setPrivateKey] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+
+  // Check if user has a trading key
+  useEffect(() => {
+    const checkKey = async () => {
+      try {
+        const res = await fetch(`${WS_SERVICE_URL}/api/trading/key/check?address=${userAddress}`)
+        const data = await res.json()
+        setStatus(data)
+      } catch {
+        // Service might not be available
+        setStatus(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+    checkKey()
+  }, [userAddress])
+
+  const handleSaveKey = async () => {
+    if (!privateKey.trim()) {
+      setError('Please enter your private key')
+      return
+    }
+
+    // Basic validation - should be 64 hex chars (with or without 0x)
+    const cleanKey = privateKey.trim().replace('0x', '')
+    if (!/^[a-fA-F0-9]{64}$/.test(cleanKey)) {
+      setError('Invalid private key format. Should be 64 hex characters.')
+      return
+    }
+
+    setSaving(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const res = await fetch(`${WS_SERVICE_URL}/api/trading/key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress,
+          privateKey: privateKey.trim(),
+        }),
+      })
+
+      const data = await res.json()
+
+      if (data.success) {
+        setSuccess('Trading key saved securely!')
+        setPrivateKey('')
+        setShowKeyInput(false)
+        setStatus({ hasKey: true, metadata: { isActive: true, createdAt: new Date().toISOString() } })
+      } else {
+        setError(data.error || 'Failed to save key')
+      }
+    } catch {
+      setError('Failed to connect to trading service')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeleteKey = async () => {
+    if (!confirm('Are you sure you want to remove your trading key? Auto-trading will be disabled.')) {
+      return
+    }
+
+    try {
+      const res = await fetch(`${WS_SERVICE_URL}/api/trading/key?address=${userAddress}`, {
+        method: 'DELETE',
+      })
+      const data = await res.json()
+
+      if (data.success) {
+        setStatus({ hasKey: false })
+        setSuccess('Trading key removed')
+      }
+    } catch {
+      setError('Failed to remove key')
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="mb-6 p-4 bg-gray-900/50 border border-gray-800 rounded-lg">
+        <div className="animate-pulse flex items-center gap-3">
+          <div className="w-5 h-5 bg-gray-700 rounded"></div>
+          <div className="h-4 bg-gray-700 rounded w-48"></div>
+        </div>
+      </div>
+    )
+  }
+
+  // Service not available
+  if (status === null) {
+    return null
+  }
+
+  return (
+    <div className="mb-6">
+      {/* Success/Error messages */}
+      {success && (
+        <div className="mb-4 p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
+          <p className="text-green-400 text-sm">{success}</p>
+        </div>
+      )}
+      {error && (
+        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+          <p className="text-red-400 text-sm">{error}</p>
+        </div>
+      )}
+
+      {status.hasKey ? (
+        // Key is configured
+        <div className="p-4 bg-green-500/5 border border-green-500/20 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-500/20 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-white font-medium">Auto-Trading Enabled</p>
+                <p className="text-gray-400 text-sm">Your trading key is securely stored. Strategies will execute automatically.</p>
+              </div>
+            </div>
+            <button
+              onClick={handleDeleteKey}
+              className="px-3 py-1.5 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded transition-colors"
+            >
+              Remove Key
+            </button>
+          </div>
+        </div>
+      ) : showKeyInput ? (
+        // Key input form
+        <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-lg">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="w-10 h-10 bg-yellow-500/20 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-white font-medium">Enter Your Private Key</p>
+              <p className="text-gray-400 text-sm mt-1">
+                Your key is encrypted with AES-256 before storage. We never see or store your plaintext key.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-1">Private Key</label>
+              <input
+                type="password"
+                value={privateKey}
+                onChange={(e) => setPrivateKey(e.target.value)}
+                placeholder="Enter your wallet private key (64 hex characters)"
+                className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+              />
+            </div>
+
+            <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
+              <p className="text-yellow-400 text-xs">
+                <strong>⚠️ Security Recommendations:</strong>
+              </p>
+              <ul className="text-yellow-400/80 text-xs mt-1 space-y-1 list-disc list-inside">
+                <li>Use a dedicated trading wallet, not your main wallet</li>
+                <li>Only deposit funds you're willing to trade with</li>
+                <li>Your key is encrypted and can be removed anytime</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleSaveKey}
+                disabled={saving}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                {saving ? 'Saving...' : 'Save Key Securely'}
+              </button>
+              <button
+                onClick={() => {
+                  setShowKeyInput(false)
+                  setPrivateKey('')
+                  setError('')
+                }}
+                className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        // No key configured - show setup prompt
+        <div className="p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-yellow-500/20 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-white font-medium">Enable Auto-Trading</p>
+                <p className="text-gray-400 text-sm">Add your trading wallet key to execute strategies automatically 24/7.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowKeyInput(true)}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
+            >
+              Setup Now
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ============================================
+// Main Strategies Page
+// ============================================
+
 interface StrategyWithAnalytics extends Strategy {
   pnl?: string
   pnlColor?: string
@@ -189,6 +440,9 @@ export default function StrategiesPage() {
             </button>
           </div>
         )}
+
+        {/* Auto-Trading Setup - only show when wallet connected */}
+        {address && <AutoTradingSetup userAddress={address} />}
 
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
