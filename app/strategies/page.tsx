@@ -121,10 +121,8 @@ function AutoTradingSetup({ userAddress }: { userAddress: string }) {
     )
   }
 
-  // Service not available
-  if (status === null) {
-    return null
-  }
+  // Service not available - still show setup but with message
+  const serviceUnavailable = status === null
 
   return (
     <div className="mb-6">
@@ -140,7 +138,24 @@ function AutoTradingSetup({ userAddress }: { userAddress: string }) {
         </div>
       )}
 
-      {status.hasKey ? (
+      {serviceUnavailable ? (
+        // Service not available - show setup prompt with note
+        <div className="p-4 bg-gray-900/50 border border-gray-700 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gray-700 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-white font-medium">Auto-Trading</p>
+                <p className="text-gray-400 text-sm">Backend service connecting... Auto-trading setup available on production.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : status?.hasKey ? (
         // Key is configured
         <div className="p-4 bg-green-500/5 border border-green-500/20 rounded-lg">
           <div className="flex items-center justify-between">
@@ -207,7 +222,7 @@ function AutoTradingSetup({ userAddress }: { userAddress: string }) {
               <button
                 onClick={handleSaveKey}
                 disabled={saving}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-purple-600/50 text-white rounded-lg text-sm font-medium transition-colors"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 text-white rounded-lg text-sm font-medium transition-colors"
               >
                 {saving ? 'Saving...' : 'Save Key Securely'}
               </button>
@@ -241,7 +256,7 @@ function AutoTradingSetup({ userAddress }: { userAddress: string }) {
             </div>
             <button
               onClick={() => setShowKeyInput(true)}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
             >
               Setup Now
             </button>
