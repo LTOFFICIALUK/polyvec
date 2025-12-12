@@ -25,6 +25,28 @@ interface WebSocketProviderProps {
   children: React.ReactNode
 }
 
+// Helper function to construct WebSocket URL, avoiding duplicate /ws paths
+const getWebSocketUrl = (): string => {
+  const baseUrl = process.env.NEXT_PUBLIC_WEBSOCKET_SERVER_URL
+  if (!baseUrl) {
+    return 'ws://localhost:8081/ws'
+  }
+  
+  // Remove trailing slash if present
+  const cleanUrl = baseUrl.replace(/\/$/, '')
+  
+  // Check if URL already ends with /ws (case-insensitive)
+  if (/\/ws$/i.test(cleanUrl)) {
+    return cleanUrl
+  }
+  
+  // Append /ws if not already present
+  return `${cleanUrl}/ws`
+}
+
+// Calculate WebSocket URL once at module load time
+const WEBSOCKET_URL = getWebSocketUrl()
+
 export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }) => {
   const [isConnected, setIsConnected] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
@@ -36,10 +58,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
   const marketDataRef = useRef<Map<string, any>>(new Map())
   const messageQueueRef = useRef<any[]>([])
   const subscribedMarketsRef = useRef<Set<string>>(new Set())
-
-  const WEBSOCKET_URL = process.env.NEXT_PUBLIC_WEBSOCKET_SERVER_URL 
-    ? `${process.env.NEXT_PUBLIC_WEBSOCKET_SERVER_URL.replace(/\/$/, '')}/ws`
-    : 'ws://localhost:8081/ws'
   const MAX_RECONNECT_ATTEMPTS = 10
   const INITIAL_RECONNECT_DELAY = 1000
   const MAX_RECONNECT_DELAY = 30000
@@ -55,11 +73,12 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     }
 
     try {
+      console.log('[WebSocketContext] Connecting to:', WEBSOCKET_URL)
       const ws = new WebSocket(WEBSOCKET_URL)
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log('WebSocket connected')
+        console.log('[WebSocketContext] WebSocket connected to:', WEBSOCKET_URL)
         setIsConnected(true)
         reconnectAttempts.current = 0
 
@@ -160,7 +179,12 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
       ws.onerror = (error) => {
         // Only log if we haven't exceeded max attempts (to reduce console noise)
         if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS) {
-          console.warn('WebSocket connection error (will retry):', error)
+          console.warn('[WebSocketContext] WebSocket connection error (will retry):', {
+            url: WEBSOCKET_URL,
+            attempt: reconnectAttempts.current + 1,
+            maxAttempts: MAX_RECONNECT_ATTEMPTS,
+            error
+          })
         }
         setIsConnected(false)
       }
@@ -168,7 +192,12 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
       ws.onclose = (event) => {
         // Don't log normal closures or if we've exceeded max attempts
         if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS && event.code !== 1000) {
-          console.log('WebSocket disconnected, reconnecting...')
+          console.log('[WebSocketContext] WebSocket disconnected, reconnecting...', {
+            url: WEBSOCKET_URL,
+            code: event.code,
+            reason: event.reason,
+            attempt: reconnectAttempts.current + 1
+          })
         }
         setIsConnected(false)
         wsRef.current = null

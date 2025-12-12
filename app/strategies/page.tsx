@@ -431,6 +431,19 @@ export default function StrategiesPage() {
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-6 sm:mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl sm:text-3xl font-bold">Strategies</h1>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              tabIndex={0}
+              aria-label="Backtest strategies"
+              onClick={() => router.push('/strategies/backtest')}
+              className="w-full sm:w-auto rounded bg-purple-600 px-4 py-2 text-center text-sm font-medium text-white transition-colors duration-200 hover:bg-purple-700 focus:outline-none flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              Backtest
+            </button>
           <button
             type="button"
             tabIndex={0}
@@ -441,6 +454,7 @@ export default function StrategiesPage() {
           >
             New strategy
           </button>
+          </div>
         </div>
 
         {error && (

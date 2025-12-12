@@ -47,7 +47,9 @@ import {
   getKeyAuditLog,
 } from './db/tradingKeyRecorder'
 import { isKeyVaultConfigured } from './security/keyVault'
+import { verifySignature, extractSignatureFromRequest } from './security/authVerifier'
 import { executeTrade, canExecuteTrades, testKeySignature } from './trading/tradeExecutor'
+import { initializeBacktester, runBacktest, isStrategyProfitable, closeBacktester } from './backtesting/backtester'
 
 const POLYMARKET_GAMMA_API = process.env.POLYMARKET_GAMMA_API || 'https://gamma-api.polymarket.com'
 
@@ -285,6 +287,108 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   // ============================================
+  // Backtesting Endpoints
+  // ============================================
+
+  // Run a backtest on a strategy
+  if (path === '/api/backtest' && req.method === 'POST') {
+    let body = ''
+    req.on('data', (chunk) => { body += chunk.toString() })
+    await new Promise<void>(resolve => req.on('end', resolve))
+
+    try {
+      const { strategyId, strategy, marketId, startTime, endTime, initialBalance } = JSON.parse(body)
+
+      // Either provide strategyId to fetch from DB, or provide full strategy object
+      let strategyToTest: Strategy | null = null
+      
+      if (strategyId) {
+        strategyToTest = await getStrategy(strategyId)
+        if (!strategyToTest) {
+          res.writeHead(404, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ success: false, error: 'Strategy not found' }))
+          return
+        }
+      } else if (strategy) {
+        strategyToTest = strategy as Strategy
+      } else {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: 'Missing strategyId or strategy object' }))
+        return
+      }
+
+      // Parse dates
+      const start = startTime ? new Date(startTime) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Default: 7 days ago
+      const end = endTime ? new Date(endTime) : new Date()
+
+      console.log(`[Backtest API] Running backtest for "${strategyToTest.name}"`)
+
+      const result = await runBacktest({
+        strategy: strategyToTest,
+        startTime: start,
+        endTime: end,
+        initialBalance: initialBalance || 1000,
+        marketId: marketId || strategyToTest.market,
+      })
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        success: true,
+        data: result,
+      }))
+    } catch (error: any) {
+      console.error('[Backtest API] Error:', error.message)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: error.message || 'Backtest failed' }))
+    }
+    return
+  }
+
+  // Quick profitability check for a strategy
+  if (path === '/api/backtest/quick' && req.method === 'POST') {
+    let body = ''
+    req.on('data', (chunk) => { body += chunk.toString() })
+    await new Promise<void>(resolve => req.on('end', resolve))
+
+    try {
+      const { strategyId, marketId, lookbackDays } = JSON.parse(body)
+
+      if (!strategyId) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: 'Missing strategyId' }))
+        return
+      }
+
+      const strategy = await getStrategy(strategyId)
+      if (!strategy) {
+        res.writeHead(404, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: 'Strategy not found' }))
+        return
+      }
+
+      const market = marketId || strategy.market
+      if (!market) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: 'No market specified' }))
+        return
+      }
+
+      const result = await isStrategyProfitable(strategy, market, lookbackDays || 7)
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        success: true,
+        data: result,
+      }))
+    } catch (error: any) {
+      console.error('[Backtest Quick API] Error:', error.message)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: error.message || 'Quick check failed' }))
+    }
+    return
+  }
+
+  // ============================================
   // Trading Key Management Endpoints
   // ============================================
 
@@ -339,12 +443,37 @@ const httpServer = http.createServer(async (req, res) => {
     await new Promise<void>(resolve => req.on('end', resolve))
 
     try {
-      const { userAddress, privateKey } = JSON.parse(body)
+      const { userAddress, privateKey, signature, timestamp, nonce } = JSON.parse(body)
 
       if (!userAddress || !privateKey) {
         res.writeHead(400, { 'Content-Type': 'application/json' })
         res.end(JSON.stringify({ success: false, error: 'Missing userAddress or privateKey' }))
         return
+      }
+
+      // SECURITY: Require signature verification to prove ownership of the wallet
+      // This prevents unauthorized users from storing keys for addresses they don't control
+      // Note: For backward compatibility, we allow requests without signature but log a warning
+      if (signature && timestamp) {
+        const signaturePayload = {
+          address: userAddress,
+          signature,
+          timestamp,
+          nonce: nonce || '0',
+        }
+
+        if (!verifySignature(signaturePayload, userAddress)) {
+          console.warn(`[API] Invalid signature for key storage request from ${userAddress.slice(0, 10)}...`)
+          res.writeHead(401, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: 'Invalid signature. Please sign the authentication message to prove wallet ownership.' 
+          }))
+          return
+        }
+      } else {
+        // Log warning but allow (for backward compatibility during migration)
+        console.warn(`[API] Key storage request without signature verification from ${userAddress.slice(0, 10)}...`)
       }
 
       // Get IP and user agent for audit
@@ -370,10 +499,37 @@ const httpServer = http.createServer(async (req, res) => {
   // Delete a trading key
   if (path === '/api/trading/key' && req.method === 'DELETE') {
     const userAddress = url.searchParams.get('address')
+    const signature = url.searchParams.get('signature')
+    const timestamp = url.searchParams.get('timestamp')
+    const nonce = url.searchParams.get('nonce')
+
     if (!userAddress) {
       res.writeHead(400, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ success: false, error: 'Missing address parameter' }))
       return
+    }
+
+    // SECURITY: Require signature verification for key deletion
+    if (signature && timestamp) {
+      const signaturePayload = {
+        address: userAddress,
+        signature,
+        timestamp,
+        nonce: nonce || '0',
+      }
+
+      if (!verifySignature(signaturePayload, userAddress)) {
+        console.warn(`[API] Invalid signature for key deletion request from ${userAddress.slice(0, 10)}...`)
+        res.writeHead(401, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ 
+          success: false, 
+          error: 'Invalid signature. Please sign the authentication message to prove wallet ownership.' 
+        }))
+        return
+      }
+    } else {
+      // Log warning but allow (for backward compatibility)
+      console.warn(`[API] Key deletion request without signature verification from ${userAddress.slice(0, 10)}...`)
     }
 
     const ipAddress = req.headers['x-forwarded-for']?.toString() || req.socket.remoteAddress
@@ -2429,10 +2585,11 @@ function startAutomaticMarketRefresh() {
   }, 60 * 1000) // 1 minute after startup
 }
 
-// Initialize database recorders (price, strategy, and trading keys)
+// Initialize database recorders (price, strategy, trading keys, and backtester)
 initializePriceRecorder()
 initializeStrategyRecorder()
 initializeTradingKeyRecorder()
+initializeBacktester()
 
 // Start crypto price feeder (BTC, ETH, SOL, XRP from Polymarket RTDS)
 const cryptoPriceFeeder = getCryptoPriceFeeder()
@@ -2487,28 +2644,84 @@ strategyMonitor.on('strategyTriggered', async (trigger: StrategyTrigger) => {
       orderSize = Math.floor(strategy.fixedDollarAmount * 2)
     }
 
-    // Execute the trade
-    // Note: tokenId needs to come from the strategy's market selection
-    // For now, we log what would be traded
+    // Get tokenId from strategy's market - try to resolve from state store or fetch
+    let tokenId: string | null = null
+    let currentPrice = 0.50 // Default price for market orders
+    
+    if (strategy.market) {
+      // First check state store for cached market data
+      const stateStore = wsServer.getStateStore()
+      const allMarkets = stateStore.getAllMarkets()
+      
+      // Try to find by marketId, slug, or partial match
+      const marketData = allMarkets.find(m => 
+        m.marketId === strategy.market ||
+        m.metadata?.slug === strategy.market ||
+        m.metadata?.question?.toLowerCase().includes(strategy.market.toLowerCase())
+      )
+      
+      if (marketData?.metadata) {
+        // Get the appropriate tokenId based on direction
+        if (strategy.direction === 'UP') {
+          tokenId = marketData.metadata.yesTokenId || marketData.metadata.tokenId || marketData.metadata.tokenIds?.[0] || null
+        } else {
+          tokenId = marketData.metadata.noTokenId || marketData.metadata.tokenIds?.[1] || null
+        }
+        
+        // Get current best price from orderbook
+        if (side === 'BUY' && marketData.orderbook?.asks?.[0]) {
+          currentPrice = parseFloat(marketData.orderbook.asks[0][0])
+        } else if (side === 'SELL' && marketData.orderbook?.bids?.[0]) {
+          currentPrice = parseFloat(marketData.orderbook.bids[0][0])
+        }
+      }
+      
+      // If not in state store, try to fetch by slug
+      if (!tokenId && strategy.market) {
+        try {
+          const marketMetadata = await fetchMarketBySlug(strategy.market)
+          if (marketMetadata) {
+            if (strategy.direction === 'UP') {
+              tokenId = marketMetadata.yesTokenId || marketMetadata.tokenId || marketMetadata.tokenIds?.[0] || null
+            } else {
+              tokenId = marketMetadata.noTokenId || marketMetadata.tokenIds?.[1] || null
+            }
+          }
+        } catch (err) {
+          console.error(`[StrategyMonitor] Failed to fetch market metadata:`, err)
+        }
+      }
+    }
+    
+    if (!tokenId) {
+      console.log(`[StrategyMonitor] ⚠️ Could not resolve tokenId for market: ${strategy.market}`)
+      return
+    }
+
     console.log(`[StrategyMonitor] 📈 Executing trade:`)
     console.log(`[StrategyMonitor]   Side: ${side}`)
     console.log(`[StrategyMonitor]   Size: ${orderSize} shares`)
     console.log(`[StrategyMonitor]   Market: ${strategy.market}`)
+    console.log(`[StrategyMonitor]   TokenId: ${tokenId}`)
+    console.log(`[StrategyMonitor]   Price: ${currentPrice}`)
     console.log(`[StrategyMonitor]   Order Type: ${strategy.orderType || 'market'}`)
 
-    // TODO: Map strategy.market to actual Polymarket tokenId
-    // For now, skip actual execution until market mapping is complete
-    // const result = await executeTrade({
-    //   strategyId: trigger.strategyId,
-    //   userAddress: trigger.userAddress,
-    //   tokenId: tokenId, // Need to map from strategy
-    //   side: side as 'BUY' | 'SELL',
-    //   size: orderSize,
-    //   price: 0.50, // For market orders, get from orderbook
-    //   orderType: (strategy.orderType as 'market' | 'limit') || 'market',
-    // })
+    // Execute the trade using stored encrypted key (fully automated, no user interaction)
+    const result = await executeTrade({
+      strategyId: trigger.strategyId,
+      userAddress: trigger.userAddress,
+      tokenId: tokenId,
+      side: side as 'BUY' | 'SELL',
+      size: orderSize,
+      price: currentPrice,
+      orderType: (strategy.orderType as 'market' | 'limit') || 'market',
+    })
 
-    console.log(`[StrategyMonitor] ✅ Trade logged (execution pending market mapping)`)
+    if (result.success) {
+      console.log(`[StrategyMonitor] ✅ Trade executed successfully! OrderId: ${result.orderId}`)
+    } else {
+      console.log(`[StrategyMonitor] ❌ Trade failed: ${result.error}`)
+    }
   } catch (error: any) {
     console.error(`[StrategyMonitor] ❌ Trade execution error:`, error.message)
   }
@@ -2537,6 +2750,7 @@ process.on('SIGTERM', async () => {
     await closeStrategyRecorder()
     await closeCandleRecorder()
     await closeTradingKeyRecorder()
+    await closeBacktester()
     process.exit(0)
   })
 })
@@ -2550,6 +2764,7 @@ process.on('SIGINT', async () => {
     await closeStrategyRecorder()
     await closeCandleRecorder()
     await closeTradingKeyRecorder()
+    await closeBacktester()
     process.exit(0)
   })
 })

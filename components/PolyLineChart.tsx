@@ -212,11 +212,16 @@ const PolyLineChart = () => {
             console.log(`[PolyLineChart] Loaded ${historicalData.length} points for past market`)
             
             if (historicalData.length > 0) {
-              setSeries(historicalData.map((point: any) => ({
+              // Convert decimal prices (0-1) to cents (0-100) for chart
+              setSeries(historicalData.map((point: any) => {
+                const up = point.upPrice || 0
+                const down = point.downPrice || 0
+                return {
                 time: point.time,
-                upPrice: point.upPrice || 0,
-                downPrice: point.downPrice || 0,
-              })))
+                  upPrice: up <= 1 ? up * 100 : up,
+                  downPrice: down <= 1 ? down * 100 : down,
+                }
+              }))
             }
           } catch (error) {
             console.error('[PolyLineChart] Error loading past market data:', error)

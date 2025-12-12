@@ -78,7 +78,7 @@ export const executeTrade = async (order: TradeOrder): Promise<TradeResult> => {
     }
 
     // Get the decrypted private key
-    const privateKey = await getPrivateKey(order.userAddress)
+    let privateKey: string | null = await getPrivateKey(order.userAddress)
     if (!privateKey) {
       return {
         success: false,
@@ -88,7 +88,7 @@ export const executeTrade = async (order: TradeOrder): Promise<TradeResult> => {
     }
 
     // Create wallet from private key
-    const wallet = new ethers.Wallet(privateKey)
+    let wallet: ethers.Wallet | null = new ethers.Wallet(privateKey)
 
     // Verify wallet address matches user address
     if (wallet.address.toLowerCase() !== order.userAddress.toLowerCase()) {
@@ -124,8 +124,10 @@ export const executeTrade = async (order: TradeOrder): Promise<TradeResult> => {
       })
     }
 
-    // Clear sensitive data
-    // Note: JavaScript doesn't guarantee memory clearing, but we try
+    // Clear sensitive data from memory (best effort)
+    // Note: JavaScript doesn't guarantee memory clearing, but we minimize exposure time
+    privateKey = null
+    wallet = null
     
     console.log(`[TradeExecutor] Order ${result.success ? 'submitted' : 'failed'}: ${result.orderId || result.error}`)
     

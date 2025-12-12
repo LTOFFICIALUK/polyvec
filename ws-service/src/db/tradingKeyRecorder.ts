@@ -13,6 +13,7 @@ import {
   normalizePrivateKey,
   EncryptedData,
 } from '../security/keyVault'
+import { verifyPrivateKeyMatchesAddress } from '../security/authVerifier'
 
 let pool: Pool | null = null
 let isInitialized = false
@@ -156,6 +157,13 @@ export const storePrivateKey = async (
   try {
     // Normalize the key
     const normalizedKey = normalizePrivateKey(privateKey)
+
+    // CRITICAL SECURITY: Verify the private key matches the user address
+    // This prevents users from storing keys for addresses they don't control
+    if (!verifyPrivateKeyMatchesAddress(normalizedKey, userAddress)) {
+      console.error(`[TradingKeyRecorder] Private key does not match user address for ${userAddress.slice(0, 10)}...`)
+      return { success: false, error: 'Private key does not match the provided wallet address' }
+    }
 
     // Encrypt the key
     const encrypted = encryptPrivateKey(normalizedKey, userAddress)
