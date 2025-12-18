@@ -58,14 +58,6 @@ function buildHmacSignature(
     message += body
   }
   
-  console.log('[HMAC] Building signature:', {
-    timestamp,
-    method,
-    requestPath,
-    bodyLength: body?.length || 0,
-    messagePreview: message.substring(0, 100) + (message.length > 100 ? '...' : ''),
-  })
-  
   // Create HMAC SHA256 signature
   const hmac = crypto.createHmac('sha256', secretBuffer)
   hmac.update(message, 'utf-8')
@@ -73,17 +65,12 @@ function buildHmacSignature(
   // Return URL-safe base64 encoded signature
   const signature = standardBase64ToUrlSafe(hmac.digest('base64'))
   
-  console.log('[HMAC] Generated signature:', signature.substring(0, 20) + '...')
-  
   return signature
 }
 
 /**
  * Generate L2 authentication headers for Polymarket API requests
  * Uses HMAC signature with API credentials
- * 
- * Based on official py-clob-client implementation:
- * https://github.com/Polymarket/py-clob-client/blob/main/py_clob_client/signing/hmac.py
  */
 export function generatePolymarketAuthHeaders(
   method: string,
@@ -102,11 +89,9 @@ export function generatePolymarketAuthHeaders(
     body
   )
 
-  // Use lowercase address for POLY_ADDRESS header (matching py-clob-client behavior)
-  // The API expects a consistent address format - Polymarket normalizes addresses internally
+  // Use lowercase address for POLY_ADDRESS header
   const normalizedAddress = walletAddress.toLowerCase()
 
-  // Headers use underscores as per official py-clob-client
   return {
     'POLY_ADDRESS': normalizedAddress,
     'POLY_SIGNATURE': signature,
@@ -117,7 +102,7 @@ export function generatePolymarketAuthHeaders(
 }
 
 /**
- * Make authenticated request to Polymarket CLOB API
+ * Make authenticated request to Polymarket CLOB API from VPS
  */
 export async function makeAuthenticatedRequest(
   method: string,
@@ -126,7 +111,7 @@ export async function makeAuthenticatedRequest(
   credentials: PolymarketApiCredentials,
   body?: any
 ): Promise<Response> {
-  const POLYMARKET_CLOB_API = 'https://clob.polymarket.com'
+  const POLYMARKET_CLOB_API = process.env.POLYMARKET_CLOB_API || 'https://clob.polymarket.com'
   const url = `${POLYMARKET_CLOB_API}${path}`
   
   const bodyString = body ? JSON.stringify(body) : null
@@ -139,13 +124,11 @@ export async function makeAuthenticatedRequest(
     credentials
   )
 
-  // Headers use underscores as per official py-clob-client implementation
-  // Add browser-like headers to bypass Cloudflare bot protection
-  const requestHeaders: HeadersInit = {
+  // Headers with browser-like headers to bypass Cloudflare bot protection
+  const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
     'Accept-Language': 'en-US,en;q=0.9',
-    // Browser-like headers to bypass Cloudflare bot protection
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Origin': 'https://clob.polymarket.com',
     'Referer': 'https://clob.polymarket.com/',
@@ -157,22 +140,7 @@ export async function makeAuthenticatedRequest(
     'POLY_PASSPHRASE': authHeaders['POLY_PASSPHRASE'],
   }
 
-  console.log('[Polymarket API] Making request:', {
-    method,
-    url,
-    path,
-    walletAddress: walletAddress.substring(0, 10) + '...',
-    hasBody: !!bodyString,
-    headers: {
-      POLY_ADDRESS: requestHeaders['POLY_ADDRESS'],
-      POLY_TIMESTAMP: requestHeaders['POLY_TIMESTAMP'],
-      POLY_API_KEY: (requestHeaders['POLY_API_KEY'] as string).substring(0, 10) + '...',
-      'User-Agent': (requestHeaders['User-Agent'] as string).substring(0, 50) + '...',
-    }
-  })
-
   // Add a random delay before making the request to avoid rate limiting
-  // Random delays make requests look more human-like and less bot-like
   const randomDelay = 200 + Math.random() * 300 // 200-500ms random delay
   await new Promise(resolve => setTimeout(resolve, randomDelay))
 
@@ -183,10 +151,10 @@ export async function makeAuthenticatedRequest(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const response = await fetch(url, {
-    method,
-    headers: requestHeaders,
-    body: bodyString || undefined,
-  })
+        method,
+        headers: requestHeaders,
+        body: bodyString || undefined,
+      })
 
       // If we get a Cloudflare block (403), retry with exponential backoff
       if (response.status === 403) {
@@ -201,7 +169,7 @@ export async function makeAuthenticatedRequest(
             const jitter = Math.random() * 1000
             const totalDelay = backoffDelay + jitter
             
-            console.warn(`[Polymarket API] Cloudflare block detected (attempt ${attempt + 1}/${maxRetries + 1}), waiting ${Math.round(totalDelay / 1000)}s before retry...`)
+            console.warn(`[VPS Trade] Cloudflare block detected (attempt ${attempt + 1}/${maxRetries + 1}), waiting ${Math.round(totalDelay / 1000)}s before retry...`)
             await new Promise(resolve => setTimeout(resolve, totalDelay))
             
             // Continue to next iteration to retry

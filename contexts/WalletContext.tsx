@@ -21,7 +21,12 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined)
 
-const POLYMARKET_CREDS_KEY = 'polymarket_api_credentials'
+const POLYMARKET_CREDS_KEY_PREFIX = 'polymarket_api_credentials_'
+
+// Helper function to get the storage key for a specific address
+const getCredsKey = (address: string): string => {
+  return `${POLYMARKET_CREDS_KEY_PREFIX}${address.toLowerCase()}`
+}
 
 export const WalletProvider = ({ children }: { children: ReactNode }) => {
   const [isConnected, setIsConnected] = useState(false)
@@ -35,28 +40,47 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
       if (stored) {
         setWalletAddress(stored)
         setIsConnected(true)
-      }
-
-      // Load Polymarket credentials
-      const storedCreds = localStorage.getItem(POLYMARKET_CREDS_KEY)
-      if (storedCreds) {
-        try {
-          const creds = JSON.parse(storedCreds)
-          setPolymarketCredentialsState(creds)
-        } catch (error) {
-          console.error('Failed to parse stored Polymarket credentials:', error)
-          localStorage.removeItem(POLYMARKET_CREDS_KEY)
+        
+        // Load credentials for this specific address
+        const credsKey = getCredsKey(stored)
+        const storedCreds = localStorage.getItem(credsKey)
+        if (storedCreds) {
+          try {
+            const creds = JSON.parse(storedCreds)
+            setPolymarketCredentialsState(creds)
+          } catch (error) {
+            console.error('Failed to parse stored Polymarket credentials:', error)
+            localStorage.removeItem(credsKey)
+          }
         }
       }
     }
   }, [])
 
   const connectWallet = (address: string) => {
-    setWalletAddress(address)
+    const normalizedAddress = address.toLowerCase()
+    setWalletAddress(normalizedAddress)
     setIsConnected(true)
     // Store in localStorage for persistence
     if (typeof window !== 'undefined') {
-      localStorage.setItem('walletAddress', address)
+      localStorage.setItem('walletAddress', normalizedAddress)
+      
+      // Load credentials for this specific address
+      const credsKey = getCredsKey(normalizedAddress)
+      const storedCreds = localStorage.getItem(credsKey)
+      if (storedCreds) {
+        try {
+          const creds = JSON.parse(storedCreds)
+          setPolymarketCredentialsState(creds)
+        } catch (error) {
+          console.error('Failed to parse stored Polymarket credentials:', error)
+          localStorage.removeItem(credsKey)
+          setPolymarketCredentialsState(null)
+        }
+      } else {
+        // Clear credentials if this address doesn't have any
+        setPolymarketCredentialsState(null)
+      }
     }
   }
 
@@ -66,17 +90,17 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
     setPolymarketCredentialsState(null)
     if (typeof window !== 'undefined') {
       localStorage.removeItem('walletAddress')
-      localStorage.removeItem(POLYMARKET_CREDS_KEY)
     }
   }
 
   const setPolymarketCredentials = (creds: PolymarketApiCredentials | null) => {
     setPolymarketCredentialsState(creds)
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && walletAddress) {
+      const credsKey = getCredsKey(walletAddress)
       if (creds) {
-        localStorage.setItem(POLYMARKET_CREDS_KEY, JSON.stringify(creds))
+        localStorage.setItem(credsKey, JSON.stringify(creds))
       } else {
-        localStorage.removeItem(POLYMARKET_CREDS_KEY)
+        localStorage.removeItem(credsKey)
       }
     }
   }

@@ -13,6 +13,7 @@
     "watch": "tsc --watch"
   },
   "dependencies": {
+    "@polymarket/clob-client": "^3.4.1",
     "@types/pg": "^8.15.6",
     "dotenv": "^17.2.3",
     "ethers": "^6.15.0",

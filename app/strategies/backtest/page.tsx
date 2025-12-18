@@ -90,8 +90,8 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
         type="button"
         onClick={() => !disabled && setIsOpen(!isOpen)}
         disabled={disabled}
-        className={`w-full pl-3 pr-8 py-2 bg-black border border-gray-800 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent transition-colors ${
-          disabled ? 'opacity-50 cursor-not-allowed' : isOpen ? 'border-purple-primary/50' : 'hover:border-gray-700'
+        className={`w-full pl-3 pr-8 py-2 bg-dark-bg border border-gray-800 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent transition-colors ${
+          disabled ? 'opacity-50 cursor-not-allowed' : isOpen ? 'border-gold-primary/50' : 'hover:border-gray-700'
         }`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
@@ -112,7 +112,7 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-black border border-gray-800 rounded shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-50 w-full mt-1 bg-dark-bg border border-gray-800 rounded shadow-lg max-h-60 overflow-auto">
           <ul role="listbox" className="py-1">
             {options.map((option) => (
               <li
@@ -120,7 +120,7 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
                 onClick={() => handleSelect(option.value)}
                 className={`px-3 py-2 cursor-pointer transition-colors ${
                   value === option.value
-                    ? 'bg-purple-primary/20 text-purple-primary'
+                    ? 'bg-gold-primary/20 text-gold-primary'
                     : 'text-white hover:bg-gray-900/50'
                 }`}
                 role="option"
@@ -129,7 +129,7 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
                 <div className="flex items-center justify-between">
                   <span>{option.label}</span>
                   {value === option.value && (
-                    <svg className="w-4 h-4 text-purple-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-gold-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   )}
@@ -376,14 +376,14 @@ export default function BacktestPage() {
     : !!quickStrategy.indicator && quickStrategy.orderLadder.length > 0
 
   return (
-    <div className="bg-black text-white min-h-screen">
+    <div className="bg-dark-bg text-white min-h-screen">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/strategies')}
-              className="p-2 text-gray-400 hover:text-white transition-colors rounded focus:outline-none focus:ring-2 focus:ring-purple-primary"
+              className="p-2 text-gray-400 hover:text-white transition-colors rounded focus:outline-none focus:ring-2 focus:ring-gold-primary"
               aria-label="Back to strategies"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -423,14 +423,14 @@ export default function BacktestPage() {
           {/* Left Column - Configuration */}
           <div className="lg:col-span-1 space-y-6">
             {/* Mode Toggle */}
-            <div className="bg-black border border-gray-800 rounded-lg p-4">
+            <div className="bg-dark-bg border border-gray-800 rounded-lg p-4">
               <div className="flex gap-2">
                 <button
                   onClick={() => setMode('quick')}
                   className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
                     mode === 'quick'
-                      ? 'bg-purple-primary text-white'
-                      : 'bg-black border border-gray-800 text-gray-400 hover:text-white'
+                      ? 'bg-gold-primary text-white'
+                      : 'bg-dark-bg border border-gray-800 text-gray-400 hover:text-white'
                   }`}
                 >
                   Quick Test
@@ -439,8 +439,8 @@ export default function BacktestPage() {
                   onClick={() => setMode('existing')}
                   className={`flex-1 px-3 py-2 rounded text-sm font-medium transition-colors ${
                     mode === 'existing'
-                      ? 'bg-purple-primary text-white'
-                      : 'bg-black border border-gray-800 text-gray-400 hover:text-white'
+                      ? 'bg-gold-primary text-white'
+                      : 'bg-dark-bg border border-gray-800 text-gray-400 hover:text-white'
                   }`}
                 >
                   Saved Strategy
@@ -450,7 +450,7 @@ export default function BacktestPage() {
 
             {/* Quick Strategy Builder */}
             {mode === 'quick' && (
-              <div className="bg-black border border-gray-800 rounded-lg p-4 space-y-4">
+              <div className="bg-dark-bg border border-gray-800 rounded-lg p-4 space-y-4">
                 <h3 className="text-lg font-medium text-white">Strategy</h3>
                 
                 {/* Asset & Direction */}
@@ -510,7 +510,7 @@ export default function BacktestPage() {
                   <h4 className="text-sm font-medium text-white mb-3">Order Ladder</h4>
                   
                   {/* Add Order Row */}
-                  <div className="bg-black border border-gray-800 rounded p-3 space-y-3">
+                  <div className="bg-dark-bg border border-gray-800 rounded p-3 space-y-3">
                     <div className="flex gap-2 items-center flex-wrap">
                       <span className="text-xs text-gray-400">Price:</span>
                       <div className="relative w-20">
@@ -525,7 +525,7 @@ export default function BacktestPage() {
                             }
                           }}
                           placeholder=""
-                          className="w-full pl-6 pr-2 py-1.5 bg-black border border-gray-800 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-primary"
+                          className="w-full pl-6 pr-2 py-1.5 bg-dark-bg border border-gray-800 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-gold-primary"
                           maxLength={2}
                         />
                       </div>
@@ -538,7 +538,7 @@ export default function BacktestPage() {
                           setNewOrder({ ...newOrder, shares: numericValue })
                         }}
                         placeholder=""
-                        className="w-20 px-2 py-1.5 bg-black border border-gray-800 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-primary"
+                        className="w-20 px-2 py-1.5 bg-dark-bg border border-gray-800 rounded text-white text-xs focus:outline-none focus:ring-2 focus:ring-gold-primary"
                       />
                       <button
                         type="button"
@@ -559,7 +559,7 @@ export default function BacktestPage() {
                           }
                         }}
                         disabled={!newOrder.price || !newOrder.shares}
-                        className="px-2 py-1 bg-purple-primary hover:bg-purple-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white text-xs rounded transition-colors focus:outline-none"
+                        className="px-2 py-1 bg-gold-primary hover:bg-gold-hover disabled:bg-gray-800 disabled:cursor-not-allowed text-white text-xs rounded transition-colors focus:outline-none"
                       >
                         + Add
                       </button>
@@ -572,7 +572,7 @@ export default function BacktestPage() {
                       {quickStrategy.orderLadder.map((order) => (
                         <div
                           key={order.id}
-                          className="flex items-center justify-between bg-black border border-gray-800 rounded p-2"
+                          className="flex items-center justify-between bg-dark-bg border border-gray-800 rounded p-2"
                         >
                           <span className="text-xs text-gray-300">
                             ¢{order.price} × {order.shares} shares = ${(parseInt(order.price) * parseInt(order.shares) / 100).toFixed(2)}
@@ -613,7 +613,7 @@ export default function BacktestPage() {
                 <div className="pt-3 border-t border-gray-800">
                   <p className="text-xs text-gray-500">
                     Buy {quickStrategy.direction} on {quickStrategy.asset} ({quickStrategy.timeframe}) when{' '}
-                    <span className="text-purple-primary">
+                    <span className="text-gold-primary">
                       {INDICATOR_PRESETS.find(p => p.value === quickStrategy.indicator)?.label || 'condition met'}
                     </span>
                     {quickStrategy.orderLadder.length > 0 && (
@@ -628,7 +628,7 @@ export default function BacktestPage() {
 
             {/* Existing Strategy Selector */}
             {mode === 'existing' && (
-              <div className="bg-black border border-gray-800 rounded-lg p-4">
+              <div className="bg-dark-bg border border-gray-800 rounded-lg p-4">
                 <h3 className="text-lg font-medium text-white mb-4">Strategy</h3>
                 <CustomDropdown
                   value={selectedStrategyId}
@@ -662,7 +662,7 @@ export default function BacktestPage() {
             )}
 
             {/* Time Range */}
-            <div className="bg-black border border-gray-800 rounded-lg p-4">
+            <div className="bg-dark-bg border border-gray-800 rounded-lg p-4">
               <h3 className="text-lg font-medium text-white mb-4">Time Range</h3>
               
               <div className="flex items-center gap-2 mb-4">
@@ -671,7 +671,7 @@ export default function BacktestPage() {
                   id="customDate"
                   checked={customDateRange}
                   onChange={(e) => setCustomDateRange(e.target.checked)}
-                  className="w-4 h-4 text-purple-primary bg-black border-gray-800 rounded focus:ring-purple-primary"
+                  className="w-4 h-4 text-gold-primary bg-dark-bg border-gray-800 rounded focus:ring-gold-primary"
                 />
                 <label htmlFor="customDate" className="text-sm text-gray-300">
                   Custom dates
@@ -686,7 +686,7 @@ export default function BacktestPage() {
                       type="datetime-local"
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full px-3 py-2 bg-black border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-primary"
+                      className="w-full px-3 py-2 bg-dark-bg border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold-primary"
                     />
                   </div>
                   <div>
@@ -695,7 +695,7 @@ export default function BacktestPage() {
                       type="datetime-local"
                       value={endDate}
                       onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full px-3 py-2 bg-black border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-primary"
+                      className="w-full px-3 py-2 bg-dark-bg border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold-primary"
                     />
                   </div>
                 </div>
@@ -707,8 +707,8 @@ export default function BacktestPage() {
                       onClick={() => setLookbackDays(days)}
                       className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
                         lookbackDays === days
-                          ? 'bg-purple-primary text-white'
-                          : 'bg-black border border-gray-800 text-gray-400 hover:border-gray-700'
+                          ? 'bg-gold-primary text-white'
+                          : 'bg-dark-bg border border-gray-800 text-gray-400 hover:border-gray-700'
                       }`}
                     >
                       {days}d
@@ -719,7 +719,7 @@ export default function BacktestPage() {
             </div>
 
             {/* Balance */}
-            <div className="bg-black border border-gray-800 rounded-lg p-4">
+            <div className="bg-dark-bg border border-gray-800 rounded-lg p-4">
               <label className="block text-sm font-medium text-gray-300 mb-2">Starting Balance</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">$</span>
@@ -729,7 +729,7 @@ export default function BacktestPage() {
                   onChange={(e) => setInitialBalance(Number(e.target.value))}
                   min={100}
                   step={100}
-                  className="w-full pl-8 pr-3 py-2 bg-black border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-primary"
+                  className="w-full pl-8 pr-3 py-2 bg-dark-bg border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold-primary"
                 />
               </div>
             </div>
@@ -738,7 +738,7 @@ export default function BacktestPage() {
           {/* Right Column - Results */}
           <div className="lg:col-span-2">
             {!result && !running && (
-              <div className="bg-black border border-gray-800 rounded-lg p-8 text-center h-full flex flex-col items-center justify-center min-h-[400px]">
+              <div className="bg-dark-bg border border-gray-800 rounded-lg p-8 text-center h-full flex flex-col items-center justify-center min-h-[400px]">
                 <div className="w-16 h-16 bg-gray-900 border border-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
                   <svg className="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -752,8 +752,8 @@ export default function BacktestPage() {
             )}
 
             {running && (
-              <div className="bg-black border border-gray-800 rounded-lg p-8 text-center h-full flex flex-col items-center justify-center min-h-[400px]">
-                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-primary mb-4" />
+              <div className="bg-dark-bg border border-gray-800 rounded-lg p-8 text-center h-full flex flex-col items-center justify-center min-h-[400px]">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-gold-primary mb-4" />
                 <h3 className="text-lg font-medium text-white mb-2">Running Backtest...</h3>
                 <p className="text-gray-400 text-sm">
                   Analyzing {lookbackDays} days of data
@@ -765,7 +765,7 @@ export default function BacktestPage() {
               <div className="space-y-6">
                 {/* Summary Cards */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div className="bg-black border border-gray-800 rounded-lg p-4">
+                  <div className="bg-dark-bg border border-gray-800 rounded-lg p-4">
                     <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Total P&L</p>
                     <p className={`text-xl font-bold ${result.totalPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {formatCurrency(result.totalPnl)}
@@ -775,7 +775,7 @@ export default function BacktestPage() {
                     </p>
                   </div>
 
-                  <div className="bg-black border border-gray-800 rounded-lg p-4">
+                  <div className="bg-dark-bg border border-gray-800 rounded-lg p-4">
                     <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Win Rate</p>
                     <p className="text-xl font-bold text-white">{result.winRate.toFixed(1)}%</p>
                     <p className="text-xs text-gray-400">
@@ -783,7 +783,7 @@ export default function BacktestPage() {
                     </p>
                   </div>
 
-                  <div className="bg-black border border-gray-800 rounded-lg p-4">
+                  <div className="bg-dark-bg border border-gray-800 rounded-lg p-4">
                     <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Profit Factor</p>
                     <p className={`text-xl font-bold ${result.profitFactor >= 1 ? 'text-green-400' : 'text-red-400'}`}>
                       {result.profitFactor.toFixed(2)}
@@ -791,7 +791,7 @@ export default function BacktestPage() {
                     <p className="text-xs text-gray-400">Avg Win/Loss</p>
                   </div>
 
-                  <div className="bg-black border border-gray-800 rounded-lg p-4">
+                  <div className="bg-dark-bg border border-gray-800 rounded-lg p-4">
                     <p className="text-gray-400 text-xs uppercase tracking-wide mb-1">Max Drawdown</p>
                     <p className="text-xl font-bold text-red-400">
                       {formatPercent(-result.maxDrawdownPercent)}
@@ -801,7 +801,7 @@ export default function BacktestPage() {
                 </div>
 
                 {/* Stats Grid */}
-                <div className="bg-black border border-gray-800 rounded-lg p-4">
+                <div className="bg-dark-bg border border-gray-800 rounded-lg p-4">
                   <h3 className="text-lg font-medium text-white mb-4">Details</h3>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
                     <div>
@@ -836,7 +836,7 @@ export default function BacktestPage() {
                 </div>
 
                 {/* Trade History */}
-                <div className="bg-black border border-gray-800 rounded-lg overflow-hidden">
+                <div className="bg-dark-bg border border-gray-800 rounded-lg overflow-hidden">
                   <div className="p-4 border-b border-gray-800">
                     <h3 className="text-lg font-medium text-white">Trades</h3>
                   </div>

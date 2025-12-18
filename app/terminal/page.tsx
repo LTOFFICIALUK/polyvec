@@ -153,8 +153,29 @@ function TerminalContent() {
     }
   }, [walletAddress, refreshData])
 
+  // Listen for order placement events to refresh orders and positions
+  useEffect(() => {
+    const handleOrderPlaced = () => {
+      // Wait a moment for the order to be processed by Polymarket
+      // For market orders (FOK/FAK), positions should update immediately after fill
+      // For limit orders (GTC), position won't update until order is filled
+      setTimeout(() => {
+        fetchOrders()
+        fetchPositions() // Refresh positions after order placement
+      }, 1500)
+      
+      // Second refresh after a longer delay for positions to propagate in Polymarket's system
+      setTimeout(() => {
+        fetchPositions()
+      }, 5000)
+    }
+
+    window.addEventListener('orderPlaced', handleOrderPlaced)
+    return () => window.removeEventListener('orderPlaced', handleOrderPlaced)
+  }, [fetchOrders, fetchPositions])
+
   return (
-    <div className="bg-black text-white">
+    <div className="bg-dark-bg text-white">
       {/* Main Section - Chart and Trading Panel */}
       <div className="flex flex-col h-[calc(100vh-73px)] overflow-hidden">
         <div className="flex-1 flex flex-col lg:flex-row relative">
@@ -177,7 +198,7 @@ function TerminalContent() {
       <div className="h-px bg-gray-800 w-full" />
 
       {/* Bottom Section - Position, Orders, History */}
-      <div className="bg-black h-72">
+      <div className="bg-dark-bg h-72">
         <div className="flex border-b border-gray-800">
           <button
             onClick={() => setActiveTab('position')}
@@ -189,7 +210,7 @@ function TerminalContent() {
           >
             Position
             {activeTab === 'position' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-primary" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
             )}
           </button>
           <button
@@ -202,7 +223,7 @@ function TerminalContent() {
           >
             Open Orders
             {activeTab === 'orders' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-primary" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
             )}
           </button>
           <button
@@ -215,7 +236,7 @@ function TerminalContent() {
           >
             History
             {activeTab === 'history' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-primary" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
             )}
           </button>
         </div>

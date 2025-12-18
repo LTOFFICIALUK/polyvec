@@ -95,9 +95,9 @@ const Header = () => {
 
   const navigationItems = [
     { label: 'Terminal', href: '/' },
-    { label: 'Strategies', href: '/strategies' },
     { label: 'Analytics', href: '/analytics' },
     { label: 'History', href: '/history' },
+    { label: 'Strategies', href: '/strategies' },
   ]
 
   const handleNavClick = (href: string) => {
@@ -184,7 +184,7 @@ const Header = () => {
   }
 
   return (
-    <header className="w-full border-b border-gray-800 bg-black/95 backdrop-blur-sm relative z-[9999]">
+    <header className="w-full border-b border-gray-700/50 bg-dark-bg/95 backdrop-blur-sm relative z-[9999]">
       <div className="px-4 sm:px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-8">
@@ -218,11 +218,11 @@ const Header = () => {
                     aria-label={`Navigate to ${item.label}`}
                     className={`cursor-pointer transition-colors duration-200 focus:outline-none rounded px-2 py-1 ${
                       isActive
-                        ? 'text-purple-primary font-semibold'
+                        ? 'text-gold-primary font-semibold'
                         : 'text-gray-400 hover:text-white'
                     }`}
                   >
-                    <span className="text-sm font-medium tracking-wide">
+                    <span className="text-sm font-medium tracking-wide uppercase" style={{ fontFamily: 'monospace' }}>
                       {item.label}
                     </span>
                   </div>
@@ -235,7 +235,8 @@ const Header = () => {
             {isConnected && !isPolymarketAuthenticated && (
               <button
                 onClick={() => setShowPolymarketAuthModal(true)}
-                className="px-4 py-2 bg-purple-primary hover:bg-purple-hover text-white text-sm font-medium rounded transition-colors duration-200 focus:outline-none flex items-center gap-2"
+                className="px-4 py-2 bg-gold-primary hover:bg-gold-hover text-white text-sm font-medium rounded transition-colors duration-200 focus:outline-none flex items-center gap-2 uppercase tracking-wide"
+                style={{ fontFamily: 'monospace' }}
                 title="Connect to Polymarket for fast trading"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -246,30 +247,31 @@ const Header = () => {
             )}
             {/* Portfolio Balance */}
             <div className="flex flex-col">
-              <span className="text-xs text-gray-400">Portfolio</span>
+              <span className="text-xs text-gray-400 uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Portfolio</span>
               <span 
                 key={`portfolio-${balances.portfolioValue}`}
-                className="text-sm font-semibold text-green-400 transition-all duration-300"
+                className="text-sm font-semibold text-green-400 transition-all duration-300 font-mono"
               >
                 {formatCurrency(balances.portfolioValue)}
               </span>
             </div>
             {/* Cash Balance */}
             <div className="flex flex-col">
-              <span className="text-xs text-gray-400">Cash</span>
+              <span className="text-xs text-gray-400 uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Cash</span>
               <span 
                 key={`cash-${balances.cashBalance}`}
-                className="text-sm font-semibold text-green-400 transition-all duration-300"
+                className="text-sm font-semibold text-green-400 transition-all duration-300 font-mono"
               >
                 {formatCurrency(balances.cashBalance)}
               </span>
             </div>
-            {/* Deposit Button */}
+            {/* Deposit / Log In Button */}
             <button
               onClick={handleDepositClick}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors duration-200 focus:outline-none"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors duration-200 focus:outline-none uppercase tracking-wide"
+              style={{ fontFamily: 'monospace' }}
             >
-              Deposit
+              {isConnected ? 'Deposit' : 'Log In'}
             </button>
             {/* Profile Picture */}
             <div
@@ -288,9 +290,9 @@ const Header = () => {
                 aria-haspopup="true"
                 aria-expanded={isProfileMenuVisible}
                 aria-label="Navigate to my profile"
-                className="flex items-center cursor-pointer focus:outline-none rounded-full hover:ring-2 hover:ring-purple-primary hover:ring-offset-2 hover:ring-offset-black transition-all"
+                className="flex items-center cursor-pointer focus:outline-none rounded-full hover:ring-2 hover:ring-gold-primary hover:ring-offset-2 hover:ring-offset-black transition-all"
               >
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-400 via-purple-500 to-blue-500 flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 via-gold-primary to-yellow-600 flex items-center justify-center">
                   <span className="text-white text-xs font-semibold">U</span>
                 </div>
               </div>
@@ -304,20 +306,22 @@ const Header = () => {
                   className="absolute right-0 top-full pt-1 z-50"
                   style={{ zIndex: 9999 }}
                 >
-                  <div className="w-40 rounded-lg border border-gray-800 bg-black/95 text-white shadow-lg backdrop-blur overflow-hidden">
+                  <div className="w-40 rounded-lg border border-gray-800 bg-dark-bg/95 text-white shadow-lg backdrop-blur overflow-hidden">
                     <button
                       onClick={() => {
                         setIsProfileMenuVisible(false)
                         router.push('/docs')
                       }}
-                      className="block w-full px-4 py-2.5 text-left text-sm text-gray-200 hover:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-primary transition-colors"
+                      className="block w-full px-4 py-2.5 text-left text-sm text-gray-200 hover:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-primary transition-colors uppercase tracking-wide"
+                      style={{ fontFamily: 'monospace' }}
                     >
                       Docs
                     </button>
                     <div className="h-px bg-gray-800" />
                     <button
                       onClick={handleLogoutClick}
-                      className="block w-full px-4 py-2.5 text-left text-sm text-gray-200 hover:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-primary transition-colors"
+                      className="block w-full px-4 py-2.5 text-left text-sm text-gray-200 hover:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-primary transition-colors uppercase tracking-wide"
+                      style={{ fontFamily: 'monospace' }}
                     >
                       Log out
                     </button>

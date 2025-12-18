@@ -73,12 +73,10 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
     }
 
     try {
-      console.log('[WebSocketContext] Connecting to:', WEBSOCKET_URL)
       const ws = new WebSocket(WEBSOCKET_URL)
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log('[WebSocketContext] WebSocket connected to:', WEBSOCKET_URL)
         setIsConnected(true)
         reconnectAttempts.current = 0
 
@@ -115,13 +113,10 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
             const marketId = data.marketId
             marketDataRef.current.set(marketId, data)
             
-            console.log('[WebSocketContext] Received orderbook_update for marketId:', marketId)
-            console.log('[WebSocketContext] All subscriptions:', Array.from(marketSubscribersRef.current.keys()))
             
             // Notify subscribers by marketId (which could be a tokenId if client subscribed with tokenId)
             const subscribers = marketSubscribersRef.current.get(marketId)
             if (subscribers) {
-              console.log('[WebSocketContext] Found', subscribers.size, 'subscribers for', marketId)
               subscribers.forEach((callback) => {
                 try {
                   callback(data)
@@ -169,7 +164,6 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
             }
           } else {
             // Generic message handling
-            console.log('WebSocket message:', data)
           }
         } catch (error) {
           console.error('Error parsing WebSocket message:', error)
@@ -192,12 +186,7 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
       ws.onclose = (event) => {
         // Don't log normal closures or if we've exceeded max attempts
         if (reconnectAttempts.current < MAX_RECONNECT_ATTEMPTS && event.code !== 1000) {
-          console.log('[WebSocketContext] WebSocket disconnected, reconnecting...', {
-            url: WEBSOCKET_URL,
-            code: event.code,
-            reason: event.reason,
-            attempt: reconnectAttempts.current + 1
-          })
+          // Attempting to reconnect
         }
         setIsConnected(false)
         wsRef.current = null
@@ -225,16 +214,13 @@ export const WebSocketProvider: React.FC<WebSocketProviderProps> = ({ children }
 
   const sendMessage = useCallback((message: any) => {
     const ws = wsRef.current
-    console.log('[WebSocketContext] sendMessage called:', message, 'readyState:', ws?.readyState)
     if (ws && ws.readyState === WebSocket.OPEN) {
       try {
         ws.send(JSON.stringify(message))
-        console.log('[WebSocketContext] Message sent over WebSocket')
       } catch (error) {
         console.error('[WebSocketContext] Error sending WebSocket message:', error)
       }
     } else {
-      console.log('[WebSocketContext] WebSocket not open, queueing message')
       // Queue message for when connection is established
       messageQueueRef.current.push(message)
       // Try to connect if not already connecting or closed

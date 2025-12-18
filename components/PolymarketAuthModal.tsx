@@ -13,7 +13,7 @@ interface PolymarketAuthModalProps {
 }
 
 export default function PolymarketAuthModal({ isOpen, onClose, onSuccess }: PolymarketAuthModalProps) {
-  const { walletAddress, setPolymarketCredentials } = useWallet()
+  const { walletAddress, setPolymarketCredentials, connectWallet } = useWallet()
   const [step, setStep] = useState<'sign' | 'generating' | 'success' | 'error'>('sign')
   const [error, setError] = useState('')
   const [mounted, setMounted] = useState(false)
@@ -47,8 +47,29 @@ export default function PolymarketAuthModal({ isOpen, onClose, onSuccess }: Poly
       // Ensure we're on Polygon network
       await ensurePolygonNetwork(provider)
 
-      // Sign the EIP-712 message
-      const signature = await signClobAuthMessage(provider, walletAddress)
+      // Get the actual signer address to ensure consistency
+      const signer = await provider.getSigner()
+      const actualSignerAddress = await signer.getAddress()
+      
+      // Ensure the walletAddress in context matches the actual signer address
+      // This ensures credentials are stored for the correct address
+      const normalizedSignerAddress = actualSignerAddress.toLowerCase()
+      if (!walletAddress || walletAddress.toLowerCase() !== normalizedSignerAddress) {
+        console.log('[PolymarketAuth] Updating wallet address in context to match signer:', {
+          oldWalletAddress: walletAddress,
+          newWalletAddress: normalizedSignerAddress,
+        })
+        connectWallet(actualSignerAddress) // This will normalize and store correctly
+      }
+      
+      // Sign the EIP-712 message using the actual signer address
+      const signature = await signClobAuthMessage(provider, actualSignerAddress)
+
+      console.log('[PolymarketAuth] Authenticating with address:', {
+        walletAddressFromContext: walletAddress,
+        actualSignerAddress: actualSignerAddress,
+        signatureAddress: signature.address,
+      })
 
       // Generate API key
       const response = await fetch('/api/polymarket/auth/api-key', {
@@ -76,6 +97,7 @@ export default function PolymarketAuthModal({ isOpen, onClose, onSuccess }: Poly
         secretLength: credentials.secret?.length,
         passphraseLength: credentials.passphrase?.length,
         allFields: Object.keys(credentials),
+        authenticatedAddress: signature.address,
       })
       
       if (!credentials.apiKey || !credentials.secret || !credentials.passphrase) {
@@ -88,6 +110,8 @@ export default function PolymarketAuthModal({ isOpen, onClose, onSuccess }: Poly
         secret: credentials.secret,
         passphrase: credentials.passphrase,
       })
+      
+      console.log('[PolymarketAuth] Credentials stored for address:', signature.address)
 
       setStep('success')
       
@@ -121,11 +145,11 @@ export default function PolymarketAuthModal({ isOpen, onClose, onSuccess }: Poly
       onClick={onClose}
     >
       <div
-        className="bg-black border border-gray-800 rounded-lg w-full max-w-md overflow-hidden flex flex-col shadow-2xl"
+        className="bg-dark-bg border border-gray-800 rounded-lg w-full max-w-md overflow-hidden flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-800 bg-black">
+        <div className="flex items-center justify-between p-6 border-b border-gray-800 bg-dark-bg">
           <h2 className="text-2xl font-bold text-white">Connect to Polymarket</h2>
           <button
             onClick={onClose}
@@ -151,7 +175,20 @@ export default function PolymarketAuthModal({ isOpen, onClose, onSuccess }: Poly
         <div className="flex-1 overflow-y-auto p-6">
           {step === 'sign' && (
             <div className="space-y-4">
-              <div className="bg-purple-primary/10 border border-purple-primary/30 rounded-lg p-4">
+              <div className="bg-gold-primary/10 border border-gold-primary/30 rounded-lg p-4">
+                <p className="text-gray-300 text-sm">
+                  Your API credentials don't match your current wallet address. Please re-authenticate to generate new credentials for this wallet.
+                </p>
+              </div>
+              
+              <div className="bg-green-900/20 border border-green-800/50 rounded-lg p-4">
+                <p className="text-green-300 text-sm font-semibold mb-2">✓ Your existing positions are safe</p>
+                <p className="text-gray-300 text-xs">
+                  This only affects new trades. Your existing positions can still be cashed out normally - they don't require API credentials.
+                </p>
+              </div>
+
+              <div className="bg-blue-900/20 border border-blue-800/50 rounded-lg p-4">
                 <p className="text-gray-300 text-sm">
                   To enable fast trading on Polymarket, you need to sign a message to generate API credentials.
                   This is a one-time setup that allows you to trade without signing each transaction.
@@ -178,7 +215,7 @@ export default function PolymarketAuthModal({ isOpen, onClose, onSuccess }: Poly
           {step === 'generating' && (
             <div className="flex flex-col items-center justify-center py-8 space-y-4">
               <svg
-                className="animate-spin h-12 w-12 text-purple-primary"
+                className="animate-spin h-12 w-12 text-gold-primary"
                 xmlns="http://www.w3.org/2000/svg"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -237,7 +274,7 @@ export default function PolymarketAuthModal({ isOpen, onClose, onSuccess }: Poly
 
         {/* Footer */}
         {step !== 'generating' && step !== 'success' && (
-          <div className="p-6 border-t border-gray-800 flex gap-3 bg-black">
+          <div className="p-6 border-t border-gray-800 flex gap-3 bg-dark-bg">
             <button
               onClick={onClose}
               className="flex-1 px-4 py-2 bg-gray-900 border border-gray-800 text-white rounded hover:bg-gray-800 transition-colors"
@@ -247,7 +284,7 @@ export default function PolymarketAuthModal({ isOpen, onClose, onSuccess }: Poly
             {step === 'sign' && (
               <button
                 onClick={handleAuthenticate}
-                className="flex-1 px-4 py-2 bg-purple-primary hover:bg-purple-hover text-white rounded transition-colors font-medium"
+                className="flex-1 px-4 py-2 bg-gold-primary hover:bg-gold-hover text-white rounded transition-colors font-medium"
               >
                 Sign & Connect
               </button>
@@ -258,7 +295,7 @@ export default function PolymarketAuthModal({ isOpen, onClose, onSuccess }: Poly
                   setStep('sign')
                   setError('')
                 }}
-                className="flex-1 px-4 py-2 bg-purple-primary hover:bg-purple-hover text-white rounded transition-colors font-medium"
+                className="flex-1 px-4 py-2 bg-gold-primary hover:bg-gold-hover text-white rounded transition-colors font-medium"
               >
                 Try Again
               </button>

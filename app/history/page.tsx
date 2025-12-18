@@ -216,7 +216,7 @@ export default function HistoryPage() {
   // Not connected state
   if (!isConnected) {
     return (
-      <div className="bg-black text-white min-h-screen">
+      <div className="bg-dark-bg text-white min-h-screen">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-6">Trading History</h1>
           <div className="py-16 text-center">
@@ -231,7 +231,7 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="bg-black text-white min-h-screen">
+    <div className="bg-dark-bg text-white min-h-screen">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -261,7 +261,7 @@ export default function HistoryPage() {
             </button>
             <Link
               href={`/profile/${walletAddress}`}
-              className="px-4 py-2 bg-purple-primary hover:bg-purple-hover text-white rounded text-sm font-medium transition-colors"
+              className="px-4 py-2 bg-gold-primary hover:bg-gold-hover text-white rounded text-sm font-medium transition-colors"
             >
               View Profile
             </Link>
@@ -278,7 +278,7 @@ export default function HistoryPage() {
           >
             All Trades ({trades.length})
             {activeTab === 'trades' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-primary" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
             )}
           </button>
           <button
@@ -289,7 +289,7 @@ export default function HistoryPage() {
           >
             Closed Positions ({closedPositions.length})
             {activeTab === 'positions' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-primary" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
             )}
           </button>
         </div>
@@ -313,7 +313,7 @@ export default function HistoryPage() {
             {loading && trades.length === 0 ? (
               <div className="flex items-center justify-center py-12">
                 <div className="text-center">
-                  <svg className="w-12 h-12 animate-spin text-purple-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+                  <svg className="w-12 h-12 animate-spin text-gold-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
@@ -373,7 +373,7 @@ export default function HistoryPage() {
                                 href={`https://polygonscan.com/tx/${trade.transactionHash}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-purple-primary hover:text-purple-hover transition-colors"
+                                className="text-gold-primary hover:text-gold-hover transition-colors"
                                 title="View on PolygonScan"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -478,15 +478,15 @@ export default function HistoryPage() {
         {(trades.length > 0 || closedPositions.length > 0) && (
           <div className="mt-8 pt-6 border-t border-gray-800">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+              <div className="bg-dark-bg/60 rounded-lg p-4 border border-gray-800">
                 <div className="text-xs text-gray-400 mb-1">Total Trades</div>
                 <div className="text-white font-bold text-2xl">{trades.length}</div>
               </div>
-              <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+              <div className="bg-dark-bg/60 rounded-lg p-4 border border-gray-800">
                 <div className="text-xs text-gray-400 mb-1">Closed Positions</div>
                 <div className="text-white font-bold text-2xl">{closedPositions.length}</div>
               </div>
-              <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+              <div className="bg-dark-bg/60 rounded-lg p-4 border border-gray-800">
                 <div className="text-xs text-gray-400 mb-1">Total Realized PnL</div>
                 <div className={`font-bold text-2xl ${
                   closedPositions.reduce((sum, p) => sum + p.realizedPnl, 0) >= 0
@@ -497,7 +497,7 @@ export default function HistoryPage() {
                   ${closedPositions.reduce((sum, p) => sum + p.realizedPnl, 0).toFixed(2)}
                 </div>
               </div>
-              <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+              <div className="bg-dark-bg/60 rounded-lg p-4 border border-gray-800">
                 <div className="text-xs text-gray-400 mb-1">Avg Position Size</div>
                 <div className="text-white font-bold text-2xl">
                   ${closedPositions.length > 0

@@ -94,7 +94,6 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
   // Check if market is ended (past)
   const isMarketEnded = market.isPast === true || market.marketStatus === 'ended'
   
-  console.log('[OrderBook] Render - isConnected:', isConnected, 'market:', market?.marketId, 'tokenId:', market?.tokenId)
   // Store both UP and DOWN orderbooks separately
   const [upOrderBook, setUpOrderBook] = useState<OrderBookData | null>(null)
   const [downOrderBook, setDownOrderBook] = useState<OrderBookData | null>(null)
@@ -118,11 +117,6 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
     
     // Only fetch if this tokenId matches the current market
     if (tokenType === 'up' && market?.yesTokenId && tokenId !== market.yesTokenId) {
-      console.log(`[OrderBook] Skipping ${tokenType} fetch - tokenId mismatch:`, {
-        requested: tokenId,
-        expected: market.yesTokenId,
-        currentMarketId: market.marketId,
-      })
       return
     }
     if (tokenType === 'down' && market?.noTokenId && tokenId !== market.noTokenId) {
@@ -138,10 +132,6 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
       const params = new URLSearchParams()
       params.set('tokenId', tokenId)
 
-      console.log(`[OrderBook] Fetching ${tokenType} orderbook:`, {
-        tokenId: tokenId.substring(0, 20) + '...',
-        marketId: market?.marketId,
-      })
 
       const orderbookResponse = await fetch(`/api/polymarket/orderbook?${params.toString()}`)
 
@@ -154,24 +144,15 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
       
       // Verify we still have the same market before updating
       if (tokenType === 'up' && market?.yesTokenId && tokenId !== market.yesTokenId) {
-        console.log(`[OrderBook] Market changed during ${tokenType} fetch, ignoring update`)
         return
       }
       if (tokenType === 'down' && market?.noTokenId && tokenId !== market.noTokenId) {
-        console.log(`[OrderBook] Market changed during ${tokenType} fetch, ignoring update`)
         return
       }
       
       const bestBid = normalized?.bids?.[0]?.price
       const bestAsk = normalized?.asks?.[0]?.price
       
-      console.log(`[OrderBook] ${tokenType} orderbook updated:`, {
-        marketId: market?.marketId,
-        bids: normalized?.bids?.length || 0,
-        asks: normalized?.asks?.length || 0,
-        bestBid: bestBid ? (bestBid > 1 ? (bestBid / 100).toFixed(2) : bestBid.toFixed(2)) : 'N/A',
-        bestAsk: bestAsk ? (bestAsk > 1 ? (bestAsk / 100).toFixed(2) : bestAsk.toFixed(2)) : 'N/A',
-      })
 
       if (tokenType === 'up') {
         setUpOrderBook(normalized)
@@ -192,7 +173,6 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
   const fetchBothOrderbooks = useCallback(async () => {
     if (!market?.yesTokenId || !market?.noTokenId) {
       if (!market?.slug) {
-        console.log('[OrderBook] No market data available, clearing orderbooks')
         setUpOrderBook(null)
         setDownOrderBook(null)
         setOrderbookLoading(false)
@@ -206,7 +186,6 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
     // Check if market changed
     const marketChanged = previousMarketIdRef.current !== null && previousMarketIdRef.current !== market.marketId
     if (marketChanged && market.marketId) {
-      console.log(`[OrderBook] Market changed: ${previousMarketIdRef.current} → ${market.marketId}, resetting orderbooks`)
       setUpOrderBook(null)
       setDownOrderBook(null)
       setOrderbookError(null)
@@ -218,11 +197,6 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
     setOrderbookError(null)
     setCurrentMarketId(market.marketId ?? null)
 
-    console.log('[OrderBook] Fetching both orderbooks for market:', {
-      marketId: market.marketId,
-      upTokenId: market.yesTokenId?.substring(0, 20) + '...',
-      downTokenId: market.noTokenId?.substring(0, 20) + '...',
-    })
 
     // Fetch both orderbooks in parallel
     if (market.yesTokenId && market.noTokenId) {
@@ -232,7 +206,6 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
       ])
     } else if (market.slug) {
       // Fallback: if we only have slug, fetch the default token
-      console.log('[OrderBook] Using slug fallback:', market.slug)
       const params = new URLSearchParams()
       params.set('slug', market.slug)
       try {
@@ -311,11 +284,6 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
       return
     }
 
-    console.log('[OrderBook] Starting HTTP polling for orderbooks:', {
-      upTokenId: market.yesTokenId,
-      downTokenId: market.noTokenId,
-      marketId: market.marketId,
-    })
 
     const pollInterval = setInterval(() => {
       // Refresh both orderbooks via HTTP API
@@ -328,7 +296,6 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
     }, 2000)
     
     return () => {
-      console.log('[OrderBook] Stopping HTTP polling')
       clearInterval(pollInterval)
     }
   }, [marketLoading, market?.yesTokenId, market?.noTokenId, market?.marketId, fetchOrderbookForToken])
@@ -338,7 +305,6 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
     // CRITICAL: Check ref FIRST before doing anything
     // If auto-centering is disabled and not forced, exit immediately
     if (!force && !isAutoCenteringRef.current) {
-      console.log('[OrderBook] centerToSpread blocked - auto-centering disabled')
       return
     }
 
@@ -356,7 +322,6 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
     requestAnimationFrame(() => {
       // CRITICAL: Re-check ref inside RAF - state might have changed
       if (!shouldForce && !isAutoCenteringRef.current) {
-        console.log('[OrderBook] centerToSpread RAF blocked - auto-centering disabled')
         return
       }
 
@@ -393,7 +358,6 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
       const newValue = !prev
       // Update ref IMMEDIATELY so all async callbacks see the new value
       isAutoCenteringRef.current = newValue
-      console.log('[OrderBook] Auto-centering toggled:', newValue ? 'ENABLED' : 'DISABLED')
       
       if (newValue) {
         // When re-enabling, center immediately and reset user scroll flag
@@ -488,68 +452,10 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
     }
   }, [orderBook, hasScrolledToSpread, centerToSpread, isAutoCenteringEnabled])
 
-  // Lock scroll position to keep spread centered - re-center immediately if user scrolls away (only if auto-centering is enabled)
-  useEffect(() => {
-    // CRITICAL: If auto-centering is disabled, do NOTHING - let user scroll freely
-    if (!isAutoCenteringEnabled) {
-      console.log('[OrderBook] Scroll lock effect skipped - auto-centering disabled')
-      return
-    }
-
-    const scrollContainer = orderbookScrollContainerRef.current
-    if (!scrollContainer || !orderBook || !orderBook.bids?.length || !orderBook.asks?.length) {
-      return
-    }
-
-    console.log('[OrderBook] Scroll lock effect active - auto-centering enabled')
-
-    // Track if this effect instance is still active
-    let isActive = true
-    let rafId: number | null = null
-
-    const handleScroll = () => {
-      // Triple-check: effect still active AND auto-centering enabled
-      if (!isActive || !isAutoCenteringRef.current) {
-        return
-      }
-
-      // Cancel any pending RAF
-      if (rafId) {
-        cancelAnimationFrame(rafId)
-      }
-
-      rafId = requestAnimationFrame(() => {
-        // Check again inside RAF
-        if (!isActive || !isAutoCenteringRef.current) return
-
-        const spreadElement = spreadCenterRef.current
-        if (!spreadElement) return
-
-        const containerRect = scrollContainer.getBoundingClientRect()
-        const spreadRect = spreadElement.getBoundingClientRect()
-        
-        const spreadCenterY = spreadRect.top + spreadRect.height / 2
-        const containerCenterY = containerRect.top + containerRect.height / 2
-        const offsetFromCenter = Math.abs(spreadCenterY - containerCenterY)
-
-        // If spread deviates more than 5px from center, re-center it
-        if (offsetFromCenter > 5) {
-          centerToSpread(false)
-        }
-      })
-    }
-
-    scrollContainer.addEventListener('scroll', handleScroll, { passive: true })
-
-    return () => {
-      console.log('[OrderBook] Scroll lock effect cleanup')
-      isActive = false
-      scrollContainer.removeEventListener('scroll', handleScroll)
-      if (rafId) {
-        cancelAnimationFrame(rafId)
-      }
-    }
-  }, [orderBook, centerToSpread, isAutoCenteringEnabled])
+  // Scroll lock effect disabled - orderbook is not scrollable
+  // useEffect(() => {
+  //   // Orderbook is now non-scrollable, so this effect is not needed
+  // }, [orderBook, centerToSpread, isAutoCenteringEnabled])
 
   // For past markets, just show the ended message
   if (isMarketEnded) {
@@ -638,20 +544,36 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
   })
 
   return (
-    <div className="w-full h-full flex flex-col">
-      <div className="flex border-b border-gray-800">
-        <div className="flex-1 px-4 py-2 text-xs text-gray-400 font-medium">
+    <div className="w-full h-full flex flex-col bg-dark-bg overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-2 border-b border-gray-700/50 flex items-center justify-between flex-shrink-0">
+        <span className="text-xs font-medium text-gray-400 tracking-wider uppercase" style={{ fontFamily: 'monospace' }}>
+          ORDERBOOK
+        </span>
+      </div>
+      
+      {/* Column Headers */}
+      <div className="flex border-b border-gray-700/50 flex-shrink-0">
+        <div className="flex-1 px-4 py-2 text-xs text-gray-400 font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>
           Price
         </div>
-        <div className="flex-1 px-4 py-2 text-xs text-gray-400 font-medium text-right">
+        <div className="flex-1 px-4 py-2 text-xs text-gray-400 font-medium text-right uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>
           Size
         </div>
-        <div className="flex-1 px-4 py-2 text-xs text-gray-400 font-medium text-right">
+        <div className="flex-1 px-4 py-2 text-xs text-gray-400 font-medium text-right uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>
           Total
         </div>
       </div>
 
-      <div ref={orderbookScrollContainerRef} className="flex-1 overflow-y-auto">
+      <div 
+        ref={orderbookScrollContainerRef} 
+        className="flex-1 overflow-hidden min-h-0"
+        onWheel={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+        }}
+        style={{ overscrollBehavior: 'none' }}
+      >
         {/* Asks (Sell Orders) - Red */}
         <div className="flex flex-col">
           {asksWithTotal.length > 0 ? (
@@ -663,7 +585,7 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
               .map((ask, idx) => (
               <div
                 key={`ask-${idx}`}
-                className="flex border-b border-gray-800/50 hover:bg-gray-900/30"
+                className="flex border-b border-gray-700/30 hover:bg-gray-900/20"
               >
                 <div className="flex-1 px-4 py-1.5 text-sm text-red-400">
                   {ask.price > 1 ? Math.round(ask.price) : Math.round(ask.price * 100)}¢
@@ -687,7 +609,7 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
         {bids.length > 0 && asks.length > 0 && (
           <div
             ref={spreadCenterRef}
-            className="px-4 py-2 border-y border-gray-800 bg-gray-900/20"
+            className="px-4 py-2 border-y border-gray-700/30 bg-gray-900/20"
           >
             <div className="text-center text-xs text-gray-400">
               Spread: {Math.round(
@@ -704,7 +626,7 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
             bidsWithTotal.map((bid, idx) => (
               <div
                 key={`bid-${idx}`}
-                className="flex border-b border-gray-800/50 hover:bg-gray-900/30"
+                className="flex border-b border-gray-700/30 hover:bg-gray-900/20"
               >
                 <div className="flex-1 px-4 py-1.5 text-sm text-green-400">
                   {bid.price > 1 ? Math.round(bid.price) : Math.round(bid.price * 100)}¢

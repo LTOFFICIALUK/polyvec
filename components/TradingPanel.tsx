@@ -1,15 +1,15 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo, useCallback, KeyboardEvent, MouseEvent } from 'react'
-import StrategyAnalytics from './StrategyAnalytics'
 import AnimatedPrice from './AnimatedPrice'
 import usePolymarketPrices from '@/hooks/usePolymarketPrices'
 import { useTradingContext } from '@/contexts/TradingContext'
 import useCurrentMarket from '@/hooks/useCurrentMarket'
 import { useWallet } from '@/contexts/WalletContext'
 import { useToast } from '@/contexts/ToastContext'
-import { createSignedOrder, OrderSide, OrderType, SignatureType } from '@/lib/polymarket-order-signing'
 import { getBrowserProvider, ensurePolygonNetwork } from '@/lib/polymarket-auth'
+import { createSignedOrder, OrderSide, OrderType } from '@/lib/polymarket-order-signing'
+import PolymarketAuthModal from './PolymarketAuthModal'
 import { 
   checkUsdcAllowance, 
   approveUsdc, 
@@ -36,13 +36,12 @@ const TradingPanel = () => {
   const { selectedPair, selectedTimeframe, activeTokenId, setActiveTokenId, marketOffset } = useTradingContext()
   const { walletAddress, polymarketCredentials, isPolymarketAuthenticated } = useWallet()
   const { showToast } = useToast()
-  const [orderType, setOrderType] = useState<'market' | 'strategy' | 'analytics'>('market')
+  // Removed orderType - only market trading now
   const [executionType, setExecutionType] = useState<'market' | 'limit'>('market')
   const [amount, setAmount] = useState('')
   const [isBuy, setIsBuy] = useState(true)
   // Single shared state for UP/DOWN selection - applies to both Buy and Sell
   const [selectedOutcome, setSelectedOutcome] = useState<'up' | 'down'>('up')
-  const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null)
   const [isPlacingOrder, setIsPlacingOrder] = useState(false)
   const [isApprovingUsdc, setIsApprovingUsdc] = useState(false)
   const [allowanceStatus, setAllowanceStatus] = useState<AllowanceStatus | null>(null)
@@ -50,15 +49,11 @@ const TradingPanel = () => {
   // Conditional token approval status (needed for SELL orders)
   const [ctfApprovalStatus, setCtfApprovalStatus] = useState<ConditionalTokenApprovalStatus | null>(null)
   const [isApprovingCtf, setIsApprovingCtf] = useState(false)
+  // Modal state for API key mismatch error
+  const [showAuthModal, setShowAuthModal] = useState(false)
   // Track user's position in current market for selling
   const [currentPosition, setCurrentPosition] = useState<MarketPosition>({ upShares: 0, downShares: 0, upAvgPrice: 0, downAvgPrice: 0 })
   const [isLoadingPosition, setIsLoadingPosition] = useState(false)
-  const [enabledStrategies, setEnabledStrategies] = useState<Record<string, boolean>>({
-    'Momentum Breakout': false,
-    'RSI Reversal': false,
-    'MACD Crossover': false,
-    'Bollinger Squeeze': false,
-  })
   const [limitPrice, setLimitPrice] = useState('')
   const [quickTradeOptions, setQuickTradeOptions] = useState([
     { quantity: 5, price: 0 },
@@ -208,6 +203,7 @@ const TradingPanel = () => {
     downBestAsk: null,
   })
 
+
   useEffect(() => {
     const fetchOrderbookPrices = async () => {
       if (!currentMarket?.yesTokenId || !currentMarket?.noTokenId) return
@@ -244,7 +240,9 @@ const TradingPanel = () => {
 
     fetchOrderbookPrices()
     // Poll every 2 seconds to keep prices fresh
-    const interval = setInterval(fetchOrderbookPrices, 2000)
+    const interval = setInterval(() => {
+      fetchOrderbookPrices()
+    }, 2000)
     return () => clearInterval(interval)
   }, [currentMarket?.yesTokenId, currentMarket?.noTokenId])
 
@@ -345,7 +343,6 @@ const TradingPanel = () => {
         }
 
         setAllowanceStatus(combinedStatus)
-        console.log('[Allowance] Status:', combinedStatus)
       } catch (error) {
         console.error('[Allowance] Error checking:', error)
       } finally {
@@ -364,7 +361,6 @@ const TradingPanel = () => {
         return
       }
 
-      console.log('[CTF Approval] Checking approval status for:', walletAddress)
       
       try {
         const provider = await getBrowserProvider()
@@ -375,12 +371,8 @@ const TradingPanel = () => {
 
         const status = await checkConditionalTokenApproval(provider, walletAddress)
         setCtfApprovalStatus(status)
-        console.log('[CTF Approval] Status loaded:', status)
         
         if (status.needsApproval) {
-          console.log('[CTF Approval] Approval needed for selling')
-        } else {
-          console.log('[CTF Approval] ✓ Already approved for selling')
         }
       } catch (error) {
         console.error('[CTF Approval] Error checking:', error)
@@ -404,7 +396,6 @@ const TradingPanel = () => {
     }
 
     setIsApprovingCtf(true)
-    console.log('[CTF Approval] Starting approval process...')
 
     try {
       const provider = await getBrowserProvider()
@@ -413,26 +404,20 @@ const TradingPanel = () => {
       await ensurePolygonNetwork(provider)
       
       showToast('Approving tokens... Please confirm 2 transactions in your wallet', 'info')
-      console.log('[CTF Approval] Calling approveConditionalTokens...')
 
       // Approve conditional tokens (2 transactions)
       const result = await approveConditionalTokens(provider)
-      console.log('[CTF Approval] Approval complete, tx hashes:', result.txHashes)
 
       showToast('✓ On-chain approval complete!', 'success')
 
       // Sync with Polymarket API
       if (polymarketCredentials) {
-        console.log('[CTF Approval] Syncing with Polymarket API...')
         showToast('Syncing with Polymarket...', 'info')
         const syncResult = await syncConditionalTokenAllowance(walletAddress, polymarketCredentials)
-        console.log('[CTF Approval] Sync result:', syncResult)
       }
 
       // Refresh status
-      console.log('[CTF Approval] Refreshing approval status...')
       const newStatus = await checkConditionalTokenApproval(provider, walletAddress)
-      console.log('[CTF Approval] New status:', newStatus)
       setCtfApprovalStatus(newStatus)
 
       if (!newStatus.needsApproval) {
@@ -449,7 +434,6 @@ const TradingPanel = () => {
       }
     } finally {
       setIsApprovingCtf(false)
-      console.log('[CTF Approval] Process finished')
     }
   }
 
@@ -485,7 +469,6 @@ const TradingPanel = () => {
         }
         
         setCurrentPosition({ upShares, downShares, upAvgPrice, downAvgPrice })
-        console.log('[Trading] Position loaded:', { upShares, downShares, upAvgPrice, downAvgPrice })
       }
     } catch (error) {
       console.error('[Trading] Error fetching position:', error)
@@ -547,7 +530,6 @@ const TradingPanel = () => {
       // This is required for Polymarket to recognize the on-chain approval
       if (polymarketCredentials) {
         const syncResult = await syncAllowanceWithPolymarket(walletAddress, polymarketCredentials)
-        console.log('[Approval] Sync result:', syncResult)
         
         if (syncResult.collateral) {
           showToast('USDC approved and synced! You can now trade on Polymarket.', 'success')
@@ -593,7 +575,6 @@ const TradingPanel = () => {
       })
 
       const result = await response.json()
-      console.log('[Test Credentials] Result:', result)
 
       if (result.success) {
         showToast('Credentials are valid!', 'success')
@@ -688,23 +669,20 @@ const TradingPanel = () => {
       const side = isBuy ? OrderSide.BUY : OrderSide.SELL
 
       // Convert price from cents to decimal (e.g., 50 -> 0.50)
-      const priceDecimal = executionType === 'limit' 
-        ? parseFloat(limitPrice) / 100 
-        : selectedOutcome === 'up'
-          ? parseFloat(yesPriceFormatted) / 100
-          : parseFloat(noPriceFormatted) / 100
+      let priceDecimal: number
+      if (executionType === 'limit') {
+        priceDecimal = parseFloat(limitPrice) / 100
+      } else {
+        const priceString = selectedOutcome === 'up' ? yesPriceFormatted : noPriceFormatted
+        const priceCents = parseFloat(priceString)
+        if (isNaN(priceCents) || priceString === 'ERROR' || priceString === 'Ended') {
+          throw new Error(`Cannot place market order: price is ${priceString}. Please try a limit order instead.`)
+        }
+        priceDecimal = priceCents / 100
+      }
 
       // Determine order type
-      let polymarketOrderType: OrderType
-      if (executionType === 'limit') {
-        // For limit orders, use GTC (Good-Til-Cancelled)
-        // Could add GTD support later with expiration date
-        polymarketOrderType = OrderType.GTC
-      } else {
-        // For market orders, use FOK (Fill-Or-Kill)
-        // Could add FAK support later
-        polymarketOrderType = OrderType.FOK
-      }
+      const orderType = executionType === 'limit' ? OrderType.GTC : OrderType.FOK
 
       // Check if this is a neg-risk market (determines which exchange to use for signing)
       let isNegRiskMarket = false
@@ -712,40 +690,67 @@ const TradingPanel = () => {
         const negRiskResponse = await fetch(`/api/polymarket/neg-risk?tokenId=${tokenId}`)
         const negRiskData = await negRiskResponse.json()
         isNegRiskMarket = negRiskData.negRisk === true
-        console.log(`[Trading] Token ${tokenId.substring(0, 20)}... negRisk: ${isNegRiskMarket}`)
       } catch (error) {
         console.warn('[Trading] Failed to check neg-risk status, defaulting to false:', error)
       }
 
-      // Show info toast about signing requirement
-      showToast('Please sign the order in your wallet...', 'info')
+      // Calculate amounts for display before signing
+      const displayPriceCents = executionType === 'limit' 
+        ? parseFloat(limitPrice)
+        : priceDecimal * 100 // Use the already-validated priceDecimal
+      const displayDollarAmount = (shares * displayPriceCents) / 100
+      
+      // Show detailed info toast with USDC amount before signing
+      const orderSummary = isBuy
+        ? `Signing BUY order: ${shares} shares @ ${displayPriceCents.toFixed(0)}¢ = $${displayDollarAmount.toFixed(2)} USDC.e`
+        : `Signing SELL order: ${shares} shares @ ${displayPriceCents.toFixed(0)}¢`
+      showToast(orderSummary + '\n\n⚠️ Wallet may show a warning - this is safe to confirm for Polymarket orders.', 'info', 6000)
 
-      // Create and sign the order (this will prompt user to sign)
+      // Get the actual signer address from the provider to ensure it matches
+      const walletSigner = await provider.getSigner()
+      const actualSignerAddress = await walletSigner.getAddress()
+
+      if (!polymarketCredentials) {
+        throw new Error('Polymarket credentials not found. Please authenticate first.')
+      }
+
+      // Validate that the actual signer address matches the wallet address in context (case-insensitive)
+      // This ensures credentials were created for the correct address
+      if (walletAddress && walletAddress.toLowerCase() !== actualSignerAddress.toLowerCase()) {
+        console.warn('[Trading] Wallet address mismatch:', {
+          contextAddress: walletAddress,
+          actualSignerAddress: actualSignerAddress,
+        })
+        showToast('Wallet address changed. Please reconnect your wallet.', 'warning')
+        setIsPlacingOrder(false)
+        return
+      }
+
+      // Create signed order using direct EIP-712 signing (the working approach from Dec 3-9)
       const signedOrder = await createSignedOrder(
         {
           tokenId: tokenId,
           side: side,
           price: priceDecimal,
           size: shares,
-          maker: walletAddress,
-          signer: walletAddress,
+          maker: actualSignerAddress,
+          signer: actualSignerAddress,
           negRisk: isNegRiskMarket,
         },
-        provider,
-        SignatureType.EOA
+        provider
       )
 
-      // Send order to our API
+      // Post signed order through our API/VPS proxy to bypass CORS/Cloudflare
       const response = await fetch('/api/trade/place-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          walletAddress: walletAddress,
+          walletAddress: actualSignerAddress,
           credentials: polymarketCredentials,
-          signedOrder: signedOrder,
-          orderType: polymarketOrderType,
+          signedOrder: signedOrder, // Direct SignedOrder object from createSignedOrder
+          orderType: orderType, // 'GTC' or 'FOK'
         }),
       })
 
@@ -753,38 +758,43 @@ const TradingPanel = () => {
 
       if (!response.ok || !result.success) {
         console.error('[Trading] Order placement failed:', result)
-        console.error('[Trading] Full error details:', JSON.stringify(result.details, null, 2))
-        console.error('[Trading] Error code:', result.errorCode)
         
-        // Show detailed error toast based on error code
-        let errorMessage = result.error || result.details?.errorMsg || 'Failed to place order'
+        // Show detailed error toast based on error message from API
+        let errorMessage = result.error || 'Failed to place order'
         
-        // Provide user-friendly error messages based on error codes
-        if (result.errorCode === 'FOK_ORDER_NOT_FILLED_ERROR' || errorMessage.includes('FOK')) {
+        // Check for specific error codes first
+        if (result.errorCode === 'API_KEY_OWNER_MISMATCH') {
+          // Show modal to re-authenticate - don't show error toast, just modal
+          setShowAuthModal(true)
+          showToast('Please reauthenticate', 'warning')
+          // Don't throw error, just return - modal is shown
+          setIsPlacingOrder(false)
+          return
+        } else if (result.errorCode === 'AUTH_FAILED' || result.errorCode === 'INVALID_CREDENTIALS') {
+          errorMessage = 'Authentication failed. Please re-authenticate with Polymarket.'
+        } else if (errorMessage.toLowerCase().includes('fok') || errorMessage.toLowerCase().includes('fill')) {
           errorMessage = `Market order failed: Not enough liquidity to fill ${shares} shares. Try a smaller size or use a limit order.`
-        } else if (result.errorCode === 'INVALID_ORDER_NOT_ENOUGH_BALANCE' || 
-                   result.errorCode === 'not enough balance / allowance' ||
-                   errorMessage.toLowerCase().includes('not enough balance') ||
-                   errorMessage.toLowerCase().includes('allowance')) {
+        } else if (errorMessage.toLowerCase().includes('not enough balance') ||
+                   errorMessage.toLowerCase().includes('allowance') ||
+                   errorMessage.toLowerCase().includes('insufficient')) {
           // Different messages for BUY vs SELL orders
           if (!isBuy) {
             errorMessage = 'Sell order failed: Not enough conditional tokens or they are not approved. Please approve your tokens for selling or check your position.'
           } else {
             errorMessage = 'Buy order failed: Not enough USDC balance or allowance. Please approve USDC for trading or check your balance.'
           }
-        } else if (result.errorCode === 'INVALID_ORDER_MIN_SIZE' || 
-                   (errorMessage.toLowerCase().includes('size') && errorMessage.toLowerCase().includes('minimum'))) {
+        } else if (errorMessage.toLowerCase().includes('size') && errorMessage.toLowerCase().includes('minimum')) {
           // Extract minimum size from error message if available
           const minSizeMatch = errorMessage.match(/minimum[:\s]+(\d+)/i)
           const minSize = minSizeMatch ? minSizeMatch[1] : '5'
-          const sizeMatch = errorMessage.match(/Size[:\s(]+([\d.]+)/i)
+          const sizeMatch = errorMessage.match(/size[:\s(]+([\d.]+)/i)
           const attemptedSize = sizeMatch ? sizeMatch[1] : shares.toFixed(2)
           errorMessage = `Order size too small: ${attemptedSize} shares. Polymarket requires a minimum of ${minSize} shares per order. Please increase your order size to at least ${minSize} shares.`
-        } else if (result.errorCode === 'INVALID_ORDER_MIN_TICK_SIZE') {
+        } else if (errorMessage.toLowerCase().includes('tick size') || errorMessage.toLowerCase().includes('price')) {
           errorMessage = 'Order price breaks minimum tick size rules. Please adjust your price.'
-        } else if (result.errorCode === 'AUTH_FAILED') {
+        } else if (errorMessage.toLowerCase().includes('auth') || errorMessage.toLowerCase().includes('credential') || errorMessage.toLowerCase().includes('api key')) {
           errorMessage = 'Authentication failed. Please re-authenticate with Polymarket.'
-        } else if (result.errorCode === 'INVALID_ORDER_DUPLICATED') {
+        } else if (errorMessage.toLowerCase().includes('duplicate')) {
           errorMessage = 'This order has already been placed. Please check your open orders.'
         }
         
@@ -794,19 +804,38 @@ const TradingPanel = () => {
 
       // Build success message with order details
       const orderTypeText = executionType === 'limit' ? 'Limit' : 'Market'
-      const sideText = isBuy ? 'Buy' : 'Sell'
+      const sideText = isBuy ? 'You bought' : 'You sold'
       const outcomeText = selectedOutcome === 'up' ? 'UP' : 'DOWN'
-      const priceText = executionType === 'limit' 
-        ? `@ ${limitPrice}¢` 
-        : `@ ${(priceDecimal * 100).toFixed(0)}¢`
+      const priceInCents = executionType === 'limit' 
+        ? parseFloat(limitPrice)
+        : (priceDecimal * 100)
       
-      const successMessage = `✓ Order placed! ${sideText} ${outcomeText} ${shares} shares ${priceText} (${orderTypeText})${result.orderId ? ` | ID: ${result.orderId}` : ''}`
+      // Calculate dollar amount
+      const dollarAmount = (shares * priceInCents) / 100
       
-      showToast(successMessage, 'success')
+      // Format the message similar to screenshot: "You bought X shares at Y¢ per share | $Z total"
+      const successMessage = `${sideText} ${shares.toLocaleString('en-US', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+      })} ${outcomeText} shares at ${priceInCents.toFixed(0)}¢ per share\n$${dollarAmount.toLocaleString('en-US', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+      })} total`
       
-      // Dispatch event to refresh orders in the positions panel
+      showToast(successMessage, 'success', 5000)
+      
+      // Dispatch event to refresh orders in the positions panel and show trade bubble on chart
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('orderPlaced'))
+        window.dispatchEvent(new CustomEvent('orderPlaced', {
+          detail: {
+            shares,
+            price: priceInCents,
+            dollarAmount,
+            side: sideText.toLowerCase(), // 'you bought' or 'you sold'
+            outcome: selectedOutcome,
+            timestamp: Date.now(),
+          }
+        }))
       }
       
       // Clear form after successful order
@@ -861,35 +890,18 @@ const TradingPanel = () => {
     }
   }, [selectablePricePresets, quickTradePrice, executionType, quickTradePricePresets])
 
-  // Mock strategies list - would come from API
-  const strategies = ['Momentum Breakout', 'RSI Reversal', 'MACD Crossover', 'Bollinger Squeeze']
-
-  // Store orderType to avoid TypeScript narrowing issues
-  const currentOrderType = orderType
-
-  // Render tab buttons (reusable component)
-  const renderTabButtons = () => (
+  // Market/Limit toggle button
+  const renderOrderTypeToggle = () => (
     <div className="flex gap-2 items-center">
       <button
-        onClick={() => setOrderType('market')}
+        onClick={() => handleExecutionTypeChange(executionType === 'market' ? 'limit' : 'market')}
         className={`flex-1 px-4 py-2.5 text-sm font-medium rounded transition-all duration-200 flex items-center justify-center gap-2 ${
-          currentOrderType === 'market'
-            ? 'bg-purple-primary text-white shadow-lg shadow-purple-500/20'
-            : 'bg-gray-900 text-gray-400 hover:text-white hover:bg-gray-800'
+          'bg-dark-bg/60 text-gray-300 hover:text-white hover:bg-dark-bg/80 border border-gray-700/50'
         }`}
       >
-        <span>{executionType === 'limit' ? 'Limit' : 'Market'}</span>
-        {currentOrderType === 'market' && (
-          <span
-            onClick={(e) => {
-              e.stopPropagation()
-              handleExecutionTypeChange(executionType === 'market' ? 'limit' : 'market')
-            }}
-            className="p-1 rounded transition-all duration-200 hover:bg-white/10 focus:outline-none cursor-pointer"
-            role="button"
-            aria-label={`Switch to ${executionType === 'market' ? 'limit' : 'market'} order`}
-            title={`Switch to ${executionType === 'market' ? 'limit' : 'market'} order`}
-          >
+        <span className="uppercase tracking-wide" style={{ fontFamily: 'monospace' }}>
+          {executionType === 'limit' ? 'Limit' : 'Market'}
+        </span>
             <svg
               className={`w-4 h-4 transition-transform duration-200 ${
                 executionType === 'limit' ? 'rotate-180' : ''
@@ -905,128 +917,20 @@ const TradingPanel = () => {
                 d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
               />
             </svg>
-          </span>
-        )}
-      </button>
-      <button
-        onClick={() => setOrderType('strategy')}
-        className={`flex-1 px-4 py-2.5 text-sm font-medium rounded transition-all duration-200 ${
-          currentOrderType === 'strategy'
-            ? 'bg-purple-primary text-white shadow-lg shadow-purple-500/20'
-            : 'bg-gray-900 text-gray-400 hover:text-white hover:bg-gray-800'
-        }`}
-      >
-        Strategies
-      </button>
-      <button
-        onClick={() => setOrderType('analytics')}
-        className={`flex-1 px-4 py-2.5 text-sm font-medium rounded transition-all duration-200 ${
-          currentOrderType === 'analytics'
-            ? 'bg-purple-primary text-white shadow-lg shadow-purple-500/20'
-            : 'bg-gray-900 text-gray-400 hover:text-white hover:bg-gray-800'
-        }`}
-      >
-        Analytics
       </button>
     </div>
   )
 
-  // Show analytics panel if Analytics tab is selected
-  if (currentOrderType === 'analytics') {
+  // Market trading view
     return (
-      <div className="h-full flex flex-col bg-black max-h-[50vh] lg:max-h-none overflow-y-auto">
-        {/* Order Type Selector */}
-        <div className="border-b border-gray-800 p-3 sm:p-4 bg-gray-900/30 flex-shrink-0">
-          {renderTabButtons()}
-        </div>
-
-        {/* Strategy Analytics Panel */}
-        <div className="flex-1 overflow-y-auto">
-          <StrategyAnalytics selectedStrategy={selectedStrategy} />
-        </div>
-      </div>
-    )
-  }
-
-  // Show strategy selector if Strategy tab is selected
-  if (currentOrderType === 'strategy') {
-    return (
-      <div className="h-full flex flex-col bg-black max-h-[50vh] lg:max-h-none overflow-y-auto">
-        {/* Order Type Selector */}
-        <div className="border-b border-gray-800 p-3 sm:p-4 bg-gray-900/30 flex-shrink-0">
-          {renderTabButtons()}
-        </div>
-
-        {/* Strategy Selector */}
-        <div className="flex-1 overflow-y-auto p-4">
-          <div className="mb-4">
-            <h3 className="text-white font-semibold text-sm mb-2">Manage Strategies</h3>
-            <p className="text-gray-400 text-xs">Toggle strategies on/off or click to view analytics</p>
-          </div>
-
-          <div className="space-y-2">
-            {strategies.map((strategy) => {
-              const isEnabled = enabledStrategies[strategy] || false
-              return (
-                <div
-                  key={strategy}
-                  className={`w-full p-3 rounded-lg transition-all duration-200 border ${
-                    selectedStrategy === strategy
-                      ? 'bg-purple-primary/20 border-purple-primary'
-                      : 'bg-gray-900/50 border-gray-800'
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      onClick={() => {
-                        setSelectedStrategy(strategy)
-                        setOrderType('analytics')
-                      }}
-                      className="flex-1 text-left"
-                    >
-                      <div className="font-medium text-sm text-white">{strategy}</div>
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setEnabledStrategies((prev) => ({
-                          ...prev,
-                          [strategy]: !prev[strategy],
-                        }))
-                      }}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-purple-primary focus:ring-offset-2 focus:ring-offset-black ${
-                        isEnabled ? 'bg-purple-primary' : 'bg-gray-700'
-                      }`}
-                      role="switch"
-                      aria-checked={isEnabled}
-                      aria-label={`Toggle ${strategy} strategy`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
-                          isEnabled ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Default Market view
-  return (
-    <div className="h-full flex flex-col bg-black max-h-[50vh] lg:max-h-none overflow-y-auto">
-      {/* Order Type Selector */}
-      <div className="border-b border-gray-800 p-3 sm:p-4 bg-gray-900/30 flex-shrink-0">
-        {renderTabButtons()}
+    <div className="flex flex-col bg-dark-bg overflow-y-auto" style={{ maxHeight: 'calc(85vh - 45px)' }}>
+      {/* Order Type Toggle */}
+      <div className="border-b border-gray-700/50 p-3 flex-shrink-0">
+        {renderOrderTypeToggle()}
       </div>
 
       {/* Buy/Sell Tabs */}
-      <div className="border-b border-gray-800 flex-shrink-0">
+      <div className="border-b border-gray-700/50 flex-shrink-0">
         <div className="flex items-center">
           <div className="flex flex-1">
             <button
@@ -1087,7 +991,7 @@ const TradingPanel = () => {
 
       {/* Limit Order Section - only shown when executionType is 'limit' */}
       {executionType === 'limit' && (
-        <div className="border-b border-gray-800 p-4 flex-shrink-0 space-y-4">
+        <div className="border-b border-gray-700/50 p-4 flex-shrink-0 space-y-4">
           {/* Price Target Buttons */}
           <div className="flex gap-2">
             {isBuy ? (
@@ -1102,7 +1006,7 @@ const TradingPanel = () => {
                     setLimitPrice(Math.round(upPrice).toString())
                   }}
                   className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    selectedOutcome === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
+                    selectedOutcome === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-dark-bg/50 border-gray-700 text-gray-200 hover:border-green-500/60'
                   }`}
                 >
                   <span>Buy Up</span>
@@ -1130,7 +1034,7 @@ const TradingPanel = () => {
                     setLimitPrice(Math.round(downPrice).toString())
                   }}
                   className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    selectedOutcome === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
+                    selectedOutcome === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-dark-bg/50 border-gray-700 text-gray-200 hover:border-red-500/60'
                   }`}
                 >
                   <span>Buy Down</span>
@@ -1161,7 +1065,7 @@ const TradingPanel = () => {
                     setLimitPrice(Math.round(upPrice).toString())
                   }}
                   className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    selectedOutcome === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
+                    selectedOutcome === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-dark-bg/50 border-gray-700 text-gray-200 hover:border-green-500/60'
                   }`}
                 >
                   <span>Sell Up</span>
@@ -1189,7 +1093,7 @@ const TradingPanel = () => {
                     setLimitPrice(Math.round(downPrice).toString())
                   }}
                   className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    selectedOutcome === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
+                    selectedOutcome === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-dark-bg/50 border-gray-700 text-gray-200 hover:border-red-500/60'
                   }`}
                 >
                   <span>Sell Down</span>
@@ -1236,7 +1140,8 @@ const TradingPanel = () => {
                     const value = e.target.value.replace(/[^0-9]/g, '')
                     setLimitPrice(value)
                   }}
-                  className="w-full bg-gray-900/50 border border-gray-800 rounded px-3 py-2 pr-8 text-white text-sm font-semibold text-center focus:outline-none focus:ring-2 focus:ring-purple-primary"
+                  className="w-full border border-gray-700/50 rounded px-3 py-2 pr-8 text-white text-sm font-semibold text-center focus:outline-none focus:ring-2 focus:ring-gold-primary"
+                  style={{ backgroundColor: 'rgba(20, 18, 16, 0.5)' }}
                   placeholder="0"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">¢</span>
@@ -1259,31 +1164,28 @@ const TradingPanel = () => {
         </div>
       )}
 
-      {/* Buy/Sell Toggle - only shown when executionType is 'market' */}
+      {/* UP/DOWN Selection - only shown when executionType is 'market' */}
       {executionType === 'market' && (
-        <div className={`border-b border-gray-800 p-4 flex-shrink-0 ${isMarketEnded ? 'opacity-50' : ''}`}>
+        <div className={`border-b border-gray-700/50 p-4 flex-shrink-0 ${isMarketEnded ? 'opacity-50' : ''}`}>
           <div className="flex gap-2">
-            {isBuy ? (
-              <>
-                {/* Buy Up Button */}
+            {/* UP/DOWN Selection Buttons */}
                 <button
                   disabled={isMarketEnded}
                   onClick={() => {
                     if (isMarketEnded) return
-                    setIsBuy(true)
                     setSelectedOutcome('up')
                     setActiveTokenId('up')
                   }}
-                  className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
+              className={`flex-1 px-3 py-2 text-xs font-semibold rounded transition-all duration-200 uppercase border flex items-center justify-between ${
                     isMarketEnded
-                      ? 'bg-gray-800/50 border-gray-700 text-gray-500 cursor-not-allowed'
-                      : selectedOutcome === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
+                  ? 'bg-dark-bg/50 border-gray-700 text-gray-500 cursor-not-allowed'
+                  : selectedOutcome === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-dark-bg/50 border-gray-700 text-gray-200 hover:border-green-500/60'
                   }`}
                 >
-                  <span>Buy Up</span>
-                  <span className={`text-xs font-semibold ${isMarketEnded ? 'text-gray-500' : selectedOutcome === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
-                    {isMarketEnded || yesPriceFormatted === 'ERROR' ? (
-                      isMarketEnded ? 'Ended' : 'ERROR'
+              <span>UP</span>
+              <span className={`text-xs font-semibold ${selectedOutcome === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
+                {yesPriceFormatted === 'Ended' || yesPriceFormatted === 'ERROR' ? (
+                  `${yesPriceFormatted}¢`
                     ) : (
                       <>
                         <AnimatedPrice
@@ -1295,25 +1197,23 @@ const TradingPanel = () => {
                     )}
                   </span>
                 </button>
-                {/* Buy Down Button */}
                 <button
                   disabled={isMarketEnded}
                   onClick={() => {
                     if (isMarketEnded) return
-                    setIsBuy(true)
                     setSelectedOutcome('down')
                     setActiveTokenId('down')
                   }}
-                  className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
+              className={`flex-1 px-3 py-2 text-xs font-semibold rounded transition-all duration-200 uppercase border flex items-center justify-between ${
                     isMarketEnded
-                      ? 'bg-gray-800/50 border-gray-700 text-gray-500 cursor-not-allowed'
-                      : selectedOutcome === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
+                  ? 'bg-dark-bg/50 border-gray-700 text-gray-500 cursor-not-allowed'
+                  : selectedOutcome === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-dark-bg/50 border-gray-700 text-gray-200 hover:border-red-500/60'
                   }`}
                 >
-                  <span>Buy Down</span>
-                  <span className={`text-xs font-semibold ${isMarketEnded ? 'text-gray-500' : selectedOutcome === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
-                    {isMarketEnded || noPriceFormatted === 'ERROR' ? (
-                      isMarketEnded ? 'Ended' : 'ERROR'
+              <span>DOWN</span>
+              <span className={`text-xs font-semibold ${selectedOutcome === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
+                {noPriceFormatted === 'Ended' || noPriceFormatted === 'ERROR' ? (
+                  `${noPriceFormatted}¢`
                     ) : (
                       <>
                         <AnimatedPrice
@@ -1325,77 +1225,12 @@ const TradingPanel = () => {
                     )}
                   </span>
                 </button>
-              </>
-            ) : (
-              <>
-                {/* Sell Up Button */}
-                <button
-                  disabled={isMarketEnded}
-                  onClick={() => {
-                    if (isMarketEnded) return
-                    setIsBuy(false)
-                    setSelectedOutcome('up')
-                    setActiveTokenId('up')
-                  }}
-                  className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    isMarketEnded
-                      ? 'bg-gray-800/50 border-gray-700 text-gray-500 cursor-not-allowed'
-                      : selectedOutcome === 'up' ? 'bg-green-500/10 border-green-500 text-green-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
-                  }`}
-                >
-                  <span>Sell Up</span>
-                  <span className={`text-xs font-semibold ${isMarketEnded ? 'text-gray-500' : selectedOutcome === 'up' ? 'text-green-400' : 'text-gray-400'}`}>
-                    {isMarketEnded || yesSellPriceFormatted === 'ERROR' ? (
-                      isMarketEnded ? 'Ended' : 'ERROR'
-                    ) : (
-                      <>
-                        <AnimatedPrice
-                          value={parseFloat(yesSellPriceFormatted)}
-                          format={(val) => Math.round(val).toString()}
-                        />
-                        ¢
-                      </>
-                    )}
-                  </span>
-                </button>
-                {/* Sell Down Button */}
-                <button
-                  disabled={isMarketEnded}
-                  onClick={() => {
-                    if (isMarketEnded) return
-                    setIsBuy(false)
-                    setSelectedOutcome('down')
-                    setActiveTokenId('down')
-                  }}
-                  className={`flex-1 px-3 sm:px-4 py-2.5 sm:py-3.5 text-xs sm:text-sm font-bold rounded-lg transition-all duration-200 uppercase flex items-center justify-between border ${
-                    isMarketEnded
-                      ? 'bg-gray-800/50 border-gray-700 text-gray-500 cursor-not-allowed'
-                      : selectedOutcome === 'down' ? 'bg-red-500/10 border-red-500 text-red-400' : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
-                  }`}
-                >
-                  <span>Sell Down</span>
-                  <span className={`text-xs font-semibold ${isMarketEnded ? 'text-gray-500' : selectedOutcome === 'down' ? 'text-red-400' : 'text-gray-400'}`}>
-                    {isMarketEnded || noSellPriceFormatted === 'ERROR' ? (
-                      isMarketEnded ? 'Ended' : 'ERROR'
-                    ) : (
-                      <>
-                        <AnimatedPrice
-                          value={parseFloat(noSellPriceFormatted)}
-                          format={(val) => Math.round(val).toString()}
-                        />
-                        ¢
-                      </>
-                    )}
-                  </span>
-                </button>
-              </>
-            )}
           </div>
         </div>
       )}
 
       {/* Shares/Amount Input */}
-      <div className="border-b border-gray-800 p-4 flex-shrink-0">
+      <div className="border-b border-gray-700/50 p-4 flex-shrink-0">
         <div className="space-y-3">
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -1411,7 +1246,7 @@ const TradingPanel = () => {
                 {!isBuy && availableShares > 0 && (
                   <button
                     onClick={handleMaxShares}
-                    className="text-purple-400 hover:text-purple-300 transition-colors text-xs font-medium"
+                    className="text-gold-hover hover:text-gold-primary transition-colors text-xs font-medium"
                     aria-label="Use max shares"
                     title="Sell all shares"
                   >
@@ -1447,7 +1282,8 @@ const TradingPanel = () => {
                   type="text"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full bg-gray-900/50 border border-gray-800 rounded px-3 py-2 text-white text-sm font-semibold text-center focus:outline-none focus:ring-2 focus:ring-purple-primary"
+                  className="w-full border border-gray-700/50 rounded px-3 py-2 text-white text-sm font-semibold text-center focus:outline-none focus:ring-2 focus:ring-gold-primary"
+                  style={{ backgroundColor: 'rgba(20, 18, 16, 0.5)' }}
                   placeholder="0"
                 />
               </div>
@@ -1472,7 +1308,7 @@ const TradingPanel = () => {
                       return (
                         <div
                           key={index}
-                          className="flex-1 px-2 py-1.5 text-xs rounded border border-gray-800 bg-gray-900/50 flex items-center justify-center"
+                          className="flex-1 px-2 py-1.5 text-xs rounded border border-gray-700/50 bg-dark-bg/50 flex items-center justify-center"
                         >
                           <input
                             type="text"
@@ -1502,7 +1338,7 @@ const TradingPanel = () => {
                           const newAmount = current + increment
                           setAmount(newAmount.toString())
                         }}
-                        className="flex-1 px-2 py-1.5 text-xs bg-gray-900/50 text-gray-300 rounded border border-gray-800 hover:bg-gray-900/70 hover:border-gray-700 transition-colors"
+                        className="flex-1 px-2 py-1.5 text-xs bg-dark-bg/50 text-gray-300 rounded border border-gray-700/50 hover:bg-dark-bg/70 hover:border-gray-700 transition-colors"
                       >
                         +{value || 0}
                       </button>
@@ -1516,10 +1352,10 @@ const TradingPanel = () => {
                         setIsEditingSharePresets(true)
                       }
                     }}
-                    className={`px-2 py-1.5 rounded border border-gray-800 transition-colors ${
+                    className={`px-2 py-1.5 rounded border border-gray-700/50 transition-colors ${
                       isEditingSharePresets
-                        ? 'text-white bg-purple-primary hover:bg-purple-hover'
-                        : 'text-gray-400 hover:text-white bg-gray-900/50 hover:bg-gray-900/70 hover:border-gray-700'
+                        ? 'text-white bg-gold-primary hover:bg-gold-hover'
+                        : 'text-gray-400 hover:text-white bg-dark-bg/50 hover:bg-dark-bg/70 hover:border-gray-700'
                     }`}
                     aria-label={isEditingSharePresets ? 'Save quick add options' : 'Edit quick add options'}
                     title={isEditingSharePresets ? 'Save' : 'Edit quick add options'}
@@ -1546,7 +1382,7 @@ const TradingPanel = () => {
                   <button
                     key={value}
                     onClick={() => handleAmountClick(value)}
-                    className="flex-1 px-2 py-1.5 text-xs bg-gray-900/50 text-gray-300 rounded border border-gray-800 hover:bg-gray-900/70 hover:border-gray-700 transition-colors"
+                    className="flex-1 px-2 py-1.5 text-xs bg-dark-bg/50 text-gray-300 rounded border border-gray-700/50 hover:bg-dark-bg/70 hover:border-gray-700 transition-colors"
                   >
                     {value}
                   </button>
@@ -1572,7 +1408,7 @@ const TradingPanel = () => {
           onClick={handlePlaceOrder}
           className={`w-full py-3 rounded-lg font-bold text-sm transition-all duration-200 border ${
             isMarketEnded || isPlacingOrder || !isPolymarketAuthenticated || (isBuy && allowanceStatus?.needsAnyApproval && allowanceStatus?.hasAnyBalance) || (!isBuy && availableShares <= 0) || (!isBuy && ctfApprovalStatus?.needsApproval)
-              ? 'bg-gray-800/50 border-gray-700 text-gray-500 cursor-not-allowed'
+              ? 'bg-dark-bg/50 border-gray-700 text-gray-500 cursor-not-allowed'
               : isTradingUp
               ? 'bg-green-500/10 border-green-500 text-green-400 hover:bg-green-500/20'
               : 'bg-red-500/10 border-red-500 text-red-400 hover:bg-red-500/20'
@@ -1595,7 +1431,9 @@ const TradingPanel = () => {
             : `${isBuy ? 'BUY' : 'SELL'} ${selectedOutcome === 'up' ? 'UP' : 'DOWN'}`}
         </button>
 
-        <div className="rounded-lg border border-gray-800 bg-gray-900/40 px-3 py-2 text-xs text-gray-400 space-y-1">
+        {/* Market ID Panel - Commented out for now, might need it later */}
+        {/*
+        <div className="rounded-lg border border-gray-700/50 bg-dark-bg/40 px-3 py-2 text-xs text-gray-400 space-y-1">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className="font-semibold text-gray-200">
               {currentMarket.marketId ? `Market ID: ${currentMarket.marketId}` : 'Market metadata unavailable'}
@@ -1631,16 +1469,16 @@ const TradingPanel = () => {
               <span className="text-gray-500">(ET)</span>
             </p>
           )}
-          {/* Debug: Test credentials button */}
           {isPolymarketAuthenticated && (
             <button
               onClick={testCredentials}
-              className="mt-2 text-xs text-purple-400 hover:text-purple-300 underline"
+              className="mt-2 text-xs text-gold-hover hover:text-gold-primary underline"
             >
               Test API Credentials
             </button>
           )}
         </div>
+        */}
       </div>
 
 
@@ -1648,7 +1486,7 @@ const TradingPanel = () => {
       {showQuickTradePanel && (
         <div
           ref={popupRef}
-          className="fixed z-50 bg-black border border-gray-800 rounded-lg shadow-2xl w-[280px]"
+          className="fixed z-50 bg-dark-bg border border-gray-700/50 rounded-lg shadow-2xl w-[280px]"
           style={{
             left: `${popupPosition.x}px`,
             top: `${popupPosition.y}px`,
@@ -1658,7 +1496,7 @@ const TradingPanel = () => {
             {/* Draggable Header */}
             <div
               onMouseDown={handleMouseDown}
-              className="flex items-center justify-between px-3 py-2 border-b border-gray-800 cursor-grab active:cursor-grabbing bg-black rounded-t-lg"
+              className="flex items-center justify-between px-3 py-2 border-b border-gray-700/50 cursor-grab active:cursor-grabbing bg-dark-bg rounded-t-lg"
             >
               <span className="text-xs text-white font-semibold">Quick Limit</span>
               <div className="flex items-center gap-1">
@@ -1718,7 +1556,7 @@ const TradingPanel = () => {
                                   return next
                                 })
                               }}
-                              className={`w-full px-2 py-1 rounded text-[10px] font-semibold bg-gray-900/50 border text-white text-center focus:outline-none focus:ring-1 ${
+                              className={`w-full px-2 py-1 rounded text-[10px] font-semibold bg-dark-bg/50 border text-white text-center focus:outline-none focus:ring-1 ${
                                 isTradingUp
                                   ? 'border-green-500/50 focus:ring-green-500 focus:border-green-500'
                                   : 'border-red-500/50 focus:ring-red-500 focus:border-red-500'
@@ -1745,20 +1583,20 @@ const TradingPanel = () => {
                                 return next
                               })
                             }}
-                            className="w-full px-2 py-1 rounded text-[10px] font-semibold bg-gray-900/50 border border-purple-primary/50 text-white text-center focus:outline-none focus:ring-1 focus:ring-purple-primary focus:border-purple-primary"
+                            className="w-full px-2 py-1 rounded text-[10px] font-semibold bg-dark-bg/50 border border-gold-primary/50 text-white text-center focus:outline-none focus:ring-1 focus:ring-gold-primary focus:border-gold-primary"
                             placeholder="100"
                           />
                         ))}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between pt-1.5 border-t border-gray-800">
+                  <div className="flex items-center justify-between pt-1.5 border-t border-gray-700/50">
                     <p className="text-[9px] text-gray-500">
                       Edit prices & amounts
                     </p>
                     <button
                       onClick={() => setIsEditingQuickTrade(false)}
-                      className="px-2.5 py-0.5 bg-purple-primary hover:bg-purple-hover text-white text-[9px] font-semibold rounded transition-colors"
+                      className="px-2.5 py-0.5 bg-gold-primary hover:bg-gold-hover text-white text-[9px] font-semibold rounded transition-colors"
                     >
                       Done
                     </button>
@@ -1789,8 +1627,8 @@ const TradingPanel = () => {
                                     ? 'bg-green-500/10 border-green-500 text-green-400'
                                     : 'bg-red-500/10 border-red-500 text-red-400'
                                   : isTradingUp
-                                    ? 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-green-500/60'
-                                    : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-red-500/60'
+                                    ? 'bg-dark-bg/50 border-gray-700 text-gray-200 hover:border-green-500/60'
+                                    : 'bg-dark-bg/50 border-gray-700 text-gray-200 hover:border-red-500/60'
                               }`}
                             >
                               {value}¢
@@ -1813,8 +1651,8 @@ const TradingPanel = () => {
                               }}
                               className={`w-full px-2 py-1 rounded text-[10px] font-semibold transition-all duration-200 border ${
                                 isSelected
-                                  ? 'bg-purple-primary/20 border-purple-primary text-white'
-                                  : 'bg-gray-900/50 border-gray-700 text-gray-200 hover:border-purple-primary/60'
+                                  ? 'bg-gold-primary/20 border-gold-primary text-white'
+                                  : 'bg-dark-bg/50 border-gray-700 text-gray-200 hover:border-gold-primary/60'
                               }`}
                             >
                               {value}
@@ -1824,7 +1662,7 @@ const TradingPanel = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between pt-1.5 border-t border-gray-800">
+                  <div className="flex items-center justify-between pt-1.5 border-t border-gray-700/50">
                     <div className="flex items-center gap-2">
                       <span className="text-[9px] text-gray-500">
                         ¢: <span className="text-white font-semibold text-[10px]">{quickTradePrice ? `${quickTradePrice}` : '--'}</span>
@@ -1864,7 +1702,17 @@ const TradingPanel = () => {
               )}
             </div>
         </div>
-      )}
+          )}
+
+      {/* Re-authentication Modal - shown when API key doesn't match wallet */}
+      <PolymarketAuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onSuccess={() => {
+          setShowAuthModal(false)
+          showToast('Authentication successful! You can now place orders.', 'success')
+        }}
+      />
     </div>
   )
 }

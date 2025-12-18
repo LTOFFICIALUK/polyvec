@@ -266,7 +266,7 @@ const ChartControls = () => {
   }
 
   return (
-    <div className="bg-black border-b border-gray-800 px-2 sm:px-4 py-2 sm:py-3">
+    <div className="bg-dark-bg border-b border-gray-700/50 px-2 sm:px-4 py-2 sm:py-3">
       <div className="flex items-center justify-between">
         {/* Pair Selector and Timeframes */}
         <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
@@ -277,7 +277,7 @@ const ChartControls = () => {
                 onClick={() => setSelectedPair(pair)}
                 className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded transition-colors ${
                   selectedPair === pair
-                    ? 'bg-purple-primary text-white'
+                    ? 'bg-gold-primary text-white'
                     : 'text-gray-400 hover:text-white hover:bg-gray-800'
                 }`}
               >
@@ -295,7 +295,7 @@ const ChartControls = () => {
                 onClick={() => handleTimeframeClick(tf)}
                 className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded transition-colors flex items-center gap-1 ${
                   selectedTimeframe === tf
-                    ? 'bg-purple-primary text-white'
+                    ? 'bg-gold-primary text-white'
                     : 'text-gray-400 hover:text-white hover:bg-gray-800'
                 }`}
               >
@@ -316,7 +316,7 @@ const ChartControls = () => {
             {/* Market Window Dropdown */}
             {showMarketDropdown && (
               <div className="absolute top-full left-0 mt-1 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-50 min-w-[180px] py-1">
-                <div className="px-3 py-1.5 text-[10px] uppercase text-gray-500 font-semibold tracking-wider border-b border-gray-800">
+                <div className="px-3 py-1.5 text-[10px] uppercase text-gray-500 font-semibold tracking-wider border-b border-gray-700/50">
                   Select Market Window
                 </div>
                 {marketOffsets.map((offset) => {
@@ -329,7 +329,7 @@ const ChartControls = () => {
                       key={offset}
                       onClick={() => handleMarketSelect(offset)}
                       className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-800 transition-colors ${
-                        isSelected ? 'bg-purple-primary/20 text-purple-400' : 'text-gray-300'
+                        isSelected ? 'bg-gold-primary/20 text-gold-hover' : 'text-gray-300'
                       }`}
                     >
                       <span className="flex items-center gap-2">
@@ -341,7 +341,7 @@ const ChartControls = () => {
                         </span>
                       </span>
                       {isSelected && (
-                        <svg className="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-4 h-4 text-gold-hover" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                         </svg>
                       )}
@@ -356,7 +356,7 @@ const ChartControls = () => {
 
           {/* Current Market Window Indicator */}
           <div className="flex items-center gap-2 text-xs sm:text-sm">
-            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+            <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider ${
               marketOffset === 0 
                 ? 'bg-green-500/20 text-green-400' 
                 : marketOffset < 0 
@@ -374,20 +374,21 @@ const ChartControls = () => {
           {marketOffset === 0 && (
             <>
               <span className="text-gray-500 hidden sm:inline">→</span>
-              <span className="text-gray-300 font-medium font-mono tabular-nums text-xs sm:text-sm">
+              <span className="text-gray-300 font-medium text-xs sm:text-sm">
                 {String(countdown.minutes).padStart(2, '0')}:{String(countdown.seconds).padStart(2, '0')}
               </span>
             </>
           )}
         </div>
 
-        {/* TradingView Chart Button */}
+        {/* TradingView Chart Button - Commented out, side-by-side view is now default */}
+        {/*
         <div className="flex items-center">
           <button
             onClick={handleTradingViewToggle}
             className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded transition-colors flex items-center gap-2 ${
               showTradingView
-                ? 'bg-purple-primary text-white'
+                ? 'bg-gold-primary text-white'
                 : isFutureMarket
                   ? 'text-gray-600 cursor-not-allowed'
                 : 'text-gray-400 hover:text-white hover:bg-gray-800'
@@ -411,6 +412,7 @@ const ChartControls = () => {
             <span className="hidden sm:inline">TradingView</span>
           </button>
         </div>
+        */}
       </div>
     </div>
   )

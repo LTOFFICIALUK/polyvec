@@ -174,7 +174,7 @@ export default function ConnectWalletModal({ isOpen, onClose }: ConnectWalletMod
               disabled={isConnecting || !hasPhantom}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-gray-900/50 border border-gray-800/60 hover:border-gray-700 hover:bg-gray-900/80 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-lg bg-gold-primary/10 flex items-center justify-center">
                 <img src="/wallets/Phantom-Icon_Transparent_Purple.svg" alt="" className="w-5 h-5" />
               </div>
               <div className="flex-1 text-left">
@@ -212,7 +212,7 @@ export default function ConnectWalletModal({ isOpen, onClose }: ConnectWalletMod
           {showHelp && (
             <div className="p-3 rounded-lg bg-gray-900/30 border border-gray-800/40 space-y-2">
               <p className="text-xs text-gray-400">
-                Export your private key from <a href="https://polymarket.com" target="_blank" rel="noopener noreferrer" className="text-purple-400 hover:underline">Polymarket.com</a> (Settings → Security), 
+                Export your private key from <a href="https://polymarket.com" target="_blank" rel="noopener noreferrer" className="text-gold-hover hover:underline">Polymarket.com</a> (Settings → Security), 
                 then import it into MetaMask or Phantom to use your existing account.
               </p>
               <div className="flex items-center gap-2 pt-1">

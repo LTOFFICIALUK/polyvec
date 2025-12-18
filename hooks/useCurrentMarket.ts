@@ -51,17 +51,14 @@ const useCurrentMarket = ({ pair, timeframe, offset = 0 }: UseCurrentMarketParam
     // Only schedule if end time is in the future and within reasonable range (0 to 1 hour)
     if (timeUntilEnd > 0 && timeUntilEnd <= 60 * 60 * 1000) {
       const endDate = new Date(endTime)
-      console.log(`[useCurrentMarket] Scheduling refresh at market end: ${endDate.toLocaleTimeString()} (in ${Math.round(timeUntilEnd / 1000)}s)`)
       
       timeoutRef.current = setTimeout(() => {
-        console.log(`[useCurrentMarket] Market window ended, refreshing to next market...`)
         if (fetchCurrentMarketRef.current) {
           fetchCurrentMarketRef.current()
         }
       }, timeUntilEnd)
     } else if (timeUntilEnd <= 0) {
       // Market already ended, refresh immediately
-      console.log(`[useCurrentMarket] Market window already ended, refreshing immediately...`)
       if (fetchCurrentMarketRef.current) {
         fetchCurrentMarketRef.current()
       }
@@ -113,7 +110,6 @@ const useCurrentMarket = ({ pair, timeframe, offset = 0 }: UseCurrentMarketParam
       // Check if market actually changed
       const marketChanged = previousMarketIdRef.current !== newMarket.marketId
       if (marketChanged && newMarket.marketId) {
-        console.log(`[useCurrentMarket] Market changed: ${previousMarketIdRef.current} → ${newMarket.marketId}`)
       }
 
       previousMarketIdRef.current = newMarket.marketId
@@ -158,7 +154,6 @@ const useCurrentMarket = ({ pair, timeframe, offset = 0 }: UseCurrentMarketParam
       ? 30 * 1000  // 30 seconds for 15m markets (fallback)
       : 60 * 1000  // 1 minute for 1h markets (fallback)
 
-    console.log(`[useCurrentMarket] Starting fallback polling for ${pair} ${timeframe} (every ${pollingInterval / 1000}s)`)
 
     intervalRef.current = setInterval(() => {
       // Fallback polling - always run as safety net

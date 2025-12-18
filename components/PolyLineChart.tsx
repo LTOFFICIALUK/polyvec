@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useTradingContext } from '@/contexts/TradingContext'
 import useCurrentMarket from '@/hooks/useCurrentMarket'
+import { useWebSocket } from '@/contexts/WebSocketContext'
 import AnimatedPrice from './AnimatedPrice'
 
 interface ChartPoint {
@@ -13,6 +14,7 @@ interface ChartPoint {
 
 const PolyLineChart = () => {
   const { selectedPair, selectedTimeframe, marketOffset } = useTradingContext()
+  const { subscribe, isConnected } = useWebSocket()
   const { market } = useCurrentMarket({
     pair: selectedPair,
     timeframe: selectedTimeframe,
@@ -26,6 +28,74 @@ const PolyLineChart = () => {
   const chartContainerRef = useRef<HTMLDivElement | null>(null)
   const historyFetchedRef = useRef<string | null>(null)
   const fetchPricesRef = useRef<typeof fetchPrices | null>(null)
+
+  // Fetch orderbook data for UP and DOWN tokens to get best bid/ask
+  const [orderbookPrices, setOrderbookPrices] = useState<{
+    upBestBid: number | null
+    upBestAsk: number | null
+    downBestBid: number | null
+    downBestAsk: number | null
+  }>({
+    upBestBid: null,
+    upBestAsk: null,
+    downBestBid: null,
+    downBestAsk: null,
+  })
+
+  // Direct current market prices from Polymarket pricing API
+
+  // BTC price data
+  const [btcPrice, setBtcPrice] = useState<{
+    current: number | null
+    lastCandleClose: number | null
+  }>({
+    current: null,
+    lastCandleClose: null,
+  })
+
+  // Recent trades for displaying bubbles on chart
+  interface TradeMarker {
+    id: string
+    timestamp: number
+    shares: number
+    price: number
+    dollarAmount: number
+    side: string // 'you bought' or 'you sold'
+    outcome: 'up' | 'down'
+  }
+
+  const [recentTrades, setRecentTrades] = useState<TradeMarker[]>([])
+  const [hoveredTradeId, setHoveredTradeId] = useState<string | null>(null)
+
+  // Listen for order placement events to show trade bubbles
+  useEffect(() => {
+    const handleOrderPlaced = (event: Event) => {
+      const customEvent = event as CustomEvent
+      const tradeData = customEvent.detail
+      
+      if (!tradeData) return
+
+      const newTrade: TradeMarker = {
+        id: `trade-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        timestamp: tradeData.timestamp || Date.now(),
+        shares: tradeData.shares,
+        price: tradeData.price,
+        dollarAmount: tradeData.dollarAmount,
+        side: tradeData.side,
+        outcome: tradeData.outcome,
+      }
+
+      setRecentTrades((prev) => [...prev, newTrade])
+
+      // Auto-remove trades older than 5 minutes
+      setTimeout(() => {
+        setRecentTrades((prev) => prev.filter((t) => t.id !== newTrade.id))
+      }, 5 * 60 * 1000)
+    }
+
+    window.addEventListener('orderPlaced', handleOrderPlaced as EventListener)
+    return () => window.removeEventListener('orderPlaced', handleOrderPlaced as EventListener)
+  }, [])
 
   // Fetch historical price data from database
   const fetchHistoricalData = useCallback(async (): Promise<ChartPoint[]> => {
@@ -61,7 +131,6 @@ const PolyLineChart = () => {
       const result = await response.json()
       const historicalData = result.data || []
 
-      console.log(`[PolyLineChart] Fetched ${historicalData.length} historical data points`)
       
       // Convert decimal prices (0-1) to cents (0-100) for chart
       return historicalData.map((point: any) => {
@@ -105,7 +174,6 @@ const PolyLineChart = () => {
           const price = typeof bestBid.price === 'string' ? parseFloat(bestBid.price) : bestBid.price
           
           // Debug log to see what we're getting
-          console.log(`[PolyLineChart] UP bids: ${bids.length}, best=${bestBid.price}, last=${bids[bids.length-1]?.price}`)
           
           // Convert decimal (0-1) to cents (0-100) for chart
           upPrice = price <= 1 ? price * 100 : price
@@ -122,7 +190,6 @@ const PolyLineChart = () => {
           const price = typeof bestBid.price === 'string' ? parseFloat(bestBid.price) : bestBid.price
           
           // Debug log
-          console.log(`[PolyLineChart] DOWN bids: ${bids.length}, best=${bestBid.price}, last=${bids[bids.length-1]?.price}`)
           
           // Convert decimal (0-1) to cents (0-100) for chart
           downPrice = price <= 1 ? price * 100 : price
@@ -139,6 +206,223 @@ const PolyLineChart = () => {
   // Check if this is a past market (ended)
   const isMarketEnded = market?.isPast === true || market?.marketStatus === 'ended'
 
+  // Real-time price updates via HTTP polling (250ms interval)
+  // Prices come from ws-service which is connected to Polymarket RTDS
+  // This provides near real-time updates without WebSocket complexity
+
+  // Fetch initial price and price to beat (last candle close) from API
+  useEffect(() => {
+    if (!market?.startTime) {
+      // Reset prices when no market
+      setBtcPrice({ current: null, lastCandleClose: null })
+      return
+    }
+
+    // Get symbol based on selected pair (BTC, ETH, SOL, XRP)
+    const symbolMap: Record<string, string> = {
+      'BTC': 'btcusdt',
+      'ETH': 'ethusdt',
+      'SOL': 'solusdt',
+      'XRP': 'xrpusdt',
+    }
+    const symbol = symbolMap[selectedPair.toUpperCase()] || 'btcusdt'
+    
+    // Map timeframe to candle timeframe
+    const timeframeMap: Record<string, string> = {
+      '1m': '1m',
+      '5m': '5m',
+      '15m': '15m',
+      '1h': '1h',
+    }
+    const candleTimeframe = timeframeMap[selectedTimeframe] || '15m'
+
+    // Reset prices when market changes (to show loading state and prevent stale data)
+    const currentMarketKey = market?.marketId ? `${market.marketId}-${market.startTime}` : null
+    const previousMarketKey = historyFetchedRef.current
+    if (currentMarketKey && previousMarketKey && previousMarketKey !== currentMarketKey) {
+      setBtcPrice({ current: null, lastCandleClose: null })
+    }
+
+    // Fetch initial current price and set up polling as fallback
+    const fetchCurrentPrice = async () => {
+      try {
+        const priceResponse = await fetch(`/api/crypto/prices`, { 
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+        })
+
+            if (priceResponse.ok) {
+              const priceData = await priceResponse.json()
+              
+              const currentPrice = priceData.prices?.[symbol]
+          if (currentPrice !== undefined && currentPrice !== null) {
+            const parsedPrice = parseFloat(currentPrice)
+            setBtcPrice(prev => ({ ...prev, current: parsedPrice }))
+          } else {
+            console.warn('[PolyLineChart] ⚠️ No price found for symbol:', symbol, 'Available prices:', Object.keys(priceData.prices || {}))
+          }
+          
+          if (!priceData.connected) {
+            console.warn('[PolyLineChart] ⚠️ ws-service reports NOT connected to Polymarket RTDS')
+          }
+        } else {
+          console.error('[PolyLineChart] Price response not OK:', priceResponse.status, priceResponse.statusText)
+        }
+      } catch (err) {
+        console.error('[PolyLineChart] Error fetching current price:', err)
+      }
+    }
+
+    // Fetch immediately
+    fetchCurrentPrice()
+    
+    // Poll every 250ms (quarter second) for near real-time updates
+    const pollInterval = setInterval(fetchCurrentPrice, 250)
+
+    // Fetch candles to get price to beat (OPEN price of candle that STARTED at market start time)
+    const fetchCandles = async () => {
+      try {
+        const candlesResponse = await fetch(`/api/crypto/candles?symbol=${symbol}&timeframe=${candleTimeframe}&count=100`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+        })
+
+        if (candlesResponse.ok) {
+          const candlesData = await candlesResponse.json()
+          
+          if (candlesData.candles && candlesData.candles.length > 0) {
+            const marketStartTime = market.startTime
+            if (!marketStartTime) return
+            
+            // Find the candle that was active at market start time
+            // Price to beat = CLOSE price of the candle that ENDED just before market start
+            // OR if market starts exactly at candle boundary, use OPEN of that candle
+            // Polymarket typically uses the previous candle's close price as the "price to beat"
+            let priceToBeat: number | null = null
+            let foundCandle = null
+            
+            const candleDurationMs = candleTimeframe === '1m' ? 60 * 1000 :
+                                     candleTimeframe === '5m' ? 5 * 60 * 1000 :
+                                     candleTimeframe === '15m' ? 15 * 60 * 1000 :
+                                     candleTimeframe === '1h' ? 60 * 60 * 1000 : 15 * 60 * 1000
+            
+            // Find the candle that was active when market started
+            // First check if market starts exactly at a candle boundary
+            let activeCandleIndex = -1
+            for (let i = candlesData.candles.length - 1; i >= 0; i--) {
+              const candle = candlesData.candles[i]
+              const candleTimestamp = candle.timestamp || candle.time
+              const candleEndTime = candleTimestamp + candleDurationMs
+              
+              // Check if market starts exactly at candle start
+              if (candleTimestamp === marketStartTime && candle.open !== undefined) {
+                    priceToBeat = parseFloat(candle.open)
+                    foundCandle = candle
+                    activeCandleIndex = i
+                    break
+              }
+              
+              // Check if market start is within this candle's period
+              if (candleTimestamp <= marketStartTime && marketStartTime < candleEndTime) {
+                activeCandleIndex = i
+                // If market starts at the very beginning of the candle, use OPEN
+                // Otherwise, use the previous candle's CLOSE (which is the price at market start)
+                if (i > 0) {
+                  const previousCandle = candlesData.candles[i - 1]
+                  if (previousCandle.close !== undefined) {
+                    priceToBeat = parseFloat(previousCandle.close)
+                    foundCandle = previousCandle
+                  } else if (candle.open !== undefined) {
+                    // Fallback to active candle open if previous close not available
+                    priceToBeat = parseFloat(candle.open)
+                    foundCandle = candle
+                  }
+                } else if (candle.open !== undefined) {
+                  // No previous candle, use this candle's open
+                  priceToBeat = parseFloat(candle.open)
+                  foundCandle = candle
+                }
+                break
+              }
+            }
+            
+            // If still no match, use the most recent candle's close price (price to beat)
+            if (priceToBeat === null && candlesData.candles.length > 0) {
+              const mostRecentCandle = candlesData.candles[candlesData.candles.length - 1]
+              if (mostRecentCandle.close !== undefined) {
+                priceToBeat = parseFloat(mostRecentCandle.close)
+                foundCandle = mostRecentCandle
+                const candleTimestamp = mostRecentCandle.timestamp || mostRecentCandle.time
+                console.warn('[PolyLineChart] ⚠️ Using most recent candle CLOSE as price to beat (fallback):', {
+                  candleTimestamp: candleTimestamp ? new Date(candleTimestamp).toISOString() : 'unknown',
+                  marketStart: new Date(marketStartTime).toISOString(),
+                  closePrice: mostRecentCandle.close,
+                })
+              }
+            }
+            
+            if (priceToBeat !== null) {
+              setBtcPrice(prev => ({ ...prev, lastCandleClose: priceToBeat }))
+            } else {
+              console.warn('[PolyLineChart] ⚠️ Could not determine price to beat from candles')
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[PolyLineChart] Error fetching candles:', err)
+      }
+    }
+
+    fetchCandles()
+
+    // Cleanup function
+    return () => {
+      clearInterval(pollInterval)
+    }
+  }, [selectedPair, selectedTimeframe, market?.startTime, market?.marketId])
+
+  // Fetch orderbook and current market prices
+  useEffect(() => {
+    const fetchPriceData = async () => {
+      if (!market?.yesTokenId || !market?.noTokenId || isMarketEnded) return
+
+      try {
+        // Fetch orderbooks for both UP and DOWN tokens
+        const [upOrderbookResponse, downOrderbookResponse] = await Promise.all([
+          fetch(`/api/polymarket/orderbook?tokenId=${market.yesTokenId}`),
+          fetch(`/api/polymarket/orderbook?tokenId=${market.noTokenId}`),
+        ])
+
+        // Process orderbook data
+        if (upOrderbookResponse.ok && downOrderbookResponse.ok) {
+          const upData = await upOrderbookResponse.json()
+          const downData = await downOrderbookResponse.json()
+
+          const upBestBid = upData.bids?.[0]?.price ? parseFloat(upData.bids[0].price) * 100 : null
+          const upBestAsk = upData.asks?.[0]?.price ? parseFloat(upData.asks[0].price) * 100 : null
+          const downBestBid = downData.bids?.[0]?.price ? parseFloat(downData.bids[0].price) * 100 : null
+          const downBestAsk = downData.asks?.[0]?.price ? parseFloat(downData.asks[0].price) * 100 : null
+
+          setOrderbookPrices({
+            upBestBid,
+            upBestAsk,
+            downBestBid,
+            downBestAsk,
+          })
+        }
+      } catch (err) {
+        console.error('Error fetching price data:', err)
+      }
+    }
+
+    fetchPriceData()
+    // Poll every 2 seconds to keep prices fresh
+    const interval = setInterval(fetchPriceData, 2000)
+    return () => clearInterval(interval)
+  }, [market?.yesTokenId, market?.noTokenId, isMarketEnded])
+
   // Keep fetchPrices ref updated for use in worker callback
   useEffect(() => {
     fetchPricesRef.current = fetchPrices
@@ -149,7 +433,6 @@ const PolyLineChart = () => {
     // Check if market changed
     const marketChanged = previousMarketIdRef.current !== null && previousMarketIdRef.current !== market?.marketId
     if (marketChanged && market?.marketId) {
-      console.log(`[PolyLineChart] Market changed: ${previousMarketIdRef.current} → ${market.marketId}, resetting chart`)
       setSeries([])
       historyFetchedRef.current = null // Reset history fetch flag for new market
     }
@@ -183,7 +466,6 @@ const PolyLineChart = () => {
       const currentMarketKey = market?.marketId ? `${market.marketId}-${market.startTime}-past` : null
       if (currentMarketKey && historyFetchedRef.current !== currentMarketKey) {
         historyFetchedRef.current = currentMarketKey
-        console.log('[PolyLineChart] Fetching historical data for PAST market...')
         
         // For past markets, fetch for the full event window
         const fetchPastMarketData = async () => {
@@ -209,7 +491,6 @@ const PolyLineChart = () => {
             const result = await response.json()
             const historicalData = result.data || []
 
-            console.log(`[PolyLineChart] Loaded ${historicalData.length} points for past market`)
             
             if (historicalData.length > 0) {
               // Convert decimal prices (0-1) to cents (0-100) for chart
@@ -250,13 +531,10 @@ const PolyLineChart = () => {
 
     if (shouldFetchHistory && currentMarketKey) {
       historyFetchedRef.current = currentMarketKey
-      console.log('[PolyLineChart] Fetching historical data for LIVE market...')
       fetchHistoricalData().then((historicalData) => {
         if (historicalData.length > 0) {
-          console.log(`[PolyLineChart] Pre-populating chart with ${historicalData.length} historical points`)
           setSeries(historicalData)
         } else {
-          console.log('[PolyLineChart] No historical data available, starting fresh')
         }
       }).catch((error) => {
         console.error('[PolyLineChart] Error loading historical data:', error)
@@ -328,7 +606,6 @@ const PolyLineChart = () => {
 
         // Start the worker with 1 second interval
         worker.postMessage({ type: 'START', payload: { interval: 1000 } })
-        console.log('[PolyLineChart] Started Web Worker for background-safe updates')
       } catch (error) {
         console.error('[PolyLineChart] Failed to create Web Worker:', error)
       }
@@ -499,6 +776,32 @@ const PolyLineChart = () => {
     setHoveredIndex(null)
   }, [])
 
+  // Calculate trade bubble positions
+  const tradeBubblePositions = useMemo(() => {
+    if (!eventStartTime || !eventEndTime || recentTrades.length === 0) {
+      return []
+    }
+
+    const minValue = 1
+    const maxValue = 99
+    const range = maxValue - minValue
+    const TOP_PADDING = 4
+    const BOTTOM_PADDING = 4
+    const CHART_HEIGHT = 100 - TOP_PADDING - BOTTOM_PADDING
+
+    return recentTrades.map((trade) => {
+      // Calculate X position based on trade timestamp
+      const timeProgress = Math.max(0, Math.min(1, (trade.timestamp - eventStartTime) / (eventEndTime - eventStartTime)))
+      const x = timeProgress * 100
+
+      // Calculate Y position based on trade price (in cents, 0-100)
+      const pricePercent = (trade.price - minValue) / range
+      const y = TOP_PADDING + (1 - pricePercent) * CHART_HEIGHT
+
+      return { ...trade, x, y }
+    })
+  }, [recentTrades, eventStartTime, eventEndTime])
+
   // Format time for display
   const formatTime = (timestamp: number | null) => {
     if (!timestamp) return ''
@@ -513,7 +816,7 @@ const PolyLineChart = () => {
 
   if (!market?.startTime || !market?.endTime) {
     return (
-      <div className="w-full h-full bg-black text-white flex items-center justify-center">
+      <div className="w-full h-full bg-dark-bg text-white flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-400 text-sm">Waiting for event data...</p>
         </div>
@@ -528,7 +831,7 @@ const PolyLineChart = () => {
   // For future markets (not started yet), show message
   if (!eventStarted && !isMarketEnded) {
     return (
-      <div className="w-full h-full bg-black text-white flex items-center justify-center">
+      <div className="w-full h-full bg-dark-bg text-white flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-400 text-sm">Event starts at {formatTime(market.startTime)}</p>
           <p className="text-gray-500 text-xs mt-1">{formatDate(market.startTime)}</p>
@@ -542,7 +845,7 @@ const PolyLineChart = () => {
   // This allows viewing historical data for past markets
 
   return (
-    <div className="w-full h-full bg-black text-white relative overflow-hidden">
+    <div className="w-full h-full bg-dark-bg text-white relative overflow-hidden">
       {/* Grid background */}
       <div className="absolute inset-0 pointer-events-none opacity-10">
         <div className="absolute inset-0" style={{ backgroundImage: 'linear-gradient(#1a1a1a 1px, transparent 1px)', backgroundSize: '100% 20%' }} />
@@ -561,42 +864,35 @@ const PolyLineChart = () => {
               )}
             </p>
           </div>
-          <div className="flex items-center gap-4 text-sm">
-            {displayUpPrice !== null && (
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-400" />
-                <span className="text-green-400 font-semibold">
-                  UP{' '}
-                  <>
-                    <AnimatedPrice
-                      value={displayUpPrice}
-                      format={(val) => Math.round(val).toString()}
-                    />
-                    ¢
-                  </>
-                </span>
+          <div className="flex items-center gap-6 text-sm">
+            {/* Price Display */}
+            <div className="flex items-center gap-4">
+              <div>
+                <div className="text-xs text-gray-400 uppercase tracking-wider mb-0.5" style={{ fontFamily: 'monospace' }}>
+                  PRICE TO BEAT
               </div>
-            )}
-            {displayDownPrice !== null && (
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-red-400" />
-                <span className="text-red-400 font-semibold">
-                  DOWN{' '}
-                  <>
-                    <AnimatedPrice
-                      value={displayDownPrice}
-                      format={(val) => Math.round(val).toString()}
-                    />
-                    ¢
-                  </>
-                </span>
+                <div className="text-base font-bold text-gray-300">
+                  {btcPrice.lastCandleClose !== null ? (
+                    `$${btcPrice.lastCandleClose.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  ) : (
+                    'Loading...'
+                  )}
               </div>
-            )}
-            {hoveredPoint && (
-              <span className="text-gray-500 text-xs ml-2">
-                {formatTime(hoveredPoint.time)}
-              </span>
-            )}
+              </div>
+              <div className="w-px h-10 bg-gray-700/50"></div>
+              <div>
+                <div className="text-xs uppercase tracking-wider mb-0.5" style={{ fontFamily: 'monospace', color: '#22c55e' }}>
+                  CURRENT PRICE
+                </div>
+                <div className="text-base font-bold text-green-400">
+                  {btcPrice.current !== null ? (
+                    `$${btcPrice.current.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  ) : (
+                    'Loading...'
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -626,6 +922,37 @@ const PolyLineChart = () => {
                     strokeLinejoin="round"
                   />
                 )}
+
+                {/* Trade bubbles */}
+                {tradeBubblePositions.map((trade) => (
+                  <g key={trade.id}>
+                    {/* Bubble circle - teal with 'B' for buy, 'S' for sell */}
+                    <circle
+                      cx={trade.x}
+                      cy={trade.y}
+                      r="1.5"
+                      fill={trade.side.includes('bought') ? '#14b8a6' : '#ef4444'}
+                      stroke="#ffffff"
+                      strokeWidth="0.2"
+                      style={{ cursor: 'pointer' }}
+                      onMouseEnter={() => setHoveredTradeId(trade.id)}
+                      onMouseLeave={() => setHoveredTradeId(null)}
+                    />
+                    {/* Letter indicator */}
+                    <text
+                      x={trade.x}
+                      y={trade.y}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="#ffffff"
+                      fontSize="1"
+                      fontWeight="bold"
+                      style={{ pointerEvents: 'none', userSelect: 'none' }}
+                    >
+                      {trade.side.includes('bought') ? 'B' : 'S'}
+                    </text>
+                  </g>
+                ))}
                 
                 {/* Vertical dotted crosshair line */}
                 {hoveredPositions && (
@@ -641,6 +968,39 @@ const PolyLineChart = () => {
                   />
                 )}
               </svg>
+
+              {/* Trade bubble tooltips - rendered outside SVG for better positioning */}
+              {hoveredTradeId && (() => {
+                const trade = tradeBubblePositions.find(t => t.id === hoveredTradeId)
+                if (!trade || !chartContainerRef.current) return null
+
+                const rect = chartContainerRef.current.getBoundingClientRect()
+                const svgLeftOffset = 56 // left-14 = 56px
+                const svgWidth = rect.width - svgLeftOffset
+                const svgHeight = rect.height
+                
+                // Convert viewBox coordinates to pixel coordinates
+                const pixelX = (trade.x / 100) * svgWidth + svgLeftOffset
+                const pixelY = (trade.y / 100) * svgHeight
+
+                return (
+                  <div
+                    className="absolute z-50 pointer-events-none"
+                    style={{
+                      left: `${pixelX + 8}px`,
+                      top: `${pixelY - 40}px`,
+                      transform: 'translateX(0)',
+                    }}
+                  >
+                    <div className="bg-gray-700/95 border border-gray-600 rounded-lg px-3 py-2 shadow-lg">
+                      <div className="text-white text-sm whitespace-nowrap">
+                        <div>{trade.side} {trade.shares.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {trade.outcome.toUpperCase()} at {trade.price.toFixed(0)}¢</div>
+                        <div className="text-xs text-gray-300 mt-0.5">${trade.dollarAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} total</div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })()}
               
               {/* Hover dots - rendered as HTML for proper circular shape */}
               {hoveredPositions && (

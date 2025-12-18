@@ -209,13 +209,29 @@ export class CryptoPriceFeeder extends EventEmitter {
     }
 
     const update = message as CryptoPriceUpdate
+    
+    // Log raw message for debugging (throttled to avoid spam)
+    const logKey = `log_${update.payload?.symbol || 'unknown'}`
+    const now = Date.now()
+    const lastLog = (this as any)[logKey] || 0
+    if (now - lastLog > 5000) { // Log every 5 seconds per symbol
+      console.log('[CryptoPriceFeeder] Raw RTDS message:', JSON.stringify(update, null, 2))
+      ;(this as any)[logKey] = now
+    }
+    
     const symbol = update.payload.symbol.toLowerCase() as Symbol
     const price = update.payload.value
     const timestamp = update.payload.timestamp
 
     // Validate symbol
     if (!SYMBOLS.includes(symbol)) {
+      console.warn(`[CryptoPriceFeeder] Unknown symbol received: ${update.payload.symbol} (expected: ${SYMBOLS.join(', ')})`)
       return
+    }
+
+    // Log price update (throttled)
+    if (now - lastLog > 5000) {
+      console.log(`[CryptoPriceFeeder] ✅ Price update from Polymarket RTDS: ${symbol.toUpperCase()} = $${price.toFixed(2)} (timestamp: ${new Date(timestamp).toISOString()})`)
     }
 
     // Update current price

@@ -54,7 +54,7 @@ export function DocsPage({
       <div className="flex-1 mr-56">
         <div className="max-w-3xl mx-auto px-8 py-12">
           {/* Breadcrumb */}
-          <div className="flex items-center gap-2 text-sm text-purple-400 mb-6">
+          <div className="flex items-center gap-2 text-sm text-gold-hover mb-6">
             <span>{breadcrumb}</span>
           </div>
 
@@ -71,7 +71,7 @@ export function DocsPage({
             {prevPage ? (
               <Link 
                 href={prevPage.href}
-                className="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors"
+                className="flex items-center gap-2 text-gold-hover hover:text-gold-primary transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -82,7 +82,7 @@ export function DocsPage({
             {nextPage ? (
               <Link 
                 href={nextPage.href}
-                className="flex items-center gap-2 text-purple-400 hover:text-purple-300 transition-colors"
+                className="flex items-center gap-2 text-gold-hover hover:text-gold-primary transition-colors"
               >
                 {nextPage.name}
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -110,7 +110,7 @@ export function DocsPage({
                 href={item.href}
                 className={`block text-sm transition-colors ${
                   activeSection === item.href.slice(1)
-                    ? 'text-purple-400'
+                    ? 'text-gold-hover'
                     : 'text-gray-500 hover:text-gray-300'
                 }`}
               >
@@ -144,7 +144,7 @@ export function DocsSubheading({ children }: { children: React.ReactNode }) {
 
 export function DocsNote({ type = 'info', children }: { type?: 'info' | 'warning' | 'tip'; children: React.ReactNode }) {
   const styles = {
-    info: 'border-l-purple-500 bg-purple-500/5',
+    info: 'border-l-gold-primary bg-gold-primary/5',
     warning: 'border-l-yellow-500 bg-yellow-500/5',
     tip: 'border-l-green-500 bg-green-500/5',
   }

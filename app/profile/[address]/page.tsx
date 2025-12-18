@@ -217,12 +217,12 @@ export default function ProfilePage({
   // Loading state
   if (loading) {
     return (
-      <div className="bg-black text-white min-h-screen">
+      <div className="bg-dark-bg text-white min-h-screen">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-6">Profile</h1>
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <svg className="w-12 h-12 animate-spin text-purple-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+              <svg className="w-12 h-12 animate-spin text-gold-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
@@ -235,7 +235,7 @@ export default function ProfilePage({
   }
 
   return (
-    <div className="bg-black text-white min-h-screen">
+    <div className="bg-dark-bg text-white min-h-screen">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         {/* Header Section */}
         <div className="mb-8">
@@ -244,7 +244,7 @@ export default function ProfilePage({
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-2xl sm:text-3xl font-bold">Profile</h1>
                 {isOwnProfile && (
-                  <span className="px-2 py-1 bg-purple-primary/20 text-purple-primary text-xs font-medium rounded">
+                  <span className="px-2 py-1 bg-gold-primary/20 text-gold-primary text-xs font-medium rounded">
                     Your Profile
                   </span>
                 )}
@@ -274,7 +274,7 @@ export default function ProfilePage({
                   href={`https://polygonscan.com/address/${address}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-purple-primary hover:text-purple-hover text-sm font-medium transition-colors flex items-center gap-1"
+                  className="text-gold-primary hover:text-gold-hover text-sm font-medium transition-colors flex items-center gap-1"
                 >
                   View on PolygonScan
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

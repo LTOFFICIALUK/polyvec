@@ -71,10 +71,10 @@ export default function StrategyDetailPage() {
 
   if (loading) {
     return (
-      <div className="bg-black text-white min-h-screen">
+      <div className="bg-dark-bg text-white min-h-screen">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <div className="py-16 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-primary mx-auto mb-4" />
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-primary mx-auto mb-4" />
             <p className="text-gray-400 text-sm">Loading strategy...</p>
           </div>
         </div>
@@ -84,7 +84,7 @@ export default function StrategyDetailPage() {
 
   if (error || !strategy) {
     return (
-      <div className="bg-black text-white min-h-screen">
+      <div className="bg-dark-bg text-white min-h-screen">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <div className="py-16 text-center">
             <p className="text-red-400 text-sm mb-4">{error || 'Strategy not found'}</p>
@@ -111,7 +111,7 @@ export default function StrategyDetailPage() {
   ] as const
 
   return (
-    <div className="bg-black text-white min-h-screen">
+    <div className="bg-dark-bg text-white min-h-screen">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-6 sm:mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -138,7 +138,7 @@ export default function StrategyDetailPage() {
                 </span>
                 <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                   strategy.isLive 
-                    ? 'bg-purple-500/20 text-purple-400' 
+                    ? 'bg-gold-primary/20 text-gold-hover' 
                     : 'bg-yellow-500/20 text-yellow-500'
                 }`}>
                   {strategy.isLive ? 'Live' : 'Paper'}
@@ -202,7 +202,7 @@ export default function StrategyDetailPage() {
                 onClick={() => setActiveTab(tab.id)}
                 className={`px-4 pb-3 text-sm font-medium transition-colors border-b-2 -mb-px whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'text-white border-purple-500'
+                    ? 'text-white border-gold-primary'
                     : 'text-gray-400 border-transparent hover:text-white'
                 }`}
               >
@@ -342,7 +342,7 @@ export default function StrategyDetailPage() {
                         {strategy.conditions.map((condition, index) => (
                           <tr key={condition.id || index} className="border-b border-gray-800/50">
                             <td className="py-3 text-white">{condition.sourceA}</td>
-                            <td className="py-3 text-center text-purple-400 font-mono">{condition.operator}</td>
+                            <td className="py-3 text-center text-gold-hover font-mono">{condition.operator}</td>
                             <td className="py-3 text-gray-400">{condition.sourceB || condition.value || '-'}</td>
                             <td className="py-3 text-gray-400">{condition.candle || 'current'}</td>
                           </tr>
@@ -427,7 +427,7 @@ export default function StrategyDetailPage() {
                         {strategy.orderbookRules.map((rule, index) => (
                           <tr key={rule.id || index} className="border-b border-gray-800/50">
                             <td className="py-3 text-white">{rule.field}</td>
-                            <td className="py-3 text-center text-purple-400 font-mono">{rule.operator}</td>
+                            <td className="py-3 text-center text-gold-hover font-mono">{rule.operator}</td>
                             <td className="py-3 text-gray-400">{rule.value}{rule.value2 ? ` - ${rule.value2}` : ''}</td>
                             <td className="py-3 text-gray-400">{rule.action}</td>
                           </tr>
@@ -606,7 +606,7 @@ export default function StrategyDetailPage() {
                         key={day}
                         className={`px-3 py-1.5 rounded text-sm ${
                           strategy.selectedDays?.includes(day)
-                            ? 'bg-purple-500/20 text-purple-400'
+                            ? 'bg-gold-primary/20 text-gold-hover'
                             : 'bg-gray-800 text-gray-500'
                         }`}
                       >
@@ -722,7 +722,7 @@ export default function StrategyDetailPage() {
       </div>
 
       {/* Footer - Pinned to bottom */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black border-t border-gray-800 px-4 sm:px-6 py-3">
+      <div className="fixed bottom-0 left-0 right-0 bg-dark-bg border-t border-gray-800 px-4 sm:px-6 py-3">
         <div className="flex flex-wrap gap-x-8 gap-y-1 text-xs text-gray-500">
           <span>Created: {formatDate(strategy.createdAt)}</span>
           <span>Updated: {formatDate(strategy.updatedAt)}</span>

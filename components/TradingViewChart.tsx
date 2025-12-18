@@ -53,10 +53,10 @@ const TradingViewChart = () => {
       style.id = styleId
       style.textContent = `
         #${widgetId} {
-          background-color: #000000 !important;
+          background-color: #141210 !important;
         }
         #${widgetId} iframe {
-          background-color: #000000 !important;
+          background-color: #141210 !important;
         }
       `
       document.head.appendChild(style)
@@ -66,7 +66,27 @@ const TradingViewChart = () => {
     const existingScript = document.querySelector('script[src="https://s3.tradingview.com/tv.js"]')
     
     const initWidget = () => {
-      if (window.TradingView && containerRef.current) {
+      // Ensure container is mounted and attached to DOM
+      if (!window.TradingView || !containerRef.current) {
+        return
+      }
+
+      // Double-check that the container is in the DOM and has an ID set
+      if (!containerRef.current.parentElement || !containerRef.current.id) {
+        console.warn('[TradingViewChart] Container not ready, retrying...', {
+          hasParent: !!containerRef.current.parentElement,
+          hasId: !!containerRef.current.id,
+        })
+        // Retry after a short delay
+        setTimeout(() => {
+          if (containerRef.current && containerRef.current.parentElement && containerRef.current.id) {
+            initWidget()
+          }
+        }, 100)
+        return
+      }
+
+      try {
         const widget = new window.TradingView.widget({
           autosize: true,
           symbol: symbol,
@@ -75,13 +95,13 @@ const TradingViewChart = () => {
           theme: 'dark',
           style: '1',
           locale: 'en',
-          toolbar_bg: '#000000',
+          toolbar_bg: '#141210',
           enable_publishing: false,
           allow_symbol_change: false,
           container_id: widgetId,
           height: '100%',
           width: '100%',
-          backgroundColor: '#000000',
+          backgroundColor: '#141210',
           gridColor: '#1a1a1a',
           // Hide TradingView's toolbars to avoid grey bars - use custom ChartControls instead
           hide_top_toolbar: true,
@@ -89,10 +109,10 @@ const TradingViewChart = () => {
           hide_legend: false,
           hide_volume: false,
           studies_overrides: {
-            'volume.volume.color.0': '#000000',
+            'volume.volume.color.0': '#141210',
           },
           overrides: {
-            'paneProperties.background': '#000000',
+            'paneProperties.background': '#141210',
             'paneProperties.backgroundType': 'solid',
             'paneProperties.vertGridProperties.color': '#1a1a1a',
             'paneProperties.horzGridProperties.color': '#1a1a1a',
@@ -108,11 +128,11 @@ const TradingViewChart = () => {
             'paneProperties.bottomMargin': 10,
             'scalesProperties.lineColor': '#1a1a1a',
             'paneProperties.legendProperties.showLegend': true,
-            'paneProperties.legendProperties.legendBackgroundColor': '#000000',
+            'paneProperties.legendProperties.legendBackgroundColor': '#141210',
             'paneProperties.legendProperties.legendTextColor': '#ffffff',
           },
           loading_screen: {
-            backgroundColor: '#000000',
+            backgroundColor: '#141210',
           },
           // Use onChartReady callback to control chart programmatically
           onChartReady: () => {
@@ -122,21 +142,35 @@ const TradingViewChart = () => {
         })
         // Capture the widget instance immediately
         chartRef.current = widget
+      } catch (error) {
+        console.error('[TradingViewChart] Error initializing widget:', error)
       }
     }
 
     // Use widget API instead of iframe for better customization
+    const loadWidget = () => {
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        if (window.TradingView && containerRef.current && containerRef.current.parentElement) {
+          initWidget()
+        } else if (window.TradingView) {
+          // DOM might not be ready yet, retry after a short delay
+          setTimeout(loadWidget, 50)
+        }
+      })
+    }
+
     if (existingScript) {
       if (window.TradingView) {
-        initWidget()
+        loadWidget()
       } else {
-        existingScript.addEventListener('load', initWidget)
+        existingScript.addEventListener('load', loadWidget)
       }
     } else {
       const script = document.createElement('script')
       script.src = 'https://s3.tradingview.com/tv.js'
       script.async = true
-      script.onload = initWidget
+      script.onload = loadWidget
       document.body.appendChild(script)
     }
 
@@ -245,7 +279,7 @@ const TradingViewChart = () => {
             }}
             className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
               chartInterval === tf
-                ? 'bg-purple-primary text-white'
+                ? 'bg-gold-primary text-white'
                 : 'text-gray-400 hover:text-white hover:bg-gray-800'
             }`}
           >
@@ -255,10 +289,16 @@ const TradingViewChart = () => {
       </div>
 
       <div
-        id={widgetId}
-        ref={containerRef}
-        className="w-full h-full bg-black"
-        style={{ backgroundColor: '#000000' }}
+        ref={(el) => {
+          if (containerRef) {
+            (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el
+          }
+          if (el && !el.id) {
+            el.id = widgetId
+          }
+        }}
+        className="w-full h-full bg-dark-bg"
+        style={{ backgroundColor: '#141210' }}
       />
     </div>
   )

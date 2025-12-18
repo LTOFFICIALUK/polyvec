@@ -329,10 +329,10 @@ function StrategyEditorContent() {
   // Show loading state while fetching strategy for edit
   if (isLoading) {
     return (
-      <div className="bg-black text-white min-h-screen">
+      <div className="bg-dark-bg text-white min-h-screen">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <div className="py-16 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-primary mx-auto mb-4" />
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-primary mx-auto mb-4" />
             <p className="text-gray-400 text-sm">Loading strategy...</p>
           </div>
         </div>
@@ -341,7 +341,7 @@ function StrategyEditorContent() {
   }
 
   return (
-    <div className="bg-black text-white min-h-screen">
+    <div className="bg-dark-bg text-white min-h-screen">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
@@ -350,7 +350,7 @@ function StrategyEditorContent() {
             <button
               type="button"
               onClick={handleCancel}
-              className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary focus:ring-offset-2 focus:ring-offset-black rounded"
+              className="px-4 py-2 text-sm font-medium text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-black rounded"
             >
               Cancel
             </button>
@@ -385,7 +385,7 @@ function StrategyEditorContent() {
                     onClick={() => setActiveTab(tab.id)}
                     className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
                       activeTab === tab.id
-                        ? 'border-purple-primary text-purple-primary'
+                        ? 'border-gold-primary text-gold-primary'
                         : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
                     }`}
                   >
@@ -475,8 +475,8 @@ const PresetSelector = ({ value, onChange, options, placeholder, className = '',
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full pl-3 pr-8 py-2 bg-black border border-gray-800 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent transition-colors ${
-          isOpen ? 'border-purple-primary/50' : 'hover:border-gray-700'
+        className={`w-full pl-3 pr-8 py-2 bg-dark-bg border border-gray-800 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent transition-colors ${
+          isOpen ? 'border-gold-primary/50' : 'hover:border-gray-700'
         }`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
@@ -499,7 +499,7 @@ const PresetSelector = ({ value, onChange, options, placeholder, className = '',
       </button>
 
       {isOpen && (
-        <div className="absolute z-30 w-full mt-1 bg-black border border-gray-800 rounded shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-30 w-full mt-1 bg-dark-bg border border-gray-800 rounded shadow-lg max-h-60 overflow-auto">
           <ul role="listbox" className="py-1">
             {options.map((option) => (
               <li
@@ -507,7 +507,7 @@ const PresetSelector = ({ value, onChange, options, placeholder, className = '',
                 onClick={() => handleSelect(option.value)}
                 className={`px-3 py-2 cursor-pointer transition-colors flex items-center justify-between ${
                   value === option.value
-                    ? 'bg-purple-primary/20 text-purple-primary'
+                    ? 'bg-gold-primary/20 text-gold-primary'
                     : 'text-white hover:bg-gray-900/50'
                 }`}
                 role="option"
@@ -523,7 +523,7 @@ const PresetSelector = ({ value, onChange, options, placeholder, className = '',
                     title="Preview preset"
                   >
                     <svg
-                      className="w-4 h-4 text-gray-500 hover:text-purple-primary"
+                      className="w-4 h-4 text-gray-500 hover:text-gold-primary"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -621,8 +621,8 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
         onClick={() => !disabled && setIsOpen(!isOpen)}
         onKeyDown={disabled ? undefined : handleKeyDown}
         disabled={disabled}
-        className={`w-full pl-3 pr-8 py-2 bg-black border border-gray-800 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent transition-colors ${
-          disabled ? 'opacity-50 cursor-not-allowed' : isOpen ? 'border-purple-primary/50' : 'hover:border-gray-700'
+        className={`w-full pl-3 pr-8 py-2 bg-dark-bg border border-gray-800 rounded text-white text-left focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent transition-colors ${
+          disabled ? 'opacity-50 cursor-not-allowed' : isOpen ? 'border-gold-primary/50' : 'hover:border-gray-700'
         }`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
@@ -645,7 +645,7 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-black border border-gray-800 rounded shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-50 w-full mt-1 bg-dark-bg border border-gray-800 rounded shadow-lg max-h-60 overflow-auto">
           <ul
             role="listbox"
             className="py-1"
@@ -662,7 +662,7 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
                 }}
                 className={`px-3 py-2 cursor-pointer transition-colors ${
                   value === option.value
-                    ? 'bg-purple-primary/20 text-purple-primary'
+                    ? 'bg-gold-primary/20 text-gold-primary'
                     : 'text-white hover:bg-gray-900/50'
                 }`}
                 role="option"
@@ -672,7 +672,7 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
                   <span>{option.label}</span>
                   {value === option.value && (
                     <svg
-                      className="w-4 h-4 text-purple-primary"
+                      className="w-4 h-4 text-gold-primary"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -708,7 +708,7 @@ function BasicsTab({
             type="text"
             value={config.name}
             onChange={(e) => updateConfig({ name: e.target.value })}
-            className="w-full px-4 py-2 bg-black border border-gray-800 rounded text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent"
+            className="w-full px-4 py-2 bg-dark-bg border border-gray-800 rounded text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent"
             placeholder="Enter strategy name"
           />
       </div>
@@ -721,7 +721,7 @@ function BasicsTab({
             value={config.description}
             onChange={(e) => updateConfig({ description: e.target.value })}
             rows={4}
-            className="w-full px-4 py-2 bg-black border border-gray-800 rounded text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent"
+            className="w-full px-4 py-2 bg-dark-bg border border-gray-800 rounded text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent"
             placeholder="Describe your strategy"
           />
       </div>
@@ -778,7 +778,7 @@ function BasicsTab({
             type="checkbox"
             checked={config.isLive}
             onChange={(e) => updateConfig({ isLive: e.target.checked })}
-            className="w-4 h-4 text-purple-primary bg-black border-gray-800 rounded focus:ring-purple-primary"
+            className="w-4 h-4 text-gold-primary bg-dark-bg border-gray-800 rounded focus:ring-gold-primary"
           />
           <span className="text-sm font-medium text-gray-300">Live Trading</span>
           <span className="text-xs text-gray-500">(Unchecked = Paper Trading)</span>
@@ -1451,12 +1451,12 @@ function TradingViewTab({
       {/* Preview Image Modal */}
       {previewImage && (
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-dark-bg/80 backdrop-blur-sm p-4"
           onClick={() => setPreviewImage(null)}
           style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
         >
           <div
-            className="relative bg-black border border-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
+            className="relative bg-dark-bg border border-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl"
             onClick={(e) => e.stopPropagation()}
             style={{ margin: 'auto' }}
           >
@@ -1512,7 +1512,7 @@ function TradingViewTab({
             <button
               type="button"
               onClick={() => setShowAddIndicatorForm(true)}
-              className="px-4 py-2 bg-purple-primary hover:bg-purple-600 text-white text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary"
+              className="px-4 py-2 bg-gold-primary hover:bg-gold-hover text-white text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-gold-primary"
             >
               + Add Indicator
             </button>
@@ -1521,7 +1521,7 @@ function TradingViewTab({
 
         {/* Add Indicator Form */}
         {showAddIndicatorForm && (
-          <div className="bg-black border border-gray-800 rounded p-4 mb-4 space-y-4">
+          <div className="bg-dark-bg border border-gray-800 rounded p-4 mb-4 space-y-4">
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-xs text-gray-400 mb-2">Indicator Type</label>
@@ -1597,7 +1597,7 @@ function TradingViewTab({
                         setNewIndicator({ ...newIndicator, parameters: newParams })
                       }}
                       disabled={!!(newIndicator.preset && newIndicator.preset !== 'custom')}
-                      className={`w-full px-3 py-1.5 bg-black border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent ${
+                      className={`w-full px-3 py-1.5 bg-dark-bg border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent ${
                         newIndicator.preset && newIndicator.preset !== 'custom'
                           ? 'opacity-50 cursor-not-allowed'
                           : ''
@@ -1621,7 +1621,7 @@ function TradingViewTab({
                 setShowAddIndicatorForm(false)
                 setNewIndicator({ preset: '', type: '', timeframe: 'Use strategy timeframe', parameters: {} })
               }}
-              className="px-4 py-2 bg-black hover:bg-gray-900 border border-gray-800 text-white text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary"
+              className="px-4 py-2 bg-dark-bg hover:bg-gray-900 border border-gray-800 text-white text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-gold-primary"
             >
               Cancel
             </button>
@@ -1629,7 +1629,7 @@ function TradingViewTab({
               type="button"
               onClick={handleAddIndicator}
               disabled={!newIndicator.type}
-              className="px-4 py-2 bg-purple-primary hover:bg-purple-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary"
+              className="px-4 py-2 bg-gold-primary hover:bg-gold-hover disabled:bg-gray-800 disabled:cursor-not-allowed text-white text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-gold-primary"
             >
               {newIndicator.preset && newIndicator.preset !== 'custom' ? 'Apply Preset' : '+ Add Indicator'}
             </button>
@@ -1646,7 +1646,7 @@ function TradingViewTab({
             const isLocked = hasPreset && !isEditing
 
             return (
-              <div key={indicator.id} className="bg-black border border-gray-800 rounded">
+              <div key={indicator.id} className="bg-dark-bg border border-gray-800 rounded">
                 <div className="flex items-center justify-between p-3">
                   <button
                     type="button"
@@ -1676,7 +1676,7 @@ function TradingViewTab({
                           newEditing.add(indicator.id)
                           setEditingIndicators(newEditing)
                         }}
-                        className="px-3 py-1.5 text-xs bg-purple-primary hover:bg-purple-600 text-white rounded transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary"
+                        className="px-3 py-1.5 text-xs bg-gold-primary hover:bg-gold-hover text-white rounded transition-colors focus:outline-none focus:ring-2 focus:ring-gold-primary"
                       >
                         Edit
                       </button>
@@ -1802,7 +1802,7 @@ function TradingViewTab({
                                 handleUpdateIndicator(indicator.id, { parameters: newParams })
                               }}
                               disabled={isLocked}
-                              className={`w-full px-3 py-1.5 bg-black border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent ${
+                              className={`w-full px-3 py-1.5 bg-dark-bg border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent ${
                                 isLocked
                                   ? 'opacity-50 cursor-not-allowed'
                                   : ''
@@ -1930,7 +1930,7 @@ function PolymarketTab({
 
       <div className="space-y-4">
         <h4 className="text-sm font-medium text-gray-300">Orderbook Rule Builder</h4>
-            <div className="bg-black border border-gray-800 rounded p-4 space-y-3">
+            <div className="bg-dark-bg border border-gray-800 rounded p-4 space-y-3">
           <div className="flex gap-2 items-center flex-wrap">
             <span className="text-sm text-gray-400">IF</span>
             <CustomDropdown
@@ -1969,13 +1969,13 @@ function PolymarketTab({
                 }}
                 placeholder=""
                 maxLength={2}
-                className="w-full pl-8 pr-3 py-2 h-[42px] bg-black border border-gray-800 rounded text-white text-sm leading-normal focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent transition-colors hover:border-gray-700"
+                className="w-full pl-8 pr-3 py-2 h-[42px] bg-dark-bg border border-gray-800 rounded text-white text-sm leading-normal focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent transition-colors hover:border-gray-700"
               />
             </div>
             <button
               type="button"
               onClick={handleAddRule}
-              className="px-3 py-1.5 bg-purple-primary hover:bg-purple-600 text-white text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary"
+              className="px-3 py-1.5 bg-gold-primary hover:bg-gold-hover text-white text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-gold-primary"
             >
               + Add Rule
             </button>
@@ -1986,7 +1986,7 @@ function PolymarketTab({
           {config.orderbookRules.map((rule) => (
             <div
               key={rule.id}
-                  className="flex items-center justify-between bg-black border border-gray-800 rounded p-3"
+                  className="flex items-center justify-between bg-dark-bg border border-gray-800 rounded p-3"
             >
                <span className="text-sm text-gray-300">
                  Place orders IF {rule.field} is {rule.operator} ¢{rule.value}
@@ -2039,7 +2039,7 @@ function RiskTab({
       <div>
         <h3 className="text-lg font-medium text-white mb-4">Order Ladder</h3>
         <div className="space-y-3">
-          <div className="bg-black border border-gray-800 rounded p-4 space-y-3">
+          <div className="bg-dark-bg border border-gray-800 rounded p-4 space-y-3">
             <div className="flex gap-2 items-center flex-wrap">
               <span className="text-sm text-gray-400">Price:</span>
               <div className="relative w-32">
@@ -2054,7 +2054,7 @@ function RiskTab({
                     }
                   }}
                   placeholder=""
-                  className="w-full pl-8 pr-3 py-2 h-[42px] bg-black border border-gray-800 rounded text-white text-sm leading-normal focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent"
+                  className="w-full pl-8 pr-3 py-2 h-[42px] bg-dark-bg border border-gray-800 rounded text-white text-sm leading-normal focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent"
                   maxLength={2}
                 />
               </div>
@@ -2067,13 +2067,13 @@ function RiskTab({
                   setNewLadderOrder({ ...newLadderOrder, shares: numericValue })
                 }}
                 placeholder=""
-                className="w-32 px-3 py-2 h-[42px] bg-black border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent"
+                className="w-32 px-3 py-2 h-[42px] bg-dark-bg border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent"
               />
               <button
                 type="button"
                 onClick={handleAddLadderOrder}
                 disabled={!newLadderOrder.price || !newLadderOrder.shares}
-                className="px-3 py-1.5 bg-purple-primary hover:bg-purple-600 disabled:bg-gray-800 disabled:cursor-not-allowed text-white text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary"
+                className="px-3 py-1.5 bg-gold-primary hover:bg-gold-hover disabled:bg-gray-800 disabled:cursor-not-allowed text-white text-sm rounded transition-colors focus:outline-none focus:ring-2 focus:ring-gold-primary"
               >
                 + Add Order
               </button>
@@ -2084,7 +2084,7 @@ function RiskTab({
             {config.orderLadder.map((order) => (
               <div
                 key={order.id}
-                className="flex items-center justify-between bg-black border border-gray-800 rounded p-3"
+                className="flex items-center justify-between bg-dark-bg border border-gray-800 rounded p-3"
               >
                 <span className="text-sm text-gray-300">
                   ¢{order.price} - {order.shares} shares
@@ -2119,7 +2119,7 @@ function RiskTab({
                 value={config.maxDailyLoss}
                 onChange={(e) => updateConfig({ maxDailyLoss: e.target.value })}
                 placeholder=""
-                className="w-full pl-8 pr-3 py-2 bg-black border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent"
+                className="w-full pl-8 pr-3 py-2 bg-dark-bg border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent"
               />
             </div>
             <p className="mt-1 text-xs text-gray-500">Stop trading for the day after losing: $___</p>
@@ -2132,7 +2132,7 @@ function RiskTab({
               value={config.dailyTradeCap}
               onChange={(e) => updateConfig({ dailyTradeCap: e.target.value })}
               placeholder=""
-              className="w-full px-3 py-2 bg-black border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent"
+              className="w-full px-3 py-2 bg-dark-bg border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent"
             />
             <p className="mt-1 text-xs text-gray-500">Max trades per day: [___]</p>
           </div>
@@ -2153,7 +2153,7 @@ function RiskTab({
                   value={config.maxPositionShares}
                   onChange={(e) => updateConfig({ maxPositionShares: e.target.value })}
                   placeholder=""
-                  className="w-full px-3 py-2 bg-black border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent"
+                  className="w-full px-3 py-2 bg-dark-bg border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent"
                 />
                 <p className="mt-1 text-xs text-gray-500">shares OR</p>
               </div>
@@ -2165,7 +2165,7 @@ function RiskTab({
                     value={config.maxPositionDollar}
                     onChange={(e) => updateConfig({ maxPositionDollar: e.target.value })}
                     placeholder=""
-                    className="w-full pl-8 pr-3 py-2 bg-black border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent"
+                    className="w-full pl-8 pr-3 py-2 bg-dark-bg border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent"
                   />
                 </div>
                 <p className="mt-1 text-xs text-gray-500">total exposure</p>
@@ -2201,7 +2201,7 @@ function RiskTab({
                 value={config.cancelAfterSeconds}
                 onChange={(e) => updateConfig({ cancelAfterSeconds: e.target.value })}
                 placeholder=""
-                className="w-full px-3 py-2 bg-black border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent"
+                className="w-full px-3 py-2 bg-dark-bg border border-gray-800 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent"
               />
               <p className="mt-1 text-xs text-gray-500">seconds</p>
             </div>
@@ -2240,7 +2240,7 @@ function ScheduleTab({
                 type="checkbox"
                 checked={config.selectedDays.includes(day)}
                 onChange={() => handleDayToggle(day)}
-                className="w-4 h-4 text-purple-primary bg-black border-gray-800 rounded focus:ring-purple-primary"
+                className="w-4 h-4 text-gold-primary bg-dark-bg border-gray-800 rounded focus:ring-gold-primary"
               />
               <span className="text-sm text-gray-300">{day}</span>
             </label>
@@ -2259,7 +2259,7 @@ function ScheduleTab({
                 timeRange: { ...config.timeRange, start: e.target.value },
               })
             }
-            className="px-4 py-2 bg-black border border-gray-800 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent"
+            className="px-4 py-2 bg-dark-bg border border-gray-800 rounded text-white focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent"
           />
           <span className="text-gray-400">-</span>
           <input
@@ -2270,7 +2270,7 @@ function ScheduleTab({
                 timeRange: { ...config.timeRange, end: e.target.value },
               })
             }
-            className="px-4 py-2 bg-black border border-gray-800 rounded text-white focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent"
+            className="px-4 py-2 bg-dark-bg border border-gray-800 rounded text-white focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent"
           />
         </div>
       </div>
@@ -2281,7 +2281,7 @@ function ScheduleTab({
             type="checkbox"
             checked={config.runOnNewCandle}
             onChange={(e) => updateConfig({ runOnNewCandle: e.target.checked })}
-            className="w-4 h-4 text-purple-primary bg-black border-gray-800 rounded focus:ring-purple-primary"
+            className="w-4 h-4 text-gold-primary bg-dark-bg border-gray-800 rounded focus:ring-gold-primary"
           />
           <span className="text-sm font-medium text-gray-300">Run on new candle only ({config.timeframe})</span>
         </label>
@@ -2291,7 +2291,7 @@ function ScheduleTab({
             type="checkbox"
             checked={config.pauseOnSettlement}
             onChange={(e) => updateConfig({ pauseOnSettlement: e.target.checked })}
-            className="w-4 h-4 text-purple-primary bg-black border-gray-800 rounded focus:ring-purple-primary"
+            className="w-4 h-4 text-gold-primary bg-dark-bg border-gray-800 rounded focus:ring-gold-primary"
           />
           <span className="text-sm font-medium text-gray-300">Pause on event settlement window</span>
         </label>
@@ -2328,17 +2328,17 @@ function PreviewPanel({ config }: { config: StrategyConfig }) {
   }
 
   return (
-    <div className="bg-black border border-gray-800 rounded-lg p-6 space-y-6 sticky top-6">
+    <div className="bg-dark-bg border border-gray-800 rounded-lg p-6 space-y-6 sticky top-6">
       <div>
         <h3 className="text-lg font-medium text-white mb-4">Preview</h3>
-        <div className="bg-black border border-gray-800 rounded p-4">
+        <div className="bg-dark-bg border border-gray-800 rounded p-4">
           <p className="text-sm text-gray-300 leading-relaxed">{getSummary()}</p>
         </div>
       </div>
 
       <div>
         <h4 className="text-sm font-medium text-gray-300 mb-3">Next Trade Estimate</h4>
-        <div className="bg-black border border-gray-800 rounded p-4 space-y-2">
+        <div className="bg-dark-bg border border-gray-800 rounded p-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Market:</span>
             <span className="text-white">{config.market || `${config.asset} ${config.timeframe} ${config.direction}`}</span>
@@ -2382,9 +2382,9 @@ function PreviewPanel({ config }: { config: StrategyConfig }) {
 // Loading fallback for Suspense boundary
 function StrategyEditorLoading() {
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
+    <div className="min-h-screen bg-dark-bg flex items-center justify-center">
       <div className="text-center">
-        <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+        <div className="w-8 h-8 border-2 border-gold-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
         <p className="text-gray-400">Loading strategy editor...</p>
       </div>
     </div>

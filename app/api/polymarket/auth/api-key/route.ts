@@ -20,9 +20,12 @@ export async function POST(req: Request) {
       )
     }
 
+    // Normalize address to lowercase for consistency with API usage
+    const normalizedAddress = address.toLowerCase()
+    
     const headers = {
       'Content-Type': 'application/json',
-      'POLY_ADDRESS': address,
+      'POLY_ADDRESS': normalizedAddress,
       'POLY_SIGNATURE': signature,
       'POLY_TIMESTAMP': timestamp,
       'POLY_NONCE': nonce?.toString() || '0',

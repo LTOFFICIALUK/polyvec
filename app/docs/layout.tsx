@@ -118,7 +118,7 @@ export default function DocsLayout({
                 onClick={() => router.push('/docs/learn/get-started/what-is-polytrade')}
                 className={`text-sm font-medium pb-1 transition-colors ${
                   isLearnSection 
-                    ? 'text-white border-b-2 border-purple-500' 
+                    ? 'text-white border-b-2 border-gold-primary' 
                     : 'text-gray-400 hover:text-white'
                 }`}
               >
@@ -128,7 +128,7 @@ export default function DocsLayout({
                 onClick={() => router.push('/docs/developers/overview')}
                 className={`text-sm font-medium pb-1 transition-colors ${
                   isDevelopersSection 
-                    ? 'text-white border-b-2 border-purple-500' 
+                    ? 'text-white border-b-2 border-gold-primary' 
                     : 'text-gray-400 hover:text-white'
                 }`}
               >
@@ -138,7 +138,7 @@ export default function DocsLayout({
                 onClick={() => router.push('/docs/changelog')}
                 className={`text-sm font-medium pb-1 transition-colors ${
                   isChangelog 
-                    ? 'text-white border-b-2 border-purple-500' 
+                    ? 'text-white border-b-2 border-gold-primary' 
                     : 'text-gray-400 hover:text-white'
                 }`}
               >
@@ -162,7 +162,7 @@ export default function DocsLayout({
             {/* Main Site Button */}
             <button
               onClick={() => router.push('/')}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-gold-primary hover:bg-gold-dark text-white text-sm font-medium rounded-lg transition-colors"
             >
               Main Site
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -237,7 +237,7 @@ export default function DocsLayout({
                               onClick={() => router.push(item.href)}
                               className={`block w-full text-left px-3 py-2 pl-6 text-sm transition-colors ${
                                 isActive
-                                  ? 'text-purple-400 bg-purple-500/10 border-l-2 border-purple-500 -ml-[2px] pl-[26px]'
+                                  ? 'text-gold-hover bg-gold-primary/10 border-l-2 border-gold-primary -ml-[2px] pl-[26px]'
                                   : 'text-gray-400 hover:text-white hover:bg-white/5'
                               }`}
                             >

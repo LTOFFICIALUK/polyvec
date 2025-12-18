@@ -9,9 +9,10 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        'purple-primary': '#9333EA',
-        'purple-hover': '#A855F7',
-        'purple-dark': '#7C3AED',
+        'gold-primary': '#D4AF37',
+        'gold-hover': '#FFD700',
+        'gold-dark': '#B8860B',
+        'dark-bg': '#141210',
       },
     },
   },

@@ -141,7 +141,7 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
           ) : (
             <div className="space-y-5">
               {/* Balance Summary */}
-              <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-purple-900/20 to-transparent border border-purple-800/30">
+              <div className="flex items-center justify-between p-4 rounded-lg bg-gradient-to-r from-yellow-900/20 to-transparent border border-yellow-800/30">
                 <div>
                   <p className="text-xs text-gray-400 mb-0.5">USDC.e Balance</p>
                   <p className="text-2xl font-bold text-white">
@@ -171,7 +171,7 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 px-2 py-1.5 rounded bg-black/40 font-mono text-[11px] text-blue-300/90 truncate">
+                  <div className="flex-1 px-2 py-1.5 rounded bg-dark-bg/40 font-mono text-[11px] text-blue-300/90 truncate">
                     {USDC_E_ADDRESS}
                   </div>
                   <button
@@ -226,7 +226,7 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
                   <span className="text-xs text-gray-400">Your Polygon Address</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 px-3 py-2.5 rounded-lg bg-black/50 border border-gray-800/60 font-mono text-xs text-gray-300 truncate">
+                  <div className="flex-1 px-3 py-2.5 rounded-lg bg-dark-bg/50 border border-gray-800/60 font-mono text-xs text-gray-300 truncate">
                     {walletAddress}
                   </div>
                   <button
@@ -308,7 +308,7 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
         <div className="px-5 py-4 border-t border-gray-800/60">
           <button
             onClick={onClose}
-            className="w-full px-4 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors"
+            className="w-full px-4 py-2.5 rounded-lg bg-gold-primary hover:bg-gold-hover text-white text-sm font-medium transition-colors"
           >
             Done
           </button>

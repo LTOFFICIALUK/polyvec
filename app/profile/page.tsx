@@ -35,12 +35,12 @@ export default function ProfilePage() {
   // Show loading state while redirecting
   if (isRedirecting) {
     return (
-      <div className="bg-black text-white min-h-screen">
+      <div className="bg-dark-bg text-white min-h-screen">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-6">Profile</h1>
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <svg className="w-12 h-12 animate-spin text-purple-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+              <svg className="w-12 h-12 animate-spin text-gold-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
@@ -53,7 +53,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="bg-black text-white min-h-screen">
+    <div className="bg-dark-bg text-white min-h-screen">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         <h1 className="text-2xl sm:text-3xl font-bold mb-6">Profile</h1>
         
@@ -92,7 +92,7 @@ export default function ProfilePage() {
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="0x..."
-                  className="w-full bg-black border border-gray-800 text-white px-4 py-3 rounded focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent font-mono text-sm placeholder-gray-600"
+                  className="w-full bg-dark-bg border border-gray-800 text-white px-4 py-3 rounded focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent font-mono text-sm placeholder-gray-600"
                   autoComplete="off"
                   spellCheck="false"
                 />
@@ -100,7 +100,7 @@ export default function ProfilePage() {
               <button
                 type="submit"
                 disabled={!address.trim()}
-                className="w-full px-4 py-3 bg-purple-primary hover:bg-purple-hover text-white rounded transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 bg-gold-primary hover:bg-gold-hover text-white rounded transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 View Profile
               </button>

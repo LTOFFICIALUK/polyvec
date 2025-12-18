@@ -1,13 +1,32 @@
 'use client'
 
+// ============================================
+// COMING SOON PAGE - Launch Version
+// ============================================
+// Original content commented out below for future restoration
+// ============================================
+
+// Original imports - kept uncommented for TypeScript to type-check the if(false) block code
 import { useState, useEffect, KeyboardEvent, MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { useStrategies, Strategy, fetchStrategyAnalytics } from '@/hooks/useStrategies'
 import { useWallet } from '@/contexts/WalletContext'
 
+import Link from 'next/link'
+
 // ============================================
-// Auto-Trading Setup Component
+// ORIGINAL CODE COMMENTED OUT FOR LAUNCH
+// All code below is wrapped in a false conditional to prevent compilation
+// To restore: Remove the "if (false) {" wrapper and closing brace
 // ============================================
+
+// @ts-nocheck
+if (false) {
+  // ============================================
+  // Auto-Trading Setup Component (Commented out for launch)
+  // ============================================
+  // All code below is inside if(false) block - TypeScript will still check it
+  // but it won't execute. To restore: Remove if(false) wrapper.
 
 interface TradingKeyStatus {
   hasKey: boolean
@@ -18,9 +37,9 @@ interface TradingKeyStatus {
   } | null
 }
 
-const WS_SERVICE_URL = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:8081'
+const WS_SERVICE_URL = process.env.NEXT_PUBLIC_WS_URL_A || 'http://localhost:8081'
 
-function AutoTradingSetup({ userAddress }: { userAddress: string }) {
+const AutoTradingSetup = function({ userAddress }: { userAddress: string }) {
   const [status, setStatus] = useState<TradingKeyStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [showKeyInput, setShowKeyInput] = useState(false)
@@ -203,7 +222,7 @@ function AutoTradingSetup({ userAddress }: { userAddress: string }) {
                 value={privateKey}
                 onChange={(e) => setPrivateKey(e.target.value)}
                 placeholder="Enter your wallet private key (64 hex characters)"
-                className="w-full px-3 py-2 bg-black border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                className="w-full px-3 py-2 bg-dark-bg border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-gold-primary"
               />
             </div>
 
@@ -268,7 +287,7 @@ function AutoTradingSetup({ userAddress }: { userAddress: string }) {
 }
 
 // ============================================
-// Main Strategies Page
+// Main Strategies Page (Original - Also inside if(false) block)
 // ============================================
 
 interface StrategyWithAnalytics extends Strategy {
@@ -280,7 +299,8 @@ interface StrategyWithAnalytics extends Strategy {
   type?: string
 }
 
-export default function StrategiesPage() {
+const StrategiesPage_ORIGINAL_MAIN = function() {
+  // Original main function - inside if(false) block - DO NOT EXPORT
   const router = useRouter()
   const { walletAddress: address } = useWallet()
   
@@ -427,7 +447,7 @@ export default function StrategiesPage() {
   })
 
   return (
-    <div className="bg-black text-white min-h-screen">
+    <div className="bg-dark-bg text-white min-h-screen">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-6 sm:mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl sm:text-3xl font-bold">Strategies</h1>
@@ -437,7 +457,7 @@ export default function StrategiesPage() {
               tabIndex={0}
               aria-label="Backtest strategies"
               onClick={() => router.push('/strategies/backtest')}
-              className="w-full sm:w-auto rounded bg-purple-600 px-4 py-2 text-center text-sm font-medium text-white transition-colors duration-200 hover:bg-purple-700 focus:outline-none flex items-center justify-center gap-2"
+              className="w-full sm:w-auto rounded bg-gold-primary px-4 py-2 text-center text-sm font-medium text-white transition-colors duration-200 hover:bg-gold-dark focus:outline-none flex items-center justify-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -491,7 +511,7 @@ export default function StrategiesPage() {
               {loading ? (
                 <tr>
                   <td colSpan={8} className="py-16 text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-primary mx-auto mb-4" />
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-primary mx-auto mb-4" />
                     <p className="text-gray-400 text-sm">Loading strategies...</p>
                   </td>
                 </tr>
@@ -516,8 +536,8 @@ export default function StrategiesPage() {
                             e.stopPropagation()
                             if (strategy.id) handleToggleStrategy(strategy.id)
                           }}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary focus:ring-offset-2 focus:ring-offset-black ${
-                            strategy.isActive ? 'bg-purple-primary' : 'bg-gray-600'
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-black ${
+                            strategy.isActive ? 'bg-gold-primary' : 'bg-gray-600'
                           }`}
                           aria-label={`Toggle ${strategy.name}`}
                         >
@@ -546,7 +566,7 @@ export default function StrategiesPage() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={(e) => strategy.id && handleEdit(strategy.id, e)}
-                            className="p-1.5 text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary focus:ring-offset-2 focus:ring-offset-black rounded"
+                            className="p-1.5 text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-black rounded"
                             aria-label={`Edit ${strategy.name}`}
                             tabIndex={0}
                           >
@@ -567,7 +587,7 @@ export default function StrategiesPage() {
                           </button>
                           <button
                             onClick={(e) => strategy.id && handleClone(strategy.id, e)}
-                            className="p-1.5 text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary focus:ring-offset-2 focus:ring-offset-black rounded"
+                            className="p-1.5 text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-black rounded"
                             aria-label={`Clone ${strategy.name}`}
                             tabIndex={0}
                           >
@@ -588,7 +608,7 @@ export default function StrategiesPage() {
                           </button>
                           <button
                             onClick={(e) => strategy.id && handleDelete(strategy.id, e)}
-                            className="p-1.5 text-gray-400 hover:text-red-400 transition-colors focus:outline-none focus:ring-2 focus:ring-purple-primary focus:ring-offset-2 focus:ring-offset-black rounded"
+                            className="p-1.5 text-gray-400 hover:text-red-400 transition-colors focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-black rounded"
                             aria-label={`Delete ${strategy.name}`}
                             tabIndex={0}
                           >
@@ -614,6 +634,114 @@ export default function StrategiesPage() {
               )}
               </tbody>
             </table>
+          </div>
+      </div>
+    </div>
+  )
+}
+
+} // End of if (false) wrapper - Remove this line and the opening "if (false) {" above to restore original code
+
+// ============================================
+// Coming Soon Page - ACTIVE CODE BELOW
+// ============================================
+
+export default function StrategiesPage() {
+  return (
+    <div className="bg-dark-bg text-white min-h-screen flex items-center justify-center">
+      <div className="px-4 sm:px-6 py-12 sm:py-16 max-w-2xl mx-auto text-center">
+        {/* Icon/Illustration */}
+        <div className="mb-8 flex justify-center">
+          <div className="relative">
+            <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-gold-primary/20 to-gold-dark/20 flex items-center justify-center border-2 border-gold-primary/30">
+              <svg 
+                className="w-12 h-12 sm:w-16 sm:h-16 text-gold-primary" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={1.5} 
+                  d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" 
+                />
+              </svg>
+            </div>
+            {/* Animated pulse ring */}
+            <div className="absolute inset-0 rounded-full bg-gold-primary/20 animate-ping opacity-75"></div>
+          </div>
+        </div>
+
+        {/* Heading */}
+        <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-gold-primary to-gold-hover bg-clip-text text-transparent">
+          Coming Soon
+        </h1>
+
+        {/* Subheading */}
+        <p className="text-xl sm:text-2xl text-gray-300 mb-6 font-medium">
+          Automated Trading Strategies
+        </p>
+
+        {/* Description */}
+        <p className="text-gray-400 text-base sm:text-lg mb-10 max-w-lg mx-auto leading-relaxed">
+          We&apos;re building powerful automated trading strategies that will help you trade smarter, faster, and more efficiently. 
+          Stay tuned for the launch.
+        </p>
+
+        {/* Feature Preview */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+          <div className="bg-dark-bg/60 border border-gray-800 rounded-lg p-5">
+            <div className="w-10 h-10 bg-gold-primary/20 rounded-lg flex items-center justify-center mb-3 mx-auto">
+              <svg className="w-5 h-5 text-gold-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <h3 className="text-white font-semibold mb-2 text-sm">Auto-Execute</h3>
+            <p className="text-gray-400 text-xs">24/7 automated trading</p>
+          </div>
+
+          <div className="bg-dark-bg/60 border border-gray-800 rounded-lg p-5">
+            <div className="w-10 h-10 bg-gold-primary/20 rounded-lg flex items-center justify-center mb-3 mx-auto">
+              <svg className="w-5 h-5 text-gold-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <h3 className="text-white font-semibold mb-2 text-sm">Advanced Analytics</h3>
+            <p className="text-gray-400 text-xs">Track performance metrics</p>
+          </div>
+
+          <div className="bg-dark-bg/60 border border-gray-800 rounded-lg p-5">
+            <div className="w-10 h-10 bg-gold-primary/20 rounded-lg flex items-center justify-center mb-3 mx-auto">
+              <svg className="w-5 h-5 text-gold-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+            </div>
+            <h3 className="text-white font-semibold mb-2 text-sm">Customizable</h3>
+            <p className="text-gray-400 text-xs">Build your own strategies</p>
+          </div>
+        </div>
+
+        {/* CTA Button */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <Link
+            href="/terminal"
+            className="px-6 py-3 bg-gold-primary hover:bg-gold-hover text-white rounded-lg font-medium transition-colors duration-200 inline-flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+            Go to Terminal
+          </Link>
+          <Link
+            href="/analytics"
+            className="px-6 py-3 bg-dark-bg/60 border border-gray-800 hover:border-gray-700 text-white rounded-lg font-medium transition-colors duration-200 inline-flex items-center gap-2"
+          >
+            View Analytics
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+          </Link>
           </div>
       </div>
     </div>

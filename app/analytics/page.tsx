@@ -141,8 +141,8 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
         onClick={() => !disabled && setIsOpen(!isOpen)}
         onKeyDown={disabled ? undefined : handleKeyDown}
         disabled={disabled}
-        className={`w-full pl-3 pr-8 py-2 h-[42px] bg-black border border-gray-800 rounded text-white text-sm leading-normal text-left focus:outline-none focus:ring-2 focus:ring-purple-primary focus:border-transparent transition-colors ${
-          disabled ? 'opacity-50 cursor-not-allowed' : isOpen ? 'border-purple-primary/50' : 'hover:border-gray-700'
+        className={`w-full pl-3 pr-8 py-2 h-[42px] bg-dark-bg border border-gray-800 rounded text-white text-sm leading-normal text-left focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent transition-colors ${
+          disabled ? 'opacity-50 cursor-not-allowed' : isOpen ? 'border-gold-primary/50' : 'hover:border-gray-700'
         }`}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
@@ -165,7 +165,7 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
       </button>
 
       {isOpen && (
-        <div className="absolute z-30 w-full mt-1 bg-black border border-gray-800 rounded shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-30 w-full mt-1 bg-dark-bg border border-gray-800 rounded shadow-lg max-h-60 overflow-auto">
           <ul role="listbox" className="py-1">
             {options.map((option) => (
               <li
@@ -179,8 +179,8 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
                 }}
                 className={`px-3 py-2 cursor-pointer transition-colors ${
                   value === option.value
-                    ? 'bg-purple-primary/20 text-purple-primary'
-                    : 'text-white hover:bg-gray-900/50'
+                    ? 'bg-gold-primary/20 text-gold-primary'
+                                    : 'text-white hover:bg-dark-bg/50'
                 }`}
                 role="option"
                 aria-selected={value === option.value}
@@ -188,7 +188,7 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
                 <div className="flex items-center justify-between">
                   <span>{option.label}</span>
                   {value === option.value && (
-                    <svg className="w-4 h-4 text-purple-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-gold-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   )}
@@ -471,7 +471,7 @@ export default function AnalyticsPage() {
   // Get color for win rate (heatmap style)
   const getWinRateColor = (winRate: number, totalTrades: number) => {
     if (totalTrades === 0) {
-      return 'bg-gray-900 border-gray-800'
+      return 'bg-dark-bg border-gray-800'
     }
     if (winRate >= 70) {
       return 'bg-green-600/80 border-green-500'
@@ -504,7 +504,7 @@ export default function AnalyticsPage() {
   // Not connected state
   if (!isConnected) {
     return (
-      <div className="bg-black text-white min-h-screen">
+      <div className="bg-dark-bg text-white min-h-screen">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-6">Analytics</h1>
           <div className="py-16 text-center">
@@ -521,12 +521,12 @@ export default function AnalyticsPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="bg-black text-white min-h-screen">
+      <div className="bg-dark-bg text-white min-h-screen">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-6">Analytics</h1>
           <div className="flex items-center justify-center py-12">
             <div className="text-center">
-              <svg className="w-12 h-12 animate-spin text-purple-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+              <svg className="w-12 h-12 animate-spin text-gold-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
@@ -539,7 +539,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="bg-black text-white min-h-screen">
+    <div className="bg-dark-bg text-white min-h-screen">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
@@ -560,7 +560,7 @@ export default function AnalyticsPage() {
               />
               <button
                 onClick={fetchData}
-                className="px-4 py-2 bg-gray-900 border border-gray-800 rounded text-sm text-gray-400 hover:text-white hover:border-gray-700 transition-colors"
+                className="px-4 py-2 bg-dark-bg/60 border border-gray-800 rounded text-sm text-gray-400 hover:text-white hover:border-gray-700 transition-colors"
                 aria-label="Refresh data"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -587,7 +587,7 @@ export default function AnalyticsPage() {
             >
               Overview
               {activeTab === 'overview' && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-primary" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
               )}
             </button>
             <button
@@ -598,7 +598,7 @@ export default function AnalyticsPage() {
             >
               Trade Details
               {activeTab === 'trades' && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-primary" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
               )}
             </button>
             <button
@@ -609,7 +609,7 @@ export default function AnalyticsPage() {
             >
               Performance
               {activeTab === 'performance' && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-primary" />
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
               )}
             </button>
           </div>
@@ -617,7 +617,7 @@ export default function AnalyticsPage() {
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <div className="space-y-6">
+          <div className="space-y-8">
             {trades.length === 0 && closedPositions.length === 0 ? (
               <div className="py-16 text-center">
                 <h2 className="text-base font-medium text-gray-400 mb-1">No Trading Data</h2>
@@ -626,104 +626,146 @@ export default function AnalyticsPage() {
                 </p>
                 <Link
                   href="/terminal"
-                  className="inline-block px-6 py-2.5 bg-purple-primary hover:bg-purple-hover text-white rounded-lg text-sm font-medium transition-colors"
+                  className="inline-block px-6 py-2.5 bg-gold-primary hover:bg-gold-hover text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   Go to Terminal
                 </Link>
               </div>
             ) : (
               <>
-                <div>
-                  <h2 className="text-lg font-semibold mb-4 text-gray-300">
-                    Performance Summary
-                  </h2>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
-                      <div className="text-xs text-gray-400 mb-1">Total Trades</div>
-                      <div className="text-white font-bold text-2xl">{analyticsData.totalTrades}</div>
-                      <div className="text-xs text-gray-500 mt-1">All-time</div>
+                {/* Key Metrics - Large Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {/* Total PnL - Hero Card */}
+                  <div className="md:col-span-2 bg-gradient-to-br from-dark-bg/80 to-dark-bg/40 rounded-xl p-6 border border-gold-primary/20 shadow-lg">
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="text-sm text-gray-400 uppercase tracking-wider">Total Profit & Loss</div>
+                      <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        analyticsData.totalPnL >= 0 
+                          ? 'bg-green-500/20 text-green-400 border border-green-500/30' 
+                          : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                      }`}>
+                        {analyticsData.totalPnL >= 0 ? 'PROFITABLE' : 'IN LOSS'}
+                    </div>
+                      </div>
+                    <div className={`text-5xl font-bold mb-2 ${
+                      analyticsData.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {analyticsData.totalPnL >= 0 ? '+' : ''}${analyticsData.totalPnL.toFixed(2)}
+                      </div>
+                    <div className="text-xs text-gray-500">Across {closedPositions.length} closed position{closedPositions.length !== 1 ? 's' : ''}</div>
                     </div>
 
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
-                      <div className="text-xs text-gray-400 mb-1">Win Rate</div>
-                      <div className={`font-bold text-2xl ${analyticsData.winRate >= 50 ? 'text-green-400' : 'text-red-400'}`}>
-                        {analyticsData.winRate}%
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {analyticsData.totalWins}W / {analyticsData.totalLosses}L
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
-                      <div className="text-xs text-gray-400 mb-1">Total PnL</div>
-                      <div className={`font-bold text-2xl ${analyticsData.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {analyticsData.totalPnL >= 0 ? '+' : ''}${analyticsData.totalPnL.toFixed(2)}
+                  {/* Win Rate Card */}
+                  <div className="bg-dark-bg/60 rounded-xl p-6 border border-gray-800">
+                    <div className="text-sm text-gray-400 mb-4 uppercase tracking-wider">Win Rate</div>
+                    <div className="flex items-end gap-3 mb-4">
+                      <div className={`text-4xl font-bold ${analyticsData.winRate >= 50 ? 'text-green-400' : 'text-red-400'}`}>
+                        {analyticsData.winRate.toFixed(1)}%
                       </div>
                     </div>
-
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
-                      <div className="text-xs text-gray-400 mb-1">Avg Trade Cost</div>
-                      <div className="text-white font-bold text-2xl">
-                        ${analyticsData.avgTradeCost.toFixed(2)}
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="flex-1">
+                        <div className="text-gray-500 text-xs mb-1">Wins</div>
+                        <div className="text-green-400 font-semibold">{analyticsData.totalWins}</div>
                       </div>
+                      <div className="w-px h-8 bg-gray-800"></div>
+                      <div className="flex-1">
+                        <div className="text-gray-500 text-xs mb-1">Losses</div>
+                        <div className="text-red-400 font-semibold">{analyticsData.totalLosses}</div>
                     </div>
-
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
-                      <div className="text-xs text-gray-400 mb-1">Avg Price/Share</div>
-                      <div className="text-white font-bold text-2xl">
-                        {Math.round(analyticsData.avgCostPerShare * 100)}¢
-                      </div>
                     </div>
-
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
-                      <div className="text-xs text-gray-400 mb-1">Trading Frequency</div>
-                      <div className="text-white font-bold text-xl">
-                        {analyticsData.avgFrequency.perDay}x/day
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {analyticsData.avgFrequency.perWeek}x/week
                       </div>
                     </div>
 
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
-                      <div className="text-xs text-gray-400 mb-1">Avg Profit</div>
-                      <div className="text-green-400 font-bold text-2xl">
-                        +${analyticsData.avgProfit.toFixed(2)}
+                {/* Trading Activity */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-dark-bg/60 rounded-lg p-5 border border-gray-800">
+                    <div className="text-xs text-gray-400 mb-2 uppercase tracking-wider">Total Trades</div>
+                    <div className="text-3xl font-bold text-white mb-1">{analyticsData.totalTrades}</div>
+                    <div className="text-xs text-gray-500">All-time activity</div>
+                      </div>
+
+                  <div className="bg-dark-bg/60 rounded-lg p-5 border border-gray-800">
+                    <div className="text-xs text-gray-400 mb-2 uppercase tracking-wider">Trading Frequency</div>
+                    <div className="text-2xl font-bold text-white mb-1">{analyticsData.avgFrequency.perDay.toFixed(1)}/day</div>
+                    <div className="text-xs text-gray-500">{analyticsData.avgFrequency.perWeek.toFixed(1)} per week</div>
+                      </div>
+
+                  <div className="bg-dark-bg/60 rounded-lg p-5 border border-gray-800">
+                    <div className="text-xs text-gray-400 mb-2 uppercase tracking-wider">Avg Trade Size</div>
+                    <div className="text-3xl font-bold text-white mb-1">${analyticsData.avgTradeCost.toFixed(2)}</div>
+                    <div className="text-xs text-gray-500">Per transaction</div>
+                    </div>
+
+                  <div className="bg-dark-bg/60 rounded-lg p-5 border border-gray-800">
+                    <div className="text-xs text-gray-400 mb-2 uppercase tracking-wider">Avg Price</div>
+                    <div className="text-3xl font-bold text-white mb-1">{Math.round(analyticsData.avgCostPerShare * 100)}¢</div>
+                    <div className="text-xs text-gray-500">Per share</div>
                       </div>
                     </div>
 
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
-                      <div className="text-xs text-gray-400 mb-1">Avg Loss</div>
-                      <div className="text-red-400 font-bold text-2xl">
-                        ${analyticsData.avgLoss.toFixed(2)}
+                {/* Profitability Breakdown */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-dark-bg/60 rounded-xl p-6 border border-gray-800">
+                    <div className="text-sm text-gray-400 mb-4 uppercase tracking-wider">Profitability Metrics</div>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between pb-4 border-b border-gray-800">
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">Average Profit</div>
+                          <div className="text-2xl font-bold text-green-400">+${analyticsData.avgProfit.toFixed(2)}</div>
+                      </div>
+                        <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                          </svg>
+                    </div>
+                      </div>
+                      <div className="flex items-center justify-between pb-4 border-b border-gray-800">
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">Average Loss</div>
+                          <div className="text-2xl font-bold text-red-400">-${Math.abs(analyticsData.avgLoss).toFixed(2)}</div>
+                    </div>
+                        <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" />
+                          </svg>
+                      </div>
+                    </div>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">Win/Loss Ratio</div>
+                          <div className="text-2xl font-bold text-white">
+                            {analyticsData.wlRatio === Infinity ? '∞' : analyticsData.wlRatio.toFixed(2)}x
+                          </div>
+                        </div>
+                      </div>
                       </div>
                     </div>
 
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
-                      <div className="text-xs text-gray-400 mb-1">W/L Ratio</div>
-                      <div className="text-white font-bold text-2xl">
-                        {analyticsData.wlRatio === Infinity ? '∞' : analyticsData.wlRatio.toFixed(2)}
+                  <div className="bg-dark-bg/60 rounded-xl p-6 border border-gray-800">
+                    <div className="text-sm text-gray-400 mb-4 uppercase tracking-wider">Best & Worst Trades</div>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between pb-4 border-b border-gray-800">
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">Best Trade</div>
+                          <div className="text-2xl font-bold text-green-400">+${analyticsData.bestTrade.toFixed(2)}</div>
                       </div>
-                    </div>
-
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
-                      <div className="text-xs text-gray-400 mb-1">Best Trade</div>
-                      <div className="text-green-400 font-bold text-2xl">
-                        +${analyticsData.bestTrade.toFixed(2)}
+                        <div className="w-12 h-12 rounded-full bg-gold-primary/20 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-gold-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                          </svg>
+                        </div>
                       </div>
-                    </div>
-
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
-                      <div className="text-xs text-gray-400 mb-1">Worst Trade</div>
-                      <div className="text-red-400 font-bold text-2xl">
-                        ${analyticsData.worstTrade.toFixed(2)}
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
-                      <div className="text-xs text-gray-400 mb-1">Closed Positions</div>
-                      <div className="text-white font-bold text-2xl">
-                        {closedPositions.length}
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">Worst Trade</div>
+                          <div className="text-2xl font-bold text-red-400">-${Math.abs(analyticsData.worstTrade).toFixed(2)}</div>
+                        </div>
+                        <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -765,7 +807,7 @@ export default function AnalyticsPage() {
                       <tr
                         key={trade.id}
                         onClick={() => handleTradeClick(trade)}
-                        className="border-b border-gray-800 hover:bg-gray-900/30 cursor-pointer transition-colors"
+                        className="border-b border-gray-800 hover:bg-dark-bg/30 cursor-pointer transition-colors"
                       >
                         <td className="py-3 px-4 text-gray-400 whitespace-nowrap">{trade.timestamp}</td>
                         <td className="py-3 px-4">
@@ -797,13 +839,6 @@ export default function AnalyticsPage() {
         {/* Performance Tab */}
         {activeTab === 'performance' && (
           <div className="space-y-6">
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-gray-300 mb-2">
-                Win Rate by Entry Price
-              </h2>
-              <p className="text-sm text-gray-400 mb-2">
-                Each cell shows your win rate for positions entered at that price point (1¢ - 99¢).
-              </p>
               {closedPositions.length === 0 ? (
                 <div className="py-12 text-center">
                   <p className="text-sm text-gray-500">
@@ -812,185 +847,241 @@ export default function AnalyticsPage() {
                 </div>
               ) : (
                 <>
-                  {/* Legend */}
-                  <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800 mb-4">
-                    <div className="flex flex-wrap items-center gap-4 text-sm">
-                      <span className="text-gray-400">Win Rate:</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 bg-red-500/60 border border-red-400 rounded"></div>
-                        <span className="text-gray-300">&lt;40%</span>
+                {/* Performance Overview Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-dark-bg/60 rounded-xl p-6 border border-gray-800">
+                    <div className="text-sm text-gray-400 mb-4 uppercase tracking-wider">Best Performing</div>
+                    {(() => {
+                      const bestStats = pricePointStats
+                        .filter((s) => s.totalTrades >= 2)
+                        .sort((a, b) => b.winRate - a.winRate)
+                      const best = bestStats[0]
+                      return best ? (
+                        <>
+                          <div className="text-3xl font-bold text-green-400 mb-2">{best.price}¢</div>
+                          <div className="text-sm text-gray-300 mb-4">
+                            <span className="text-green-400 font-semibold">{best.winRate.toFixed(1)}%</span> win rate
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 bg-orange-500/60 border border-orange-400 rounded"></div>
-                        <span className="text-gray-300">40-50%</span>
+                          <div className="text-xs text-gray-500">
+                            {best.totalTrades} position{best.totalTrades !== 1 ? 's' : ''} • {best.wins}W / {best.losses}L
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 bg-yellow-500/60 border border-yellow-400 rounded"></div>
-                        <span className="text-gray-300">50-60%</span>
+                        </>
+                      ) : (
+                        <div className="text-gray-500 text-sm">Insufficient data</div>
+                      )
+                    })()}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 bg-green-500/60 border border-green-400 rounded"></div>
-                        <span className="text-gray-300">60-70%</span>
+
+                  <div className="bg-dark-bg/60 rounded-xl p-6 border border-gray-800">
+                    <div className="text-sm text-gray-400 mb-4 uppercase tracking-wider">Most Active</div>
+                    {(() => {
+                      const mostTraded = pricePointStats
+                        .filter((s) => s.totalTrades > 0)
+                        .sort((a, b) => b.totalTrades - a.totalTrades)
+                      const most = mostTraded[0]
+                      return most ? (
+                        <>
+                          <div className="text-3xl font-bold text-gold-primary mb-2">{most.price}¢</div>
+                          <div className="text-sm text-gray-300 mb-4">
+                            <span className="font-semibold">{most.totalTrades}</span> position{most.totalTrades !== 1 ? 's' : ''}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-4 h-4 bg-green-600/80 border border-green-500 rounded"></div>
-                        <span className="text-gray-300">≥70%</span>
+                          <div className="text-xs text-gray-500">
+                            {most.winRate.toFixed(1)}% win rate • {most.wins}W / {most.losses}L
                       </div>
-                      <div className="flex items-center gap-2 ml-4">
-                        <div className="w-4 h-4 bg-gray-900 border border-gray-800 rounded"></div>
-                        <span className="text-gray-300">No data</span>
+                        </>
+                      ) : (
+                        <div className="text-gray-500 text-sm">No data</div>
+                      )
+                    })()}
                       </div>
+
+                  <div className="bg-dark-bg/60 rounded-xl p-6 border border-gray-800">
+                    <div className="text-sm text-gray-400 mb-4 uppercase tracking-wider">Worst Performing</div>
+                    {(() => {
+                      const worstStats = pricePointStats
+                        .filter((s) => s.totalTrades >= 2)
+                        .sort((a, b) => a.winRate - b.winRate)
+                      const worst = worstStats[0]
+                      return worst ? (
+                        <>
+                          <div className="text-3xl font-bold text-red-400 mb-2">{worst.price}¢</div>
+                          <div className="text-sm text-gray-300 mb-4">
+                            <span className="text-red-400 font-semibold">{worst.winRate.toFixed(1)}%</span> win rate
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {worst.totalTrades} position{worst.totalTrades !== 1 ? 's' : ''} • {worst.wins}W / {worst.losses}L
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-gray-500 text-sm">Insufficient data</div>
+                      )
+                    })()}
                     </div>
                   </div>
 
-                  {/* Price Grid */}
-                  <div className="bg-gray-900/50 rounded-lg p-4 sm:p-6 border border-gray-800">
-                    <div className="space-y-1 sm:space-y-2">
-                      {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((tens) => (
-                        <div key={tens} className="grid grid-cols-10 gap-1 sm:gap-2">
-                          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((ones) => {
-                            const price = tens * 10 + ones
-                            if (price === 0) return <div key={ones}></div>
-                            if (price > 99) return null
+                {/* Price Range Performance */}
+                <div className="bg-dark-bg/60 rounded-xl p-6 border border-gray-800">
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-white mb-2">Performance by Price Range</h3>
+                    <p className="text-sm text-gray-400">
+                      Your win rate across different price ranges. Click any range to see details.
+                    </p>
+                  </div>
 
-                            const stat = pricePointStats.find((s) => s.price === price) || {
-                              price,
-                              totalTrades: 0,
-                              wins: 0,
-                              losses: 0,
-                              winRate: 0,
-                            }
+                  <div className="space-y-4">
+                    {[
+                      { label: '0-20¢', min: 1, max: 20, color: 'from-red-500/20 to-orange-500/20' },
+                      { label: '21-40¢', min: 21, max: 40, color: 'from-orange-500/20 to-yellow-500/20' },
+                      { label: '41-60¢', min: 41, max: 60, color: 'from-yellow-500/20 to-green-500/20' },
+                      { label: '61-80¢', min: 61, max: 80, color: 'from-green-500/20 to-green-600/20' },
+                      { label: '81-99¢', min: 81, max: 99, color: 'from-green-600/20 to-green-500/20' },
+                    ].map((range) => {
+                      const rangeStats = pricePointStats.filter((s) => s.price >= range.min && s.price <= range.max)
+                      const totalTrades = rangeStats.reduce((sum, s) => sum + s.totalTrades, 0)
+                      const totalWins = rangeStats.reduce((sum, s) => sum + s.wins, 0)
+                      const totalLosses = rangeStats.reduce((sum, s) => sum + s.losses, 0)
+                      const winRate = totalTrades > 0 ? (totalWins / totalTrades) * 100 : 0
+                      const pricePointsUsed = rangeStats.filter((s) => s.totalTrades > 0).length
 
                             return (
                               <div
-                                key={ones}
-                                className={`relative aspect-square rounded border transition-all cursor-pointer group ${getWinRateColor(
-                                  stat.winRate,
-                                  stat.totalTrades
-                                )} ${hoveredPrice === price ? 'ring-2 ring-purple-primary ring-offset-2 ring-offset-gray-900 scale-105 z-10' : ''}`}
-                                onMouseEnter={() => setHoveredPrice(price)}
-                                onMouseLeave={() => setHoveredPrice(null)}
-                                onClick={() => stat.totalTrades > 0 && handlePricePointClick(price)}
+                          key={range.label}
+                          className="bg-gradient-to-r from-dark-bg/40 to-dark-bg/60 rounded-lg p-5 border border-gray-800 hover:border-gray-700 transition-colors cursor-pointer"
+                          onClick={() => {
+                            // Find first price in range with trades for modal
+                            const firstWithTrades = rangeStats.find((s) => s.totalTrades > 0)
+                            if (firstWithTrades) {
+                              handlePricePointClick(firstWithTrades.price)
+                            }
+                          }}
                               >
-                                <div className="absolute inset-0 flex flex-col items-center justify-center p-1">
-                                  <div className="absolute top-0.5 left-0.5 text-[8px] text-gray-400 opacity-60">
-                                    {price}¢
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="text-lg font-bold text-white">{range.label}</div>
+                              <div className="text-xs text-gray-500 px-2 py-1 bg-dark-bg/60 rounded">
+                                {pricePointsUsed} price point{pricePointsUsed !== 1 ? 's' : ''} used
                                   </div>
-                                  <div
-                                    className={`text-[10px] sm:text-xs font-semibold ${getTextColor(
-                                      stat.winRate,
-                                      stat.totalTrades
-                                    )}`}
-                                  >
-                                    {stat.totalTrades > 0 ? `${stat.winRate.toFixed(0)}%` : ''}
                                   </div>
-                                  {stat.totalTrades > 0 && (
-                                    <div
-                                      className={`text-[8px] sm:text-[10px] ${getTextColor(
-                                        stat.winRate,
-                                        stat.totalTrades
-                                      )} opacity-70`}
-                                    >
-                                      {stat.totalTrades}
+                            <div className={`text-2xl font-bold ${
+                              winRate >= 50 ? 'text-green-400' : 'text-red-400'
+                            }`}>
+                              {winRate.toFixed(1)}%
                                     </div>
-                                  )}
                                 </div>
 
-                                {/* Tooltip */}
-                                {hoveredPrice === price && (
-                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 bg-gray-800 border border-gray-700 rounded-lg p-3 shadow-xl z-20 min-w-[180px]">
-                                    <div className="text-sm font-semibold text-white mb-2">
-                                      Entry Price: {price}¢
+                          <div className="flex items-center gap-4 text-sm">
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-gray-400">Win Rate</span>
+                                <span className="text-white font-semibold">{winRate.toFixed(1)}%</span>
                                     </div>
-                                    {stat.totalTrades > 0 ? (
-                                      <div className="space-y-1 text-xs">
-                                        <div className="flex justify-between">
-                                          <span className="text-gray-400">Win Rate:</span>
-                                          <span className="text-white font-semibold">
-                                            {stat.winRate.toFixed(1)}%
-                                          </span>
+                              <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
+                                <div
+                                  className={`h-full transition-all ${
+                                    winRate >= 70 ? 'bg-green-500' :
+                                    winRate >= 60 ? 'bg-green-400' :
+                                    winRate >= 50 ? 'bg-yellow-500' :
+                                    winRate >= 40 ? 'bg-orange-500' : 'bg-red-500'
+                                  }`}
+                                  style={{ width: `${Math.min(winRate, 100)}%` }}
+                                />
                                         </div>
-                                        <div className="flex justify-between">
-                                          <span className="text-gray-400">Positions:</span>
-                                          <span className="text-white">{stat.totalTrades}</span>
                                         </div>
-                                        <div className="flex justify-between">
-                                          <span className="text-gray-400">Wins:</span>
-                                          <span className="text-green-400">{stat.wins}</span>
                                         </div>
-                                        <div className="flex justify-between">
-                                          <span className="text-gray-400">Losses:</span>
-                                          <span className="text-red-400">{stat.losses}</span>
+
+                          <div className="flex items-center gap-6 mt-4 text-xs text-gray-500">
+                            <div>
+                              <span className="text-gray-400">Positions:</span>{' '}
+                              <span className="text-white font-semibold">{totalTrades}</span>
                                         </div>
+                            <div>
+                              <span className="text-green-400 font-semibold">{totalWins}W</span>
+                              {' / '}
+                              <span className="text-red-400 font-semibold">{totalLosses}L</span>
                                       </div>
-                                    ) : (
-                                      <div className="text-xs text-gray-400">
-                                        No positions at this price
                                       </div>
-                                    )}
-                                  </div>
-                                )}
                               </div>
                             )
                           })}
                         </div>
-                      ))}
                     </div>
 
-                    {/* Summary Stats */}
-                    <div className="mt-6 pt-6 border-t border-gray-800">
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                        <div className="bg-black/50 rounded-lg p-3 border border-gray-800">
-                          <div className="text-xs text-gray-400 mb-1">Best Price Range</div>
-                          <div className="text-white font-semibold text-sm">
-                            {(() => {
-                              const bestStats = pricePointStats
+                {/* Top 10 Best & Worst Price Points */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-dark-bg/60 rounded-xl p-6 border border-gray-800">
+                    <div className="text-sm text-gray-400 mb-4 uppercase tracking-wider flex items-center gap-2">
+                      <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                      </svg>
+                      Top 10 Best Price Points
+                    </div>
+                    <div className="space-y-2">
+                      {pricePointStats
                                 .filter((s) => s.totalTrades >= 2)
                                 .sort((a, b) => b.winRate - a.winRate)
-                              return bestStats.length > 0 
-                                ? `${bestStats[0].price}¢ (${bestStats[0].winRate.toFixed(0)}%)`
-                                : 'N/A'
-                            })()}
+                        .slice(0, 10)
+                        .map((stat, index) => (
+                          <div
+                            key={stat.price}
+                            className="flex items-center justify-between p-3 bg-dark-bg/40 rounded-lg border border-gray-800/50 hover:border-green-500/50 transition-colors cursor-pointer"
+                            onClick={() => handlePricePointClick(stat.price)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center text-green-400 text-xs font-bold">
+                                {index + 1}
                           </div>
+                              <div>
+                                <div className="text-white font-semibold">{stat.price}¢</div>
+                                <div className="text-xs text-gray-500">{stat.totalTrades} position{stat.totalTrades !== 1 ? 's' : ''}</div>
                         </div>
-                        <div className="bg-black/50 rounded-lg p-3 border border-gray-800">
-                          <div className="text-xs text-gray-400 mb-1">Most Traded</div>
-                          <div className="text-white font-semibold text-sm">
-                            {(() => {
-                              const mostTraded = pricePointStats
-                                .filter((s) => s.totalTrades > 0)
-                                .sort((a, b) => b.totalTrades - a.totalTrades)
-                              return mostTraded.length > 0 
-                                ? `${mostTraded[0].price}¢ (${mostTraded[0].totalTrades} trades)`
-                                : 'N/A'
-                            })()}
                           </div>
+                            <div className="text-right">
+                              <div className="text-green-400 font-bold">{stat.winRate.toFixed(1)}%</div>
+                              <div className="text-xs text-gray-500">{stat.wins}W / {stat.losses}L</div>
                         </div>
-                        <div className="bg-black/50 rounded-lg p-3 border border-gray-800">
-                          <div className="text-xs text-gray-400 mb-1">Worst Price Range</div>
-                          <div className="text-white font-semibold text-sm">
-                            {(() => {
-                              const worstStats = pricePointStats
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-dark-bg/60 rounded-xl p-6 border border-gray-800">
+                    <div className="text-sm text-gray-400 mb-4 uppercase tracking-wider flex items-center gap-2">
+                      <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 17h8m0 0V9m0 8l-8-8-4 4-6 6" />
+                      </svg>
+                      Top 10 Worst Price Points
+                    </div>
+                    <div className="space-y-2">
+                      {pricePointStats
                                 .filter((s) => s.totalTrades >= 2)
                                 .sort((a, b) => a.winRate - b.winRate)
-                              return worstStats.length > 0 
-                                ? `${worstStats[0].price}¢ (${worstStats[0].winRate.toFixed(0)}%)`
-                                : 'N/A'
-                            })()}
+                        .slice(0, 10)
+                        .map((stat, index) => (
+                          <div
+                            key={stat.price}
+                            className="flex items-center justify-between p-3 bg-dark-bg/40 rounded-lg border border-gray-800/50 hover:border-red-500/50 transition-colors cursor-pointer"
+                            onClick={() => handlePricePointClick(stat.price)}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-red-500/20 flex items-center justify-center text-red-400 text-xs font-bold">
+                                {index + 1}
                           </div>
+                              <div>
+                                <div className="text-white font-semibold">{stat.price}¢</div>
+                                <div className="text-xs text-gray-500">{stat.totalTrades} position{stat.totalTrades !== 1 ? 's' : ''}</div>
                         </div>
-                        <div className="bg-black/50 rounded-lg p-3 border border-gray-800">
-                          <div className="text-xs text-gray-400 mb-1">Price Points Used</div>
-                          <div className="text-white font-semibold text-sm">
-                            {pricePointStats.filter((s) => s.totalTrades > 0).length}/99
                           </div>
+                            <div className="text-right">
+                              <div className="text-red-400 font-bold">{stat.winRate.toFixed(1)}%</div>
+                              <div className="text-xs text-gray-500">{stat.wins}W / {stat.losses}L</div>
                         </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
                 </>
               )}
-            </div>
           </div>
         )}
       </div>
@@ -998,14 +1089,14 @@ export default function AnalyticsPage() {
       {/* Price Point Detail Modal */}
       {selectedPricePoint !== null && (
         <div
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-dark-bg/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={closePricePointModal}
         >
           <div
-            className="bg-black border border-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+            className="bg-dark-bg border border-gray-800 rounded-lg max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-6 border-b border-gray-800 bg-black">
+            <div className="flex items-center justify-between p-6 border-b border-gray-800 bg-dark-bg">
               <div>
                 <h2 className="text-2xl font-bold text-white">
                   Entry Price: {selectedPricePoint}¢
@@ -1024,7 +1115,7 @@ export default function AnalyticsPage() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 bg-black">
+            <div className="flex-1 overflow-y-auto p-6 bg-dark-bg">
               {(() => {
                 const pricePositions = getTradesForPricePoint(selectedPricePoint)
                 const priceStat = pricePointStats.find((s) => s.price === selectedPricePoint) || {
@@ -1038,21 +1129,21 @@ export default function AnalyticsPage() {
                 return (
                   <div className="space-y-6">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                      <div className="bg-black/50 rounded-lg p-4 border border-gray-800">
+                      <div className="bg-dark-bg/50 rounded-lg p-4 border border-gray-800">
                         <div className="text-xs text-gray-400 mb-1">Total Positions</div>
                         <div className="text-white font-bold text-2xl">{priceStat.totalTrades}</div>
                       </div>
-                      <div className="bg-black/50 rounded-lg p-4 border border-gray-800">
+                      <div className="bg-dark-bg/50 rounded-lg p-4 border border-gray-800">
                         <div className="text-xs text-gray-400 mb-1">Win Rate</div>
                         <div className={`font-bold text-2xl ${priceStat.winRate >= 50 ? 'text-green-400' : 'text-red-400'}`}>
                           {priceStat.winRate.toFixed(1)}%
                         </div>
                       </div>
-                      <div className="bg-black/50 rounded-lg p-4 border border-gray-800">
+                      <div className="bg-dark-bg/50 rounded-lg p-4 border border-gray-800">
                         <div className="text-xs text-gray-400 mb-1">Wins</div>
                         <div className="text-green-400 font-bold text-2xl">{priceStat.wins}</div>
                       </div>
-                      <div className="bg-black/50 rounded-lg p-4 border border-gray-800">
+                      <div className="bg-dark-bg/50 rounded-lg p-4 border border-gray-800">
                         <div className="text-xs text-gray-400 mb-1">Losses</div>
                         <div className="text-red-400 font-bold text-2xl">{priceStat.losses}</div>
                       </div>
@@ -1082,7 +1173,7 @@ export default function AnalyticsPage() {
                                 return (
                                   <tr
                                     key={`${position.conditionId}-${index}`}
-                                    className="border-b border-gray-800 hover:bg-gray-900/30"
+                                    className="border-b border-gray-800 hover:bg-dark-bg/30"
                                   >
                                     <td className="py-3 px-4 text-gray-400">
                                       {formatTimestamp(position.timestamp)}

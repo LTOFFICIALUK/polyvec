@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import PolyLineChart from '@/components/PolyLineChart'
 import TradingViewChart from '@/components/TradingViewChart'
 import TradingPanel from '@/components/TradingPanel'
+import DraggableTradingPanel from '@/components/DraggableTradingPanel'
 import ChartControls from '@/components/ChartControls'
 import OrderBook, { OrderBookHandle } from '@/components/OrderBook'
 import AnimatedPrice from '@/components/AnimatedPrice'
@@ -57,10 +58,9 @@ function TerminalContent() {
   const { selectedPair, showTradingView, selectedTimeframe, marketOffset } = useTradingContext()
   const { walletAddress, polymarketCredentials } = useWallet()
   const { showToast } = useToast()
-  const [activeTab, setActiveTab] = useState<'position' | 'orders' | 'history' | 'orderbook'>('position')
-  const [, forceUpdate] = useState({})
-  const orderBookRef = useRef<OrderBookHandle>(null)
+  const [activeTab, setActiveTab] = useState<'position' | 'orders' | 'history'>('position')
   const [isClaimingPosition, setIsClaimingPosition] = useState<string | null>(null)
+  const [showSideBySide, setShowSideBySide] = useState(true) // Default to side-by-side view
   
   // Get current market for live price matching
   const { market: currentMarket } = useCurrentMarket({
@@ -90,8 +90,6 @@ function TerminalContent() {
     downAskPrice: null,
   })
   
-  // Helper to get current auto-centering state
-  const isAutoCentering = orderBookRef.current?.isAutoCentering() ?? true
 
   // Fetch positions from Polymarket
   const fetchPositions = useCallback(async () => {
@@ -146,19 +144,9 @@ function TerminalContent() {
         url += `&credentials=${encodeURIComponent(JSON.stringify(polymarketCredentials))}`
       }
       
-      console.log('[Home] Fetching orders...', { hasCredentials, walletAddress: walletAddress.slice(0, 10) + '...' })
       
       const response = await fetch(url)
       const data = await response.json()
-      
-      console.log('[Home] Orders API response:', { 
-        status: response.status,
-        source: data.source,
-        orderCount: Array.isArray(data.orders) ? data.orders.length : 0,
-        error: data.error,
-        errorDetails: data.errorDetails,
-        rawOrders: data.orders?.slice(0, 2) // Log first 2 raw orders for debugging
-      })
       
       // Log detailed error if API failed
       if (data.source !== 'polymarket-api' && data.source !== 'websocket') {
@@ -417,126 +405,154 @@ function TerminalContent() {
     }
   }, [walletAddress, refreshData])
 
-  // Listen for order placement events to refresh orders
+  // Listen for order placement events to refresh orders and positions
   useEffect(() => {
     const handleOrderPlaced = () => {
-      console.log('[Home] Order placed event received, refreshing orders...')
       // Wait a moment for the order to be processed by Polymarket
+      // For market orders (FOK/FAK), positions should update immediately after fill
+      // For limit orders (GTC), position won't update until order is filled
       setTimeout(() => {
         fetchOrders()
+        fetchPositions() // Refresh positions after order placement
       }, 1500)
+      
+      // Second refresh after a longer delay for positions to propagate in Polymarket's system
+      setTimeout(() => {
+        fetchPositions()
+      }, 5000)
     }
 
     window.addEventListener('orderPlaced', handleOrderPlaced)
     return () => window.removeEventListener('orderPlaced', handleOrderPlaced)
-  }, [fetchOrders])
-
-  const bottomSectionHeightClass =
-    activeTab === 'orderbook' ? 'h-[23rem]' : 'h-72'
+  }, [fetchOrders, fetchPositions])
 
   return (
-    <div className="bg-black text-white">
-      {/* Main Section - Chart and Trading Panel */}
-      <div className="flex flex-col h-[calc(100vh-73px)] overflow-hidden">
-        <div className="flex-1 flex flex-col lg:flex-row relative">
-          {/* Left Panel - Chart */}
-          <div className="flex-1 flex flex-col min-h-0">
+    <div className="bg-dark-bg text-white h-[calc(100vh-73px)] overflow-hidden relative">
+      {/* Full Screen Chart */}
+      <div className="absolute inset-0 flex flex-col">
             <ChartControls />
             <div className="flex-1 min-h-0 relative">
-              {showTradingView ? <TradingViewChart /> : <PolyLineChart />}
+          {/* Default: Side-by-Side View (Poly Orderbook + TradingView) */}
+          <div className="w-full h-full flex">
+            {/* Left: Poly Orderbook Chart */}
+            <div className="flex-1 border-r border-gray-700/50">
+              <PolyLineChart />
+            </div>
+            {/* Right: TradingView Chart */}
+            <div className="flex-1">
+              <TradingViewChart />
             </div>
           </div>
 
-          {/* Right Panel - Trading */}
-          <div className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-gray-800 flex-shrink-0">
-            <TradingPanel />
+          {/* Side-by-Side Toggle Button - Commented out, side-by-side is now default */}
+          {/*
+          <div className="absolute top-4 right-4 z-10">
+            <button
+              onClick={() => setShowSideBySide(!showSideBySide)}
+              className={`px-3 py-2 rounded transition-all duration-200 flex items-center gap-1.5 ${
+                showSideBySide
+                  ? 'bg-gold-primary text-white shadow-lg shadow-gold-primary/20'
+                  : 'bg-gray-900/90 hover:bg-gray-800 text-gray-400 hover:text-white border border-gray-700/50 backdrop-blur-sm'
+              }`}
+              title={showSideBySide ? 'Show single chart' : 'Show charts side by side'}
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M3 6h8v16H3V6z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M3 10h8M3 14h6"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M13 6h8v16h-8V6z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M13 10h8M13 14h6"
+                />
+              </svg>
+            </button>
           </div>
-        </div>
+          */}
+          
+          {/* Fallback to single chart view - Commented out, side-by-side is now default */}
+          {/*
+          {showSideBySide ? (
+            <div className="w-full h-full flex">
+              <div className="flex-1 border-r border-gray-700/50">
+                <PolyLineChart />
+              </div>
+              <div className="flex-1">
+                <TradingViewChart />
+              </div>
+            </div>
+          ) : (
+            showTradingView ? <TradingViewChart /> : <PolyLineChart />
+          )}
+          */}
       </div>
 
-      {/* Horizontal Divider Line */}
-      <div className="h-px bg-gray-800 w-full" />
-
-      {/* Bottom Section - Position, Orders, History, Order Book */}
-      <div className={`bg-black ${bottomSectionHeightClass}`}>
-        <div className="flex border-b border-gray-800">
+        {/* Bottom Section - Tabs and Orderbook */}
+        <div className="h-64 border-t border-gray-700/50 flex">
+          {/* Left: Position/Orders/History Tabs */}
+          <div className="flex-1 flex flex-col">
+            <div className="flex border-b border-gray-700/50 flex-shrink-0">
           <button
             onClick={() => setActiveTab('position')}
-            className={`px-4 py-3 text-sm font-semibold transition-colors relative h-[49px] ${
+            className={`px-4 py-3 text-xs font-medium transition-colors relative h-[49px] uppercase tracking-wider ${
               activeTab === 'position'
                 ? 'text-white'
                 : 'text-gray-400 hover:text-white'
             }`}
+            style={{ fontFamily: 'monospace' }}
           >
-            Position
+            Positions
             {activeTab === 'position' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-primary" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
             )}
           </button>
           <button
             onClick={() => setActiveTab('orders')}
-            className={`px-4 py-3 text-sm font-semibold transition-colors relative h-[49px] ${
+            className={`px-4 py-3 text-xs font-medium transition-colors relative h-[49px] uppercase tracking-wider ${
               activeTab === 'orders'
                 ? 'text-white'
                 : 'text-gray-400 hover:text-white'
             }`}
+            style={{ fontFamily: 'monospace' }}
           >
-            Open Orders
+            Orders
             {activeTab === 'orders' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-primary" />
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
             )}
           </button>
           <button
             onClick={() => setActiveTab('history')}
-            className={`px-4 py-3 text-sm font-semibold transition-colors relative h-[49px] ${
+            className={`px-4 py-3 text-xs font-medium transition-colors relative h-[49px] uppercase tracking-wider ${
               activeTab === 'history'
                 ? 'text-white'
                 : 'text-gray-400 hover:text-white'
             }`}
+            style={{ fontFamily: 'monospace' }}
           >
             History
             {activeTab === 'history' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-primary" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('orderbook')}
-            className={`px-4 py-3 text-sm font-semibold transition-colors relative flex items-center gap-2 h-[49px] ${
-              activeTab === 'orderbook'
-                ? 'text-white'
-                : 'text-gray-400 hover:text-white'
-            }`}
-          >
-            <span>Order Book</span>
-            {activeTab === 'orderbook' && (
-              <>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    orderBookRef.current?.toggleAutoCenter()
-                    // Force re-render to update button appearance
-                    forceUpdate({})
-                  }}
-                  className="text-gray-400 hover:text-white transition-colors p-0.5 flex items-center justify-center"
-                  aria-label="Toggle auto-center orderbook"
-                  title={isAutoCentering ? "Disable auto-center (allow manual scroll)" : "Enable auto-center (lock to spread)"}
-                >
-                  <svg
-                    className={`w-3.5 h-3.5 transition-opacity rotate-90 ${isAutoCentering ? '' : 'opacity-50'}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-                    />
-                  </svg>
-                </button>
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-primary" />
-              </>
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
             )}
           </button>
         </div>
@@ -544,16 +560,16 @@ function TerminalContent() {
           {activeTab === 'position' && (
             <div className="w-full">
               <table className="w-full text-sm">
-                <thead className="text-gray-400 border-b border-gray-800">
+                <thead className="text-gray-400 border-b border-gray-700/50">
                   <tr>
-                    <th className="text-left py-3 px-4 font-medium">Market</th>
-                    <th className="text-left py-3 px-4 font-medium">Outcome</th>
-                    <th className="text-left py-3 px-4 font-medium">Side</th>
-                    <th className="text-right py-3 px-4 font-medium">Size</th>
-                    <th className="text-right py-3 px-4 font-medium">Avg Price</th>
-                    <th className="text-right py-3 px-4 font-medium">Current</th>
-                    <th className="text-right py-3 px-4 font-medium">PnL</th>
-                    <th className="text-right py-3 px-4 font-medium">Action</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Market</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Outcome</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Side</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Size</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Avg Price</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Current</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>PnL</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -606,14 +622,14 @@ function TerminalContent() {
                             : position.pnl)
                       
                       return (
-                        <tr key={idx} className="border-b border-gray-800 hover:bg-gray-900/30">
+                        <tr key={idx} className="border-b border-gray-700/30 hover:bg-gray-900/20">
                           <td className="py-3 px-4 max-w-xs truncate" title={position.market}>
                             {position.slug ? (
                               <a
                                 href={`https://polymarket.com/event/${position.slug}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-white hover:text-purple-400 hover:underline transition-colors cursor-pointer"
+                                className="text-white hover:text-gold-hover hover:underline transition-colors cursor-pointer"
                               >
                                 {position.market}
                               </a>
@@ -688,15 +704,15 @@ function TerminalContent() {
           {activeTab === 'orders' && (
             <div className="w-full">
               <table className="w-full text-sm">
-                <thead className="text-gray-400 border-b border-gray-800">
+                <thead className="text-gray-400 border-b border-gray-700/50">
                   <tr>
-                    <th className="text-left py-3 px-4 font-medium">Market</th>
-                    <th className="text-left py-3 px-4 font-medium">Type</th>
-                    <th className="text-left py-3 px-4 font-medium">Side</th>
-                    <th className="text-right py-3 px-4 font-medium">Size</th>
-                    <th className="text-right py-3 px-4 font-medium">Price</th>
-                    <th className="text-right py-3 px-4 font-medium">Status</th>
-                    <th className="text-right py-3 px-4 font-medium">Actions</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Market</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Type</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Side</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Size</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Price</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Status</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -762,14 +778,14 @@ function TerminalContent() {
           {activeTab === 'history' && (
             <div className="w-full">
               <table className="w-full text-sm">
-                <thead className="text-gray-400 border-b border-gray-800">
+                <thead className="text-gray-400 border-b border-gray-700/50">
                   <tr>
-                    <th className="text-left py-3 px-4 font-medium">Time</th>
-                    <th className="text-left py-3 px-4 font-medium">Market</th>
-                    <th className="text-left py-3 px-4 font-medium">Side</th>
-                    <th className="text-right py-3 px-4 font-medium">Size</th>
-                    <th className="text-right py-3 px-4 font-medium">Price</th>
-                    <th className="text-right py-3 px-4 font-medium">Total</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Time</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Market</th>
+                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Side</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Size</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Price</th>
+                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -815,13 +831,20 @@ function TerminalContent() {
               </table>
             </div>
           )}
-          {activeTab === 'orderbook' && (
-            <div className="w-full h-full">
-              <OrderBook ref={orderBookRef} />
             </div>
-          )}
+          </div>
+          
+          {/* Right: Orderbook */}
+          <div className="w-80 border-l border-gray-700/50 h-full overflow-hidden">
+            <OrderBook />
+          </div>
         </div>
       </div>
+      
+      {/* Draggable Floating Trading Panel */}
+      <DraggableTradingPanel>
+        <TradingPanel />
+      </DraggableTradingPanel>
     </div>
   )
 }

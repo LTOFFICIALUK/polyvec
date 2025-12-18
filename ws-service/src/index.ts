@@ -50,6 +50,8 @@ import { isKeyVaultConfigured } from './security/keyVault'
 import { verifySignature, extractSignatureFromRequest } from './security/authVerifier'
 import { executeTrade, canExecuteTrades, testKeySignature } from './trading/tradeExecutor'
 import { initializeBacktester, runBacktest, isStrategyProfitable, closeBacktester } from './backtesting/backtester'
+import { makeAuthenticatedRequest } from './polymarket/hmacAuth'
+import type { PolymarketApiCredentials } from './polymarket/hmacAuth'
 
 const POLYMARKET_GAMMA_API = process.env.POLYMARKET_GAMMA_API || 'https://gamma-api.polymarket.com'
 
@@ -2065,6 +2067,163 @@ const httpServer = http.createServer(async (req, res) => {
     return
   }
 
+  // Trade submission endpoint - accepts signed orders from Next.js and submits to Polymarket
+  // Uses official Polymarket SDK's postOrder() method for clean, reliable order submission
+  if (path === '/api/trade/submit-order' && req.method === 'POST') {
+    let body = ''
+    req.on('data', (chunk) => { body += chunk.toString() })
+    req.on('end', async () => {
+      try {
+        const requestData = JSON.parse(body)
+        const {
+          walletAddress,
+          credentials,
+          signedOrder, // SDK's SignedOrder object from createOrder()
+          orderType = 'GTC', // 'GTC', 'GTD', 'FOK', or 'FAK'
+        } = requestData
+
+        // Validate required fields
+        if (!walletAddress || !credentials || !signedOrder) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: 'Missing required fields: walletAddress, credentials, signedOrder',
+            errorCode: 'MISSING_FIELDS',
+          }))
+          return
+        }
+
+        // Validate credentials structure
+        if (!credentials.apiKey || !credentials.secret || !credentials.passphrase) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: 'Invalid credentials structure',
+            errorCode: 'INVALID_CREDENTIALS',
+          }))
+          return
+        }
+
+        console.log('[VPS Trade] Submitting order to Polymarket:', {
+          walletAddress: walletAddress.substring(0, 10) + '...',
+          tokenId: signedOrder.tokenId?.substring(0, 20) + '...',
+          side: signedOrder.side,
+          orderType: orderType,
+        })
+
+        // Construct order payload in the format Polymarket API expects
+        // The API expects: { order: {...orderFields}, signature, owner, orderType }
+        const orderPayload = {
+          order: {
+            salt: signedOrder.salt,
+            maker: signedOrder.maker,
+            signer: signedOrder.signer,
+            taker: signedOrder.taker,
+            tokenId: signedOrder.tokenId,
+            makerAmount: signedOrder.makerAmount,
+            takerAmount: signedOrder.takerAmount,
+            expiration: signedOrder.expiration,
+            nonce: signedOrder.nonce,
+            feeRateBps: signedOrder.feeRateBps,
+            side: signedOrder.side === 'BUY' ? 0 : 1, // Convert to numeric
+            signatureType: signedOrder.signatureType,
+          },
+          signature: signedOrder.signature,
+          owner: walletAddress, // Maker address
+          orderType: orderType.toUpperCase(), // 'GTC', 'GTD', 'FOK', or 'FAK'
+        }
+
+        // Make authenticated request to Polymarket CLOB API using HMAC auth
+        const response = await makeAuthenticatedRequest(
+          'POST',
+          '/order',
+          walletAddress,
+          credentials as PolymarketApiCredentials,
+          orderPayload
+        )
+
+        const responseText = await response.text()
+        let responseData: any
+        try {
+          responseData = JSON.parse(responseText)
+        } catch {
+          responseData = { errorMsg: responseText }
+        }
+
+        if (!response.ok) {
+          console.error('[VPS Trade] Polymarket error response:', {
+            status: response.status,
+            error: responseData,
+          })
+
+          // Check if Cloudflare blocked the request
+          if (response.status === 403 && (
+            responseText.includes('Cloudflare') || 
+            responseText.includes('cf-error-details') || 
+            responseText.includes('Attention Required')
+          )) {
+            res.writeHead(403, { 'Content-Type': 'application/json' })
+            res.end(JSON.stringify({
+              success: false,
+              error: 'Request blocked by Cloudflare. Please wait a few seconds and try again.',
+              errorCode: 'CLOUDFLARE_BLOCK',
+              details: { errorMsg: 'Cloudflare security challenge triggered. Try again in a few seconds.' },
+            }))
+            return
+          }
+
+          // Map Polymarket error codes to user-friendly messages
+          const errorMessages: Record<string, string> = {
+            'INVALID_ORDER_MIN_TICK_SIZE': 'Order price breaks minimum tick size rules',
+            'INVALID_ORDER_MIN_SIZE': 'Order size is below the minimum requirement',
+            'INVALID_ORDER_DUPLICATED': 'This order has already been placed',
+            'INVALID_ORDER_NOT_ENOUGH_BALANCE': 'Insufficient balance or allowance',
+            'INVALID_ORDER_EXPIRATION': 'Order expiration is invalid',
+            'INVALID_ORDER_ERROR': 'Could not insert order',
+            'EXECUTION_ERROR': 'Could not execute trade',
+            'ORDER_DELAYED': 'Order match delayed due to market conditions',
+            'DELAYING_ORDER_ERROR': 'Error delaying the order',
+            'FOK_ORDER_NOT_FILLED_ERROR': 'FOK order could not be fully filled',
+            'MARKET_NOT_READY': 'Market is not yet ready to process new orders',
+          }
+
+          const errorCode = responseData.errorCode || responseData.code
+          const errorMessage = errorMessages[errorCode] || responseData.errorMsg || 'Order placement failed'
+
+          res.writeHead(response.status, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({
+            success: false,
+            error: errorMessage,
+            errorCode: errorCode || 'UNKNOWN_ERROR',
+            details: responseData,
+          }))
+          return
+        }
+
+        // Success
+        console.log('[VPS Trade] Order submitted successfully:', {
+          orderId: responseData.orderID || responseData.id,
+        })
+
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          success: true,
+          orderId: responseData.orderID || responseData.id,
+          data: responseData,
+        }))
+      } catch (error: any) {
+        console.error('[VPS Trade] Error submitting order:', error)
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ 
+          success: false, 
+          error: error.message || 'Failed to submit order',
+          errorCode: 'INTERNAL_ERROR',
+        }))
+      }
+    })
+    return
+  }
+
   // API endpoints for user data (kept for backward compatibility)
   const address = url.searchParams.get('address')
   
@@ -2728,10 +2887,10 @@ strategyMonitor.on('strategyTriggered', async (trigger: StrategyTrigger) => {
 })
 
 // Start server
-httpServer.listen(HTTP_PORT, () => {
-  console.log(`[Server] HTTP server listening on http://localhost:${HTTP_PORT}`)
-  console.log(`[Server] WebSocket server listening on ws://localhost:${HTTP_PORT}/ws`)
-  console.log(`[Server] Health endpoint: http://localhost:${HTTP_PORT}/health`)
+httpServer.listen(HTTP_PORT, '0.0.0.0', () => {
+  console.log(`[Server] HTTP server listening on http://0.0.0.0:${HTTP_PORT}`)
+  console.log(`[Server] WebSocket server listening on ws://0.0.0.0:${HTTP_PORT}/ws`)
+  console.log(`[Server] Health endpoint: http://0.0.0.0:${HTTP_PORT}/health`)
   console.log('\n[Server] Initializing markets...')
   
   initializeMarkets()

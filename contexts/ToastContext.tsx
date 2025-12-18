@@ -56,17 +56,17 @@ function ToastContainer({ toasts, dismissToast }: { toasts: Toast[], dismissToas
             animation: 'toast-slide-in 0.3s ease-out',
             backgroundColor: toast.type === 'error' ? 'rgba(127, 29, 29, 0.98)' 
               : toast.type === 'warning' ? 'rgba(120, 53, 15, 0.98)'
-              : toast.type === 'success' ? 'rgba(20, 83, 45, 0.98)'
+              : toast.type === 'success' ? 'rgba(55, 65, 81, 0.98)' // Dark grey for success trades (like screenshot)
               : 'rgba(31, 41, 55, 0.98)',
             border: `1px solid ${
               toast.type === 'error' ? '#b91c1c' 
               : toast.type === 'warning' ? '#b45309'
-              : toast.type === 'success' ? '#15803d'
+              : toast.type === 'success' ? '#6b7280' // Grey border for success trades
               : '#374151'
             }`,
             color: toast.type === 'error' ? '#fecaca' 
               : toast.type === 'warning' ? '#fef3c7'
-              : toast.type === 'success' ? '#bbf7d0'
+              : toast.type === 'success' ? '#ffffff' // White text for success trades (like screenshot)
               : '#e5e7eb',
           }}
         >
@@ -94,7 +94,9 @@ function ToastContainer({ toasts, dismissToast }: { toasts: Toast[], dismissToas
             )}
           </div>
           {/* Message */}
-          <p style={{ fontSize: '14px', fontWeight: 500, flex: 1, margin: 0 }}>{toast.message}</p>
+          <div style={{ fontSize: '14px', fontWeight: 500, flex: 1, margin: 0, whiteSpace: 'pre-line' }}>
+            {toast.message}
+          </div>
           {/* Dismiss button */}
           <button
             onClick={() => dismissToast(toast.id)}
