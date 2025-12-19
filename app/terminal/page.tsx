@@ -155,6 +155,8 @@ function TerminalContent() {
 
   // Listen for order placement events to refresh orders and positions
   useEffect(() => {
+    if (!walletAddress) return // Don't set up listener if no wallet connected
+    
     const handleOrderPlaced = () => {
       // Wait a moment for the order to be processed by Polymarket
       // For market orders (FOK/FAK), positions should update immediately after fill
@@ -172,7 +174,7 @@ function TerminalContent() {
 
     window.addEventListener('orderPlaced', handleOrderPlaced)
     return () => window.removeEventListener('orderPlaced', handleOrderPlaced)
-  }, [fetchOrders, fetchPositions])
+  }, [walletAddress, fetchOrders, fetchPositions]) // Include walletAddress to ensure effect runs when wallet changes
 
   return (
     <div className="bg-dark-bg text-white">

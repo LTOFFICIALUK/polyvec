@@ -13,7 +13,8 @@ import { useWallet } from '@/contexts/WalletContext'
 import { useToast } from '@/contexts/ToastContext'
 import useCurrentMarket from '@/hooks/useCurrentMarket'
 import { redeemPosition } from '@/lib/redeem-positions'
-import { getBrowserProvider } from '@/lib/polymarket-auth'
+import { getBrowserProvider, ensurePolygonNetwork } from '@/lib/polymarket-auth'
+import { createSignedOrder, OrderSide, OrderType } from '@/lib/polymarket-order-signing'
 
 interface Position {
   market: string
@@ -306,6 +307,9 @@ function TerminalContent() {
 
   // State for cancelling orders
   const [isCancellingOrder, setIsCancellingOrder] = useState<string | null>(null)
+  
+  // State for selling positions
+  const [isSellingPosition, setIsSellingPosition] = useState<string | null>(null)
 
   // Handle cancelling an open order
   const handleCancelOrder = useCallback(async (order: Order) => {
@@ -348,6 +352,166 @@ function TerminalContent() {
       setIsCancellingOrder(null)
     }
   }, [isCancellingOrder, walletAddress, polymarketCredentials, showToast, fetchOrders])
+
+  // Handle selling entire position
+  const handleSellAllPosition = useCallback(async (position: Position) => {
+    if (!position.tokenId || !position.size || isSellingPosition || !polymarketCredentials) {
+      if (!polymarketCredentials) {
+        showToast('Please authenticate with Polymarket first', 'error')
+      }
+      return
+    }
+
+    setIsSellingPosition(position.tokenId)
+    showToast(`Preparing to sell ${position.size.toFixed(2)} shares...`, 'info')
+
+    try {
+      const provider = getBrowserProvider()
+      if (!provider) {
+        throw new Error('No wallet provider found')
+      }
+
+      await ensurePolygonNetwork(provider)
+
+      // Get the actual signer address
+      const walletSigner = await provider.getSigner()
+      const actualSignerAddress = await walletSigner.getAddress()
+
+      if (walletAddress && walletAddress.toLowerCase() !== actualSignerAddress.toLowerCase()) {
+        showToast('Wallet address changed. Please reconnect your wallet.', 'warning')
+        setIsSellingPosition(null)
+        return
+      }
+
+      // Fetch current orderbook to get best bid price for market order
+      // The orderbook API returns prices as decimals (0-1), same as how buy orders work
+      // Initialize with position's current price as fallback
+      let priceDecimal: number = position.currentPrice // Already in decimal format
+      let bestBidPriceCents: number = priceDecimal * 100
+      
+      try {
+        const orderbookResponse = await fetch(`/api/polymarket/orderbook?tokenId=${position.tokenId}`)
+        if (orderbookResponse.ok) {
+          const orderbookData = await orderbookResponse.json()
+          if (orderbookData.bids && orderbookData.bids.length > 0) {
+            // Best bid is the highest price someone is willing to pay (first in bids array)
+            // Bids are objects with a 'price' property (decimal 0-1)
+            const bestBid = orderbookData.bids[0]
+            const bidPrice = typeof bestBid.price === 'string' ? parseFloat(bestBid.price) : bestBid.price
+            if (!isNaN(bidPrice) && bidPrice > 0) {
+              priceDecimal = bidPrice
+              bestBidPriceCents = priceDecimal * 100
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[Sell All] Failed to fetch orderbook, using position price:', error)
+      }
+
+      // Validate price
+      if (isNaN(priceDecimal) || priceDecimal <= 0 || priceDecimal > 1) {
+        throw new Error(`Cannot place market order: invalid price ${priceDecimal}. Please try again or use a limit order.`)
+      }
+
+      // Check if this is a neg-risk market
+      let isNegRiskMarket = false
+      try {
+        const negRiskResponse = await fetch(`/api/polymarket/neg-risk?tokenId=${position.tokenId}`)
+        const negRiskData = await negRiskResponse.json()
+        isNegRiskMarket = negRiskData.negRisk === true
+      } catch (error) {
+        console.warn('[Sell All] Failed to check neg-risk status, defaulting to false:', error)
+      }
+
+      showToast(`Signing SELL order: ${position.size.toFixed(2)} shares @ ${bestBidPriceCents.toFixed(0)}¢`, 'info', 6000)
+
+      // Create signed order (SELL market order - FAK for partial fills)
+      // Use priceDecimal directly (already in 0-1 format, same as buy orders)
+      const signedOrder = await createSignedOrder(
+        {
+          tokenId: position.tokenId,
+          side: OrderSide.SELL,
+          price: priceDecimal, // Already in decimal format (0-1)
+          size: position.size,
+          maker: actualSignerAddress,
+          signer: actualSignerAddress,
+          negRisk: isNegRiskMarket,
+        },
+        provider
+      )
+
+      // Place the order
+      // Use FAK (Fill-And-Kill) for market orders - allows partial fills
+      // This is better than FOK because it will fill as much as possible and cancel the rest
+      const response = await fetch('/api/trade/place-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: actualSignerAddress,
+          credentials: polymarketCredentials,
+          signedOrder: signedOrder,
+          orderType: OrderType.FAK, // Market order - Fill And Kill (partial fills ok)
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        // Check if this is a price change error (FAK/FOK fill errors indicate price moved)
+        const errorCode = result.errorCode || ''
+        const errorMsg = (result.error || result.errorMsg || '').toLowerCase()
+        const details = result.details || {}
+        const detailsErrorMsg = (details.error || details.errorMsg || '').toLowerCase()
+        
+        // Check for price change errors - these occur when orderbook moves between fetching price and placing order
+        const isPriceChangeError = 
+          errorCode === 'FOK_ORDER_NOT_FILLED_ERROR' ||
+          errorCode === 'EXECUTION_ERROR' ||
+          errorMsg.includes('fok order') ||
+          errorMsg.includes('fak order') ||
+          errorMsg.includes('couldn\'t be fully filled') ||
+          errorMsg.includes('could not be fully filled') ||
+          errorMsg.includes('order couldn\'t be fully filled') ||
+          detailsErrorMsg.includes('fok order') ||
+          detailsErrorMsg.includes('fak order') ||
+          detailsErrorMsg.includes('couldn\'t be fully filled') ||
+          detailsErrorMsg.includes('could not be fully filled')
+        
+        if (isPriceChangeError) {
+          throw new Error('PRICE_CHANGED')
+        }
+        throw new Error(result.error || result.errorMsg || 'Failed to place sell order')
+      }
+
+      const dollarAmount = position.size * priceDecimal
+      showToast(
+        `✓ Sold ${position.size.toFixed(2)} shares @ ${bestBidPriceCents.toFixed(0)}¢ = $${dollarAmount.toFixed(2)}`,
+        'success',
+        5000
+      )
+
+      // Refresh positions after sell
+      setTimeout(() => {
+        fetchPositions()
+        fetchOrders()
+      }, 1500)
+    } catch (error: any) {
+      console.error('[Sell All] Error:', error)
+      if (error.message?.includes('rejected') || error.code === 4001) {
+        showToast('Sell order cancelled', 'warning')
+      } else if (error.message === 'PRICE_CHANGED') {
+        // Price moved during order placement - show professional message for 15 seconds
+        showToast('The market price changed while placing your order. Please try again.', 'error', 15000)
+      } else if (error.message?.includes('FOK') || error.message?.includes('FAK') || error.message?.includes('fill')) {
+        // Other fill-related errors
+        showToast('Market order failed: The order could not be filled. The price may have changed - please try again.', 'error', 15000)
+      } else {
+        showToast(`Failed to sell: ${error.message || 'Unknown error'}`, 'error')
+      }
+    } finally {
+      setIsSellingPosition(null)
+    }
+  }, [isSellingPosition, walletAddress, polymarketCredentials, showToast, fetchPositions, fetchOrders])
 
   // Fetch live orderbook prices for current market (same as TradingPanel)
   useEffect(() => {
@@ -407,6 +571,8 @@ function TerminalContent() {
 
   // Listen for order placement events to refresh orders and positions
   useEffect(() => {
+    if (!walletAddress) return // Don't set up listener if no wallet connected
+    
     const handleOrderPlaced = () => {
       // Wait a moment for the order to be processed by Polymarket
       // For market orders (FOK/FAK), positions should update immediately after fill
@@ -424,7 +590,7 @@ function TerminalContent() {
 
     window.addEventListener('orderPlaced', handleOrderPlaced)
     return () => window.removeEventListener('orderPlaced', handleOrderPlaced)
-  }, [fetchOrders, fetchPositions])
+  }, [walletAddress, fetchOrders, fetchPositions]) // Include walletAddress to ensure effect runs when wallet changes
 
   return (
     <div className="bg-dark-bg text-white h-[calc(100vh-73px)] overflow-hidden relative">
@@ -682,6 +848,19 @@ function TerminalContent() {
                                 title="Close losing position (removes from portfolio)"
                               >
                                 {isClaimingPosition === position.conditionId ? 'Closing...' : 'Close'}
+                              </button>
+                            ) : position.tokenId && position.size > 0 ? (
+                              <button
+                                onClick={() => handleSellAllPosition(position)}
+                                disabled={isSellingPosition === position.tokenId}
+                                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
+                                  isSellingPosition === position.tokenId
+                                    ? 'bg-gray-600 text-gray-300 cursor-wait'
+                                    : 'bg-orange-600 hover:bg-orange-500 text-white'
+                                }`}
+                                title="Sell entire position at market price"
+                              >
+                                {isSellingPosition === position.tokenId ? 'Selling...' : 'Sell All'}
                               </button>
                             ) : (
                               <span className="text-gray-600 text-xs">-</span>
