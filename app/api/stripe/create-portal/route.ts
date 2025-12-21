@@ -41,10 +41,11 @@ export async function POST(request: NextRequest) {
     const userId = payload.userId as number
 
     // Get user's subscription from database
+    // Include both 'active' and 'past_due' statuses - users with past_due should be able to update payment
     const db = getDbPool()
     const subResult = await db.query(
-      'SELECT subscription_id FROM subscriptions WHERE user_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 1',
-      [userId, 'active']
+      'SELECT subscription_id FROM subscriptions WHERE user_id = $1 AND status IN ($2, $3) ORDER BY created_at DESC LIMIT 1',
+      [userId, 'active', 'past_due']
     )
 
     if (subResult.rows.length === 0 || !subResult.rows[0].subscription_id) {
