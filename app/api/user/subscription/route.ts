@@ -77,16 +77,21 @@ export async function GET(request: NextRequest) {
       try {
         const stripe = getStripe()
         stripeSubscription = await stripe.subscriptions.retrieve(dbSubscription.subscription_id)
-        console.log('[Get Subscription] Stripe subscription data:', {
-          subscription_id: stripeSubscription.id,
+        
+        // Log the full subscription object to debug
+        console.log('[Get Subscription] Full Stripe subscription:', JSON.stringify({
+          id: stripeSubscription.id,
           current_period_end: stripeSubscription.current_period_end,
           current_period_start: stripeSubscription.current_period_start,
           status: stripeSubscription.status,
-        })
+          type: typeof stripeSubscription.current_period_end,
+        }, null, 2))
       } catch (error: any) {
         console.warn('[Get Subscription] Failed to fetch from Stripe:', error.message)
         // Fall back to database data if Stripe fetch fails
       }
+    } else {
+      console.log('[Get Subscription] No subscription_id in database')
     }
 
     // Helper to convert Stripe timestamp to ISO string
@@ -157,34 +162,44 @@ export async function GET(request: NextRequest) {
     let currentPeriodEnd: string | null = null
     let currentPeriodStart: string | null = null
 
+    // Always try database first as fallback, then Stripe
+    console.log('[Get Subscription] Database raw values:', {
+      periodEnd: dbSubscription.current_period_end,
+      periodStart: dbSubscription.current_period_start,
+      periodEndType: typeof dbSubscription.current_period_end,
+      periodStartType: typeof dbSubscription.current_period_start,
+    })
+
+    // Try database first
+    currentPeriodEnd = convertDbDate(dbSubscription.current_period_end)
+    currentPeriodStart = convertDbDate(dbSubscription.current_period_start)
+    
+    console.log('[Get Subscription] Database conversion result:', {
+      periodEnd: currentPeriodEnd,
+      periodStart: currentPeriodStart,
+    })
+
+    // If we have Stripe data, prefer it (more accurate)
     if (stripeSubscription) {
-      // Prefer Stripe data (most accurate)
-      currentPeriodEnd = convertStripeTimestamp(stripeSubscription.current_period_end)
-      currentPeriodStart = convertStripeTimestamp(stripeSubscription.current_period_start)
+      const stripePeriodEnd = convertStripeTimestamp(stripeSubscription.current_period_end)
+      const stripePeriodStart = convertStripeTimestamp(stripeSubscription.current_period_start)
       
       console.log('[Get Subscription] Stripe conversion result:', {
-        periodEnd: currentPeriodEnd,
-        periodStart: currentPeriodStart,
+        periodEnd: stripePeriodEnd,
+        periodStart: stripePeriodStart,
+        rawPeriodEnd: stripeSubscription.current_period_end,
+        rawPeriodStart: stripeSubscription.current_period_start,
       })
       
-      // Fall back to database if Stripe conversion failed
-      if (!currentPeriodEnd) {
-        currentPeriodEnd = convertDbDate(dbSubscription.current_period_end)
-        console.log('[Get Subscription] Using database periodEnd:', currentPeriodEnd)
+      // Use Stripe data if conversion succeeded
+      if (stripePeriodEnd) {
+        currentPeriodEnd = stripePeriodEnd
+        console.log('[Get Subscription] Using Stripe periodEnd:', currentPeriodEnd)
       }
-      if (!currentPeriodStart) {
-        currentPeriodStart = convertDbDate(dbSubscription.current_period_start)
-        console.log('[Get Subscription] Using database periodStart:', currentPeriodStart)
+      if (stripePeriodStart) {
+        currentPeriodStart = stripePeriodStart
+        console.log('[Get Subscription] Using Stripe periodStart:', currentPeriodStart)
       }
-    } else {
-      // Use database data
-      console.log('[Get Subscription] No Stripe subscription, using database data')
-      currentPeriodEnd = convertDbDate(dbSubscription.current_period_end)
-      currentPeriodStart = convertDbDate(dbSubscription.current_period_start)
-      console.log('[Get Subscription] Database dates:', {
-        periodEnd: currentPeriodEnd,
-        periodStart: currentPeriodStart,
-      })
     }
 
     const subscription = {
@@ -199,6 +214,12 @@ export async function GET(request: NextRequest) {
       createdAt: dbSubscription.created_at,
       updatedAt: dbSubscription.updated_at,
     }
+
+    console.log('[Get Subscription] Final subscription object:', {
+      ...subscription,
+      currentPeriodEnd,
+      currentPeriodStart,
+    })
 
     return NextResponse.json({
       subscription,
