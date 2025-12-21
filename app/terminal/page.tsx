@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'next/navigation'
 import PolyLineChart from '@/components/PolyLineChart'
 import TradingViewChart from '@/components/TradingViewChart'
 import TradingPanel from '@/components/TradingPanel'
@@ -65,12 +66,29 @@ interface Trade {
 function TerminalContent() {
   const { selectedPair, showTradingView, selectedTimeframe, marketOffset } = useTradingContext()
   const { polymarketCredentials } = useWallet()
-  const { custodialWallet, refreshCustodialWallet } = useAuth()
+  const { custodialWallet, refreshCustodialWallet, user, checkAuth } = useAuth()
+  const searchParams = useSearchParams()
   
   // Use custodial wallet address
   const walletAddress = custodialWallet?.walletAddress || null
   const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState<'position' | 'orders' | 'history'>('position')
+  
+  // Handle upgrade success/cancel redirects
+  useEffect(() => {
+    const upgradeStatus = searchParams.get('upgrade')
+    if (upgradeStatus === 'success') {
+      showToast('🎉 Payment successful! Your Pro plan is now active.', 'success')
+      // Refresh auth to get updated plan
+      checkAuth()
+      // Remove query param from URL
+      window.history.replaceState({}, '', '/terminal')
+    } else if (upgradeStatus === 'cancelled') {
+      showToast('Payment was cancelled. You can try again anytime.', 'info')
+      // Remove query param from URL
+      window.history.replaceState({}, '', '/terminal')
+    }
+  }, [searchParams, showToast, checkAuth])
   const [isClaimingPosition, setIsClaimingPosition] = useState<string | null>(null)
   const [showSideBySide, setShowSideBySide] = useState(true) // Default to side-by-side view
   const [hideEnded, setHideEnded] = useState(false) // Toggle to hide ended/closed markets

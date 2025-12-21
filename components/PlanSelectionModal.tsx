@@ -132,6 +132,40 @@ export default function PlanSelectionModal({ isOpen, onClose }: PlanSelectionMod
     showToast('Invalid plan change request', 'error')
   }
 
+  const handleManageSubscription = async () => {
+    if (!user) {
+      showToast('Please log in to manage your subscription', 'error')
+      return
+    }
+
+    setIsUpdating(true)
+    try {
+      const response = await fetch('/api/stripe/create-portal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to create portal session')
+      }
+
+      // Redirect to Stripe Customer Portal
+      if (result.url) {
+        window.location.href = result.url
+      } else {
+        throw new Error('No portal URL received')
+      }
+    } catch (error: any) {
+      console.error('Portal error:', error)
+      showToast(error.message || 'Failed to open subscription management. Please try again.', 'error')
+      setIsUpdating(false)
+    }
+  }
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden'
@@ -287,6 +321,15 @@ export default function PlanSelectionModal({ isOpen, onClose }: PlanSelectionMod
                 >
                   {isUpdating ? 'Updating...' : currentPlan === 'pro' ? 'Current Plan' : 'Upgrade to Pro'}
                 </button>
+                {currentPlan === 'pro' && (
+                  <button
+                    onClick={handleManageSubscription}
+                    disabled={isUpdating}
+                    className="w-full mt-3 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all bg-gray-800/50 text-white hover:bg-gray-700/50 border border-gray-700/50"
+                  >
+                    Manage Subscription
+                  </button>
+                )}
               </div>
             </div>
           )}
