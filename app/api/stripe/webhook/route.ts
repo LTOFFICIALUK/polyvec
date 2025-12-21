@@ -181,17 +181,29 @@ export async function POST(request: NextRequest) {
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription
-        const userId = subscription.metadata?.user_id
-
-        if (!userId) {
-          console.error('[Stripe Webhook] Missing user_id in subscription metadata:', subscription.id)
-          return NextResponse.json({ received: true })
-        }
-
+        
         const db = getDbPool()
 
         // Type assertion for subscription properties
         const subData = subscription as any
+
+        // First, try to get user_id from subscription metadata
+        let userId = subscription.metadata?.user_id
+
+        // If not in metadata, look it up from our subscriptions table
+        if (!userId) {
+          const subResult = await db.query(
+            'SELECT user_id FROM subscriptions WHERE subscription_id = $1',
+            [subscription.id]
+          )
+
+          if (subResult.rows.length === 0) {
+            console.error('[Stripe Webhook] Subscription not found in database:', subscription.id)
+            return NextResponse.json({ received: true })
+          }
+
+          userId = subResult.rows[0].user_id.toString()
+        }
 
         // Update subscription status
         await db.query(
@@ -200,7 +212,7 @@ export async function POST(request: NextRequest) {
                current_period_start = $2,
                current_period_end = $3,
                cancel_at_period_end = $4,
-               cancelled_at = CASE WHEN $1 = 'cancelled' THEN CURRENT_TIMESTAMP ELSE cancelled_at END,
+               cancelled_at = CASE WHEN $1 = 'canceled' THEN CURRENT_TIMESTAMP ELSE cancelled_at END,
                updated_at = CURRENT_TIMESTAMP
            WHERE subscription_id = $5`,
           [
@@ -212,8 +224,14 @@ export async function POST(request: NextRequest) {
           ]
         )
 
-        // If subscription is cancelled or expired, downgrade user
-        if (subscription.status === 'canceled' || subscription.status === 'unpaid' || subscription.status === 'past_due') {
+        // If subscription is cancelled, deleted, unpaid, or past_due, downgrade user immediately
+        const shouldDowngrade = 
+          subscription.status === 'canceled' || 
+          subscription.status === 'unpaid' || 
+          subscription.status === 'past_due' ||
+          event.type === 'customer.subscription.deleted'
+
+        if (shouldDowngrade) {
           await db.query(
             `UPDATE users 
              SET plan_tier = 'free', 
@@ -222,7 +240,12 @@ export async function POST(request: NextRequest) {
             [parseInt(userId)]
           )
 
-          console.log('[Stripe Webhook] Downgraded user due to subscription status:', userId, subscription.status)
+          console.log('[Stripe Webhook] Downgraded user due to subscription cancellation:', {
+            userId,
+            subscriptionId: subscription.id,
+            status: subscription.status,
+            eventType: event.type,
+          })
         }
 
         break
