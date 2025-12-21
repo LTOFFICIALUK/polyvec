@@ -69,9 +69,9 @@ export async function POST(request: NextRequest) {
     const stripe = getStripe()
 
     // Create Stripe Checkout Session
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : 'http://localhost:3000'
+    // Get base URL - prioritize NEXT_PUBLIC_BASE_URL over VERCEL_URL
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL 
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],

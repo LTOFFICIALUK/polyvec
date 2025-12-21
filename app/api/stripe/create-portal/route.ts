@@ -61,10 +61,9 @@ export async function POST(request: NextRequest) {
     const subscription = await stripe.subscriptions.retrieve(subscriptionId)
     const customerId = subscription.customer as string
 
-    // Get base URL
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : 'http://localhost:3000'
+    // Get base URL - prioritize NEXT_PUBLIC_BASE_URL over VERCEL_URL
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL 
+      || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
 
     // Create portal session
     const portalSession = await stripe.billingPortal.sessions.create({
