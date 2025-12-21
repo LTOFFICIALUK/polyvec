@@ -14,7 +14,7 @@
 Add this line to your `.env.local` file (create it if it doesn't exist):
 
 ```bash
-TRADING_KEY_SECRET=a18192d1f072a905a934c3c6f486fe62aadcfc0abc18fdc1098a62d27257d1db
+TRADING_KEY_SECRET=<YOUR_TRADING_KEY_SECRET>
 ```
 
 **Location:** Project root directory (same level as `package.json`)

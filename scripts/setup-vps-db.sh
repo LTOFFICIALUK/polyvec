@@ -6,7 +6,7 @@
 VPS_IP="206.189.70.100"
 DB_USER="polytrade"
 DB_NAME="polytrade"
-DB_PASSWORD="6Te4WfZi*V/r"
+DB_PASSWORD="<YOUR_DB_PASSWORD>"
 
 echo "Setting up database on VPS..."
 
