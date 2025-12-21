@@ -19,27 +19,43 @@ export default function PaymentWarningBanner() {
   const [isDismissed, setIsDismissed] = useState(false)
 
   useEffect(() => {
+    console.log('[PaymentWarningBanner] Effect running, user:', user)
+    
     if (!user || user.plan_tier !== 'pro') {
+      console.log('[PaymentWarningBanner] User not Pro or not logged in:', { 
+        hasUser: !!user, 
+        planTier: user?.plan_tier 
+      })
       setIsVisible(false)
       return
     }
 
     const fetchSubscription = async () => {
       try {
+        console.log('[PaymentWarningBanner] Fetching subscription...')
         const response = await fetch('/api/user/subscription')
         if (response.ok) {
           const data = await response.json()
+          console.log('[PaymentWarningBanner] Subscription data:', data)
           if (data.subscription && data.subscription.status === 'past_due') {
             setSubscription(data.subscription)
             // Check if user has dismissed this warning in this session
             const dismissed = sessionStorage.getItem('payment-warning-dismissed')
+            console.log('[PaymentWarningBanner] Dismissed status:', dismissed)
             if (!dismissed) {
               setIsVisible(true)
+              console.log('[PaymentWarningBanner] Banner should be visible!')
+            } else {
+              console.log('[PaymentWarningBanner] Banner dismissed in this session')
             }
+          } else {
+            console.log('[PaymentWarningBanner] Subscription status is not past_due:', data.subscription?.status)
           }
+        } else {
+          console.error('[PaymentWarningBanner] Failed to fetch subscription:', response.status, response.statusText)
         }
       } catch (error) {
-        console.error('Failed to fetch subscription status:', error)
+        console.error('[PaymentWarningBanner] Failed to fetch subscription status:', error)
       }
     }
 
