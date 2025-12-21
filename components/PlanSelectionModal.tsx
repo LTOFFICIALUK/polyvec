@@ -57,7 +57,13 @@ export default function PlanSelectionModal({ isOpen, onClose }: PlanSelectionMod
       const response = await fetch('/api/user/subscription')
       if (response.ok) {
         const data = await response.json()
+        console.log('[PlanSelectionModal] Subscription data received:', data)
         if (data.subscription) {
+          console.log('[PlanSelectionModal] Setting subscription:', {
+            status: data.subscription.status,
+            currentPeriodEnd: data.subscription.currentPeriodEnd,
+            cancelAtPeriodEnd: data.subscription.cancelAtPeriodEnd,
+          })
           setSubscription({
             status: data.subscription.status,
             currentPeriodEnd: data.subscription.currentPeriodEnd,
@@ -65,41 +71,49 @@ export default function PlanSelectionModal({ isOpen, onClose }: PlanSelectionMod
             cancelledAt: data.subscription.cancelledAt,
           })
         } else {
+          console.log('[PlanSelectionModal] No subscription found')
           setSubscription(null)
         }
+      } else {
+        console.error('[PlanSelectionModal] Failed to fetch subscription:', response.status, response.statusText)
       }
     } catch (error) {
-      console.error('Failed to fetch subscription:', error)
+      console.error('[PlanSelectionModal] Failed to fetch subscription:', error)
     }
   }
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return null
+    if (!dateString) {
+      console.log('[formatDate] No date string provided')
+      return null
+    }
     try {
       // Parse the date string (handles both ISO strings and timestamps)
       const date = new Date(dateString)
       
       // Check if date is valid and not epoch (Jan 1, 1970)
-      if (isNaN(date.getTime()) || date.getTime() === 0) {
-        console.error('Invalid date or epoch:', dateString)
+      if (isNaN(date.getTime())) {
+        console.error('[formatDate] Invalid date (NaN):', dateString)
         return null
       }
       
-      // Check if date is in the past (more than 1 day ago) - likely invalid
-      const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000)
-      if (date.getTime() < oneDayAgo) {
-        console.warn('Date is in the past, likely invalid:', dateString, date.toISOString())
+      // Check if date is epoch (Jan 1, 1970) - indicates invalid timestamp
+      if (date.getTime() === 0) {
+        console.error('[formatDate] Date is epoch (0):', dateString)
         return null
       }
       
       // Format in user's local timezone
-      return date.toLocaleDateString('en-US', { 
+      const formatted = date.toLocaleDateString('en-US', { 
         year: 'numeric', 
         month: 'long', 
         day: 'numeric'
       })
+      
+      console.log('[formatDate] Successfully formatted:', dateString, '->', formatted)
+      return formatted
     } catch (error) {
-      console.error('Error formatting date:', error, dateString)
+      console.error('[formatDate] Error formatting date:', error, dateString)
       return null
     }
   }
