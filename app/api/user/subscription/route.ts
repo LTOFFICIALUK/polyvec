@@ -242,6 +242,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Fallback: If we still don't have dates, calculate from subscription creation date
+    // (30 days for monthly subscription)
+    if (!currentPeriodEnd && dbSubscription.created_at) {
+      try {
+        const createdAt = new Date(dbSubscription.created_at)
+        if (!isNaN(createdAt.getTime()) && createdAt.getTime() > 0) {
+          // Add 30 days for monthly subscription
+          const calculatedEnd = new Date(createdAt)
+          calculatedEnd.setDate(calculatedEnd.getDate() + 30)
+          currentPeriodEnd = calculatedEnd.toISOString()
+          console.log('[Get Subscription] Calculated periodEnd from created_at:', currentPeriodEnd)
+        }
+      } catch (error) {
+        console.warn('[Get Subscription] Failed to calculate periodEnd from created_at:', error)
+      }
+    }
+
     const subscription = {
       id: dbSubscription.id,
       planTier: dbSubscription.plan_tier,
