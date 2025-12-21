@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getDbPool } from '@/lib/db'
 import Stripe from 'stripe'
+import {
+  sendWelcomeProEmail,
+  sendPaymentConfirmationEmail,
+  sendPaymentFailedEmail,
+  sendSubscriptionCancelledEmail,
+} from '@/lib/email-templates'
 
 export const dynamic = 'force-dynamic'
 
@@ -183,6 +189,32 @@ export async function POST(request: NextRequest) {
         }
 
         console.log('[Stripe Webhook] Successfully upgraded user:', userId)
+        
+        // Send welcome email and payment confirmation
+        if (customerEmail) {
+          try {
+            // Get user name from database
+            const userResult = await db.query(
+              'SELECT email FROM users WHERE id = $1',
+              [parseInt(userId)]
+            )
+            const userEmail = userResult.rows[0]?.email || customerEmail
+            
+            // Send welcome email
+            await sendWelcomeProEmail(userEmail)
+            
+            // Send payment confirmation
+            await sendPaymentConfirmationEmail(userEmail, {
+              amount,
+              currency: session.currency?.toUpperCase() || 'USD',
+              planName: planTier === 'pro' ? 'PolyTrade Pro' : 'PolyTrade Free',
+            })
+          } catch (emailError: any) {
+            console.error('[Stripe Webhook] Failed to send emails:', emailError.message)
+            // Don't fail the webhook if email fails
+          }
+        }
+        
         break
       }
 
@@ -262,6 +294,33 @@ export async function POST(request: NextRequest) {
             status: subscription.status,
             eventType: event.type,
           })
+          
+          // Send cancellation email
+          try {
+            const userResult = await db.query(
+              'SELECT email FROM users WHERE id = $1',
+              [parseInt(userId)]
+            )
+            const userEmail = userResult.rows[0]?.email
+            
+            if (userEmail) {
+              const cancellationDate = periodEnd 
+                ? new Date(periodEnd).toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })
+                : undefined
+              
+              await sendSubscriptionCancelledEmail(userEmail, {
+                planName: 'PolyTrade Pro',
+                cancellationDate,
+              })
+            }
+          } catch (emailError: any) {
+            console.error('[Stripe Webhook] Failed to send cancellation email:', emailError.message)
+            // Don't fail the webhook if email fails
+          }
         }
 
         break
@@ -381,6 +440,28 @@ export async function POST(request: NextRequest) {
             totalAllowed: 3,
             invoiceId: invoice.id,
           })
+        }
+        
+        // Send payment failed email
+        try {
+          const userResult = await db.query(
+            'SELECT email FROM users WHERE id = $1',
+            [userId]
+          )
+          const userEmail = userResult.rows[0]?.email
+          
+          if (userEmail) {
+            await sendPaymentFailedEmail(userEmail, {
+              amount: invoice.amount_due || 0,
+              currency: invoice.currency?.toUpperCase() || 'USD',
+              planName: 'PolyTrade Pro',
+              attemptNumber: failedCount + 1,
+              maxAttempts: 3,
+            })
+          }
+        } catch (emailError: any) {
+          console.error('[Stripe Webhook] Failed to send payment failed email:', emailError.message)
+          // Don't fail the webhook if email fails
         }
 
         break
