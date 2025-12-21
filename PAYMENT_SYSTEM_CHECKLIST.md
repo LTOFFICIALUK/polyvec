@@ -24,16 +24,12 @@
 - Cleans up URL by removing query params after handling
 
 ### 2. Add Environment Variables to Vercel
-**Status**: ❌ Missing
-**What to do**:
-- Go to Vercel Dashboard > Your Project > Settings > Environment Variables
-- Add all Stripe keys:
-  - `STRIPE_SECRET_KEY`
-  - `STRIPE_PUBLISHABLE_KEY`
-  - `STRIPE_WEBHOOK_SECRET`
-  - `PAYMENT_VERIFICATION_SECRET`
-  - `SYSTEM_TOKEN`
-  - `NEXT_PUBLIC_BASE_URL` (or let Vercel auto-set VERCEL_URL)
+**Status**: ✅ COMPLETED (user confirmed)
+**What was done**:
+- All Stripe keys added to Vercel
+- Payment verification secrets added
+- System tokens added
+- Base URL configured
 
 ### 3. Test Webhook Endpoint
 **Status**: ⚠️ Needs Testing
@@ -99,8 +95,8 @@
 ## 📋 Immediate Action Items
 
 1. ✅ **Add success/cancel handling to terminal page** - COMPLETED
-2. **Add environment variables to Vercel** (5 min) - ⚠️ REQUIRED
-3. **Test webhook in production** (10 min) - ⚠️ REQUIRED
+2. ✅ **Add environment variables to Vercel** - COMPLETED
+3. **Test webhook in production** (10 min) - ⚠️ REQUIRED - NEXT STEP
 4. ✅ **Add subscription management UI** - COMPLETED
 
 ## 🧪 Testing Checklist
