@@ -137,23 +137,60 @@ export async function GET(request: NextRequest) {
 
     // Helper to convert database date to ISO string
     const convertDbDate = (dateValue: any): string | null => {
-      if (!dateValue) return null
-      try {
-        // If it's already an ISO string, return it
-        if (typeof dateValue === 'string' && dateValue.includes('T')) {
-          const date = new Date(dateValue)
-          if (!isNaN(date.getTime()) && date.getTime() > 0) {
-            return dateValue
-          }
-        }
-        // Otherwise, try to convert it
-        const date = new Date(dateValue)
-        if (!isNaN(date.getTime()) && date.getTime() > 0) {
-          return date.toISOString()
-        }
+      if (!dateValue) {
+        console.log('[Get Subscription] convertDbDate: dateValue is null/undefined')
         return null
+      }
+      
+      console.log('[Get Subscription] convertDbDate input:', {
+        value: dateValue,
+        type: typeof dateValue,
+        isDate: dateValue instanceof Date,
+        constructor: dateValue?.constructor?.name,
+      })
+      
+      try {
+        let date: Date
+        
+        // Handle different input types
+        if (dateValue instanceof Date) {
+          // Already a Date object
+          date = dateValue
+        } else if (typeof dateValue === 'string') {
+          // String - could be ISO string or PostgreSQL timestamp
+          date = new Date(dateValue)
+        } else if (typeof dateValue === 'number') {
+          // Number - could be timestamp in seconds or milliseconds
+          date = dateValue > 1000000000000 
+            ? new Date(dateValue) // milliseconds
+            : new Date(dateValue * 1000) // seconds
+        } else {
+          // Try to convert whatever it is
+          date = new Date(dateValue)
+        }
+        
+        // Validate the date
+        if (isNaN(date.getTime())) {
+          console.warn('[Get Subscription] convertDbDate: Invalid date after conversion', dateValue)
+          return null
+        }
+        
+        // Check if it's epoch (Jan 1, 1970)
+        if (date.getTime() === 0) {
+          console.warn('[Get Subscription] convertDbDate: Date is epoch (0)', dateValue)
+          return null
+        }
+        
+        const isoString = date.toISOString()
+        console.log('[Get Subscription] convertDbDate success:', {
+          input: dateValue,
+          output: isoString,
+          date: date.toString(),
+        })
+        
+        return isoString
       } catch (error) {
-        console.warn('[Get Subscription] Error converting database date:', dateValue, error)
+        console.error('[Get Subscription] Error converting database date:', dateValue, error)
         return null
       }
     }
