@@ -14,9 +14,9 @@ STRIPE_WEBHOOK_SECRET=whsec_... # Get from Stripe Dashboard > Webhooks > Your en
 # ============================================
 # PAYMENT VERIFICATION SECRETS
 # ============================================
-# Generated secure tokens (already generated for you):
-PAYMENT_VERIFICATION_SECRET=xEM9TdYJP/jNfdv5FikRolnayYlOrtTXgilIoRpIEIU=
-SYSTEM_TOKEN=SWpLHR0b1vn4n48W97NwsOzSFTlhhLyGoDHC6xwUVgA=
+# Generated secure tokens (generate with: openssl rand -base64 32):
+PAYMENT_VERIFICATION_SECRET=<generate-with-openssl-rand-base64-32>
+SYSTEM_TOKEN=<generate-with-openssl-rand-base64-32>
 
 # ============================================
 # BASE URL (for Stripe redirects)
@@ -51,8 +51,8 @@ NEXT_PUBLIC_BASE_URL=https://yourdomain.com
 4. **Run Database Migration** (for payments table):
    ```bash
    # On VPS
-   ssh root@206.189.70.100
-   PGPASSWORD='6Te4WfZi*V/r' psql -h localhost -U polytrade -d polytrade -f database/migrations/007_add_payments_table.sql
+   ssh root@<your-vps-ip>
+   PGPASSWORD='<your-db-password>' psql -h localhost -U polytrade -d polytrade -f database/migrations/007_add_payments_table.sql
    ```
 
 5. **Test the Integration**:

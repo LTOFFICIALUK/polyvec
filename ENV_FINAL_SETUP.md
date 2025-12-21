@@ -15,8 +15,8 @@ STRIPE_WEBHOOK_SECRET=whsec_... # Your webhook secret from Stripe dashboard
 # ============================================
 # PAYMENT VERIFICATION SECRETS
 # ============================================
-PAYMENT_VERIFICATION_SECRET=xEM9TdYJP/jNfdv5FikRolnayYlOrtTXgilIoRpIEIU=
-SYSTEM_TOKEN=SWpLHR0b1vn4n48W97NwsOzSFTlhhLyGoDHC6xwUVgA=
+PAYMENT_VERIFICATION_SECRET=<generate-with-openssl-rand-base64-32>
+SYSTEM_TOKEN=<generate-with-openssl-rand-base64-32>
 
 # ============================================
 # BASE URL (for Stripe redirects)
@@ -27,7 +27,7 @@ NEXT_PUBLIC_BASE_URL=https://polyvec.com
 ## ✅ What's Configured
 
 - **Stripe Keys**: ✅ Added
-- **Webhook Secret**: ✅ `whsec_7efEeD8eauQwebiM0A5TTuGldlPeVSpO`
+- **Webhook Secret**: ✅ Get from Stripe Dashboard after setting up webhook
 - **Webhook URL**: ✅ `https://polyvec.com/api/stripe/webhook`
 - **Base URL**: ✅ `https://polyvec.com`
 - **Security Tokens**: ✅ Generated and ready
@@ -38,8 +38,8 @@ NEXT_PUBLIC_BASE_URL=https://polyvec.com
 
 2. **Run database migration** (for payments table):
    ```bash
-   ssh root@206.189.70.100
-   PGPASSWORD='6Te4WfZi*V/r' psql -h localhost -U polytrade -d polytrade -f database/migrations/007_add_payments_table.sql
+   ssh root@<your-vps-ip>
+   PGPASSWORD='<your-db-password>' psql -h localhost -U polytrade -d polytrade -f database/migrations/007_add_payments_table.sql
    ```
 
 3. **Deploy to production** (if not already deployed)
@@ -66,7 +66,7 @@ NEXT_PUBLIC_BASE_URL=https://polyvec.com
 ## 📝 Webhook Details
 
 - **Name**: polyvec-payments
-- **Destination ID**: we_1SgpbkH3Qk6brCbgMg9BLdpV
+- **Destination ID**: Get from Stripe Dashboard
 - **URL**: https://polyvec.com/api/stripe/webhook
 - **Events**: 
   - checkout.session.completed

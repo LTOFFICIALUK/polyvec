@@ -35,13 +35,13 @@ A webhook is how Stripe tells your server "Hey, someone just paid!" so your serv
 
 ### PAYMENT_VERIFICATION_SECRET
 - **What it is**: A secret token to verify payments are legitimate
-- **Already generated**: `xEM9TdYJP/jNfdv5FikRolnayYlOrtTXgilIoRpIEIU=`
+- **Generate with**: `openssl rand -base64 32`
 - **What it does**: Prevents fake payment requests from upgrading users
 - **Just add it to `.env.local`** - no setup needed!
 
 ### SYSTEM_TOKEN
 - **What it is**: A secret token for system/admin operations
-- **Already generated**: `SWpLHR0b1vn4n48W97NwsOzSFTlhhLyGoDHC6xwUVgA=`
+- **Generate with**: `openssl rand -base64 32`
 - **What it does**: Allows automated system processes to downgrade users (e.g., when subscription expires)
 - **Just add it to `.env.local`** - no setup needed!
 
@@ -63,9 +63,9 @@ STRIPE_SECRET_KEY=sk_live_... # Your Stripe secret key
 STRIPE_PUBLISHABLE_KEY=pk_live_... # Your Stripe publishable key
 STRIPE_WEBHOOK_SECRET=whsec_... # Get this from Stripe Dashboard after setting up webhook
 
-# Generated Security Tokens (already created for you)
-PAYMENT_VERIFICATION_SECRET=xEM9TdYJP/jNfdv5FikRolnayYlOrtTXgilIoRpIEIU=
-SYSTEM_TOKEN=SWpLHR0b1vn4n48W97NwsOzSFTlhhLyGoDHC6xwUVgA=
+# Generated Security Tokens (generate with: openssl rand -base64 32)
+PAYMENT_VERIFICATION_SECRET=<generate-with-openssl-rand-base64-32>
+SYSTEM_TOKEN=<generate-with-openssl-rand-base64-32>
 
 # Base URL (optional - set if you have a custom domain)
 NEXT_PUBLIC_BASE_URL=https://yourdomain.com
