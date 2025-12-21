@@ -26,10 +26,12 @@ const getStripe = () => {
  * Gets the current user's subscription details
  */
 export async function GET(request: NextRequest) {
+  console.log('[Get Subscription] ====== ENDPOINT CALLED ======')
   try {
     const token = request.cookies.get('auth-token')?.value
 
     if (!token) {
+      console.log('[Get Subscription] No auth token found')
       return NextResponse.json(
         { error: 'Not authenticated' },
         { status: 401 }
@@ -39,6 +41,7 @@ export async function GET(request: NextRequest) {
     // Verify token and get userId
     const { payload } = await jwtVerify(token, secret)
     const userId = payload.userId as number
+    console.log('[Get Subscription] User ID:', userId)
 
     const db = getDbPool()
 
