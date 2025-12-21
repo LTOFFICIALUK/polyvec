@@ -79,13 +79,20 @@ export default function PlanSelectionModal({ isOpen, onClose }: PlanSelectionMod
       // Parse the date string (handles both ISO strings and timestamps)
       const date = new Date(dateString)
       
-      // Check if date is valid
-      if (isNaN(date.getTime())) {
-        console.error('Invalid date:', dateString)
+      // Check if date is valid and not epoch (Jan 1, 1970)
+      if (isNaN(date.getTime()) || date.getTime() === 0) {
+        console.error('Invalid date or epoch:', dateString)
         return null
       }
       
-      // Format in user's local timezone (removed UTC timezone to show actual date)
+      // Check if date is in the past (more than 1 day ago) - likely invalid
+      const oneDayAgo = Date.now() - (24 * 60 * 60 * 1000)
+      if (date.getTime() < oneDayAgo) {
+        console.warn('Date is in the past, likely invalid:', dateString, date.toISOString())
+        return null
+      }
+      
+      // Format in user's local timezone
       return date.toLocaleDateString('en-US', { 
         year: 'numeric', 
         month: 'long', 
@@ -339,17 +346,17 @@ export default function PlanSelectionModal({ isOpen, onClose }: PlanSelectionMod
                   <h3 className="text-xl font-bold text-white mb-2">Pro</h3>
                   <p className="text-3xl font-bold text-gold-primary mb-1">$49</p>
                   <p className="text-sm text-gray-400">Per month</p>
-                  {subscription && subscription.status === 'active' && (
+                  {subscription && subscription.status === 'active' && subscription.currentPeriodEnd && (
                     <div className="mt-3 pt-3 border-t border-gray-700/50">
                       {subscription.cancelAtPeriodEnd ? (
                         <p className="text-xs text-yellow-400">
                           Cancels on {formatDate(subscription.currentPeriodEnd)}
                         </p>
-                      ) : subscription.currentPeriodEnd ? (
+                      ) : (
                         <p className="text-xs text-gray-400">
                           Renews on {formatDate(subscription.currentPeriodEnd)}
                         </p>
-                      ) : null}
+                      )}
                     </div>
                   )}
                   {subscription && subscription.status === 'past_due' && (

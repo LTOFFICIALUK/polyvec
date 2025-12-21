@@ -77,42 +77,88 @@ export async function GET(request: NextRequest) {
       try {
         const stripe = getStripe()
         stripeSubscription = await stripe.subscriptions.retrieve(dbSubscription.subscription_id)
+        console.log('[Get Subscription] Stripe subscription data:', {
+          subscription_id: stripeSubscription.id,
+          current_period_end: stripeSubscription.current_period_end,
+          current_period_start: stripeSubscription.current_period_start,
+          status: stripeSubscription.status,
+        })
       } catch (error: any) {
         console.warn('[Get Subscription] Failed to fetch from Stripe:', error.message)
         // Fall back to database data if Stripe fetch fails
       }
     }
 
+    // Helper to convert Stripe timestamp to ISO string
+    const convertStripeTimestamp = (timestamp: number | null | undefined): string | null => {
+      if (!timestamp || timestamp === 0) {
+        console.warn('[Get Subscription] Missing or zero timestamp:', timestamp)
+        return null
+      }
+      try {
+        // Stripe timestamps are in seconds, convert to milliseconds
+        const date = new Date(timestamp * 1000)
+        if (isNaN(date.getTime())) {
+          console.error('[Get Subscription] Invalid timestamp:', timestamp)
+          return null
+        }
+        // Check if date is epoch (Jan 1, 1970) - indicates invalid timestamp
+        if (date.getTime() === 0) {
+          console.error('[Get Subscription] Timestamp is epoch (0):', timestamp)
+          return null
+        }
+        return date.toISOString()
+      } catch (error) {
+        console.error('[Get Subscription] Error converting timestamp:', timestamp, error)
+        return null
+      }
+    }
+
+    // Helper to check if database date is valid
+    const isValidDate = (dateValue: any): boolean => {
+      if (!dateValue) return false
+      const date = new Date(dateValue)
+      return !isNaN(date.getTime()) && date.getTime() > 0
+    }
+
     // Use Stripe data if available, otherwise use database data
-    const subscription = stripeSubscription 
-      ? {
-          id: dbSubscription.id,
-          planTier: dbSubscription.plan_tier,
-          subscriptionId: dbSubscription.subscription_id,
-          status: stripeSubscription.status,
-          currentPeriodStart: stripeSubscription.current_period_start 
-            ? new Date(stripeSubscription.current_period_start * 1000).toISOString()
-            : dbSubscription.current_period_start,
-          currentPeriodEnd: stripeSubscription.current_period_end
-            ? new Date(stripeSubscription.current_period_end * 1000).toISOString()
-            : dbSubscription.current_period_end,
-          cancelAtPeriodEnd: stripeSubscription.cancel_at_period_end ?? dbSubscription.cancel_at_period_end,
-          cancelledAt: dbSubscription.cancelled_at,
-          createdAt: dbSubscription.created_at,
-          updatedAt: dbSubscription.updated_at,
-        }
-      : {
-          id: dbSubscription.id,
-          planTier: dbSubscription.plan_tier,
-          subscriptionId: dbSubscription.subscription_id,
-          status: dbSubscription.status,
-          currentPeriodStart: dbSubscription.current_period_start,
-          currentPeriodEnd: dbSubscription.current_period_end,
-          cancelAtPeriodEnd: dbSubscription.cancel_at_period_end,
-          cancelledAt: dbSubscription.cancelled_at,
-          createdAt: dbSubscription.created_at,
-          updatedAt: dbSubscription.updated_at,
-        }
+    let currentPeriodEnd: string | null = null
+    let currentPeriodStart: string | null = null
+
+    if (stripeSubscription) {
+      // Prefer Stripe data (most accurate)
+      currentPeriodEnd = convertStripeTimestamp(stripeSubscription.current_period_end)
+      currentPeriodStart = convertStripeTimestamp(stripeSubscription.current_period_start)
+      
+      // Fall back to database if Stripe conversion failed
+      if (!currentPeriodEnd && isValidDate(dbSubscription.current_period_end)) {
+        currentPeriodEnd = dbSubscription.current_period_end
+      }
+      if (!currentPeriodStart && isValidDate(dbSubscription.current_period_start)) {
+        currentPeriodStart = dbSubscription.current_period_start
+      }
+    } else {
+      // Use database data
+      currentPeriodEnd = isValidDate(dbSubscription.current_period_end) 
+        ? dbSubscription.current_period_end 
+        : null
+      currentPeriodStart = isValidDate(dbSubscription.current_period_start)
+        ? dbSubscription.current_period_start
+        : null
+    }
+
+    const subscription = {
+      id: dbSubscription.id,
+      planTier: dbSubscription.plan_tier,
+      subscriptionId: dbSubscription.subscription_id,
+      status: stripeSubscription?.status || dbSubscription.status,
+      currentPeriodStart,
+      currentPeriodEnd,
+      cancelAtPeriodEnd: stripeSubscription?.cancel_at_period_end ?? dbSubscription.cancel_at_period_end,
+      cancelledAt: dbSubscription.cancelled_at,
+      createdAt: dbSubscription.created_at,
+      updatedAt: dbSubscription.updated_at,
+    }
 
     return NextResponse.json({
       subscription,
