@@ -4,12 +4,24 @@ import Stripe from 'stripe'
 
 export const dynamic = 'force-dynamic'
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2025-12-15.clover',
-})
+// Initialize Stripe (lazy initialization to avoid build-time errors)
+const getStripe = () => {
+  const secretKey = process.env.STRIPE_SECRET_KEY
+  if (!secretKey) {
+    throw new Error('STRIPE_SECRET_KEY is not configured')
+  }
+  return new Stripe(secretKey, {
+    apiVersion: '2025-12-15.clover',
+  })
+}
 
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET || ''
+const getWebhookSecret = () => {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET
+  if (!secret) {
+    throw new Error('STRIPE_WEBHOOK_SECRET is not configured')
+  }
+  return secret
+}
 
 /**
  * POST /api/stripe/webhook
@@ -30,9 +42,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Get webhook secret
+    const webhookSecret = getWebhookSecret()
+
     // Verify webhook signature
     let event: Stripe.Event
     try {
+      const stripe = getStripe()
       event = stripe.webhooks.constructEvent(body, signature, webhookSecret)
     } catch (err: any) {
       console.error('[Stripe Webhook] Signature verification failed:', err.message)
@@ -118,6 +134,7 @@ export async function POST(request: NextRequest) {
 
         // Create or update subscription if it's a recurring payment
         if (session.subscription) {
+          const stripe = getStripe()
           const subscriptionId = typeof session.subscription === 'string' 
             ? session.subscription 
             : (session.subscription as any).id

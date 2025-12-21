@@ -8,10 +8,16 @@ const secret = new TextEncoder().encode(
   process.env.JWT_SECRET || 'your-secret-key-change-in-production'
 )
 
-// Initialize Stripe
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
-  apiVersion: '2025-12-15.clover',
-})
+// Initialize Stripe (lazy initialization to avoid build-time errors)
+const getStripe = () => {
+  const secretKey = process.env.STRIPE_SECRET_KEY
+  if (!secretKey) {
+    throw new Error('STRIPE_SECRET_KEY is not configured')
+  }
+  return new Stripe(secretKey, {
+    apiVersion: '2025-12-15.clover',
+  })
+}
 
 /**
  * POST /api/stripe/create-checkout
@@ -58,6 +64,9 @@ export async function POST(request: NextRequest) {
     }
 
     const userEmail = userResult.rows[0].email
+
+    // Initialize Stripe
+    const stripe = getStripe()
 
     // Create Stripe Checkout Session
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
