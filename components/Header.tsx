@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useWallet } from '@/contexts/WalletContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePlanModal } from '@/contexts/PlanModalContext'
 import ConnectWalletModal from './ConnectWalletModal'
 import PolymarketAuthModal from './PolymarketAuthModal'
 import DepositModal from './DepositModal'
@@ -26,7 +27,7 @@ const Header = () => {
   const [showPolymarketAuthModal, setShowPolymarketAuthModal] = useState(false)
   const [showDepositModal, setShowDepositModal] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [showPlanModal, setShowPlanModal] = useState(false)
+  const { isOpen: showPlanModal, openModal: openPlanModal, closeModal: closePlanModal } = usePlanModal()
   const [isProfileMenuVisible, setIsProfileMenuVisible] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement | null>(null)
@@ -516,7 +517,7 @@ const Header = () => {
                     <button
                       onClick={() => {
                         setIsProfileMenuVisible(false)
-                        setShowPlanModal(true)
+                        openPlanModal()
                       }}
                       className="block w-full px-4 py-2.5 text-left text-sm text-gray-200 hover:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-primary transition-colors uppercase tracking-wide"
                       style={{ fontFamily: 'monospace' }}
@@ -582,7 +583,7 @@ const Header = () => {
       {/* Plan Selection Modal */}
       <PlanSelectionModal
         isOpen={showPlanModal}
-        onClose={() => setShowPlanModal(false)}
+        onClose={closePlanModal}
       />
     </header>
   )

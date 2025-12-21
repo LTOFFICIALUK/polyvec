@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useWallet } from '@/contexts/WalletContext'
-import PlanSelectionModal from '@/components/PlanSelectionModal'
+import { usePlanModal } from '@/contexts/PlanModalContext'
 
 interface BalanceData {
   portfolioValue: number
@@ -74,6 +74,7 @@ export default function ProfilePage({
 }) {
   const { address } = params
   const { walletAddress } = useWallet()
+  const { openModal: openPlanModal } = usePlanModal()
   const [balance, setBalance] = useState<BalanceData | null>(null)
   const [positions, setPositions] = useState<Position[]>([])
   const [closedPositions, setClosedPositions] = useState<ClosedPosition[]>([])
@@ -81,7 +82,6 @@ export default function ProfilePage({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copiedAddress, setCopiedAddress] = useState(false)
-  const [showPlanModal, setShowPlanModal] = useState(false)
 
   const isOwnProfile = walletAddress?.toLowerCase() === address.toLowerCase()
 
@@ -301,7 +301,7 @@ export default function ProfilePage({
                     Trade History
                   </Link>
                   <button
-                    onClick={() => setShowPlanModal(true)}
+                    onClick={openPlanModal}
                     className="px-4 py-2 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white rounded text-sm font-medium transition-all duration-200 transform hover:scale-105"
                   >
                     Choose Plan
@@ -512,11 +512,7 @@ export default function ProfilePage({
 
       </div>
 
-      {/* Plan Selection Modal */}
-      <PlanSelectionModal
-        isOpen={showPlanModal}
-        onClose={() => setShowPlanModal(false)}
-      />
+      {/* Plan Selection Modal - handled by Header via context */}
     </div>
   )
 }

@@ -14,6 +14,7 @@ import { TradingProvider, useTradingContext } from '@/contexts/TradingContext'
 import { useWallet } from '@/contexts/WalletContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { usePlanModal } from '@/contexts/PlanModalContext'
 import useCurrentMarket from '@/hooks/useCurrentMarket'
 import { redeemPosition, closePosition } from '@/lib/redeem-positions'
 import { getBrowserProvider, ensurePolygonNetwork } from '@/lib/polymarket-auth'
@@ -68,15 +69,18 @@ function TerminalContent() {
   const { polymarketCredentials } = useWallet()
   const { custodialWallet, refreshCustodialWallet, user, checkAuth } = useAuth()
   const searchParams = useSearchParams()
+  const { openModal: openPlanModal } = usePlanModal()
   
   // Use custodial wallet address
   const walletAddress = custodialWallet?.walletAddress || null
   const { showToast } = useToast()
   const [activeTab, setActiveTab] = useState<'position' | 'orders' | 'history'>('position')
   
-  // Handle upgrade success/cancel redirects
+  // Handle upgrade success/cancel redirects and plan modal opening
   useEffect(() => {
     const upgradeStatus = searchParams.get('upgrade')
+    const openPlanModalParam = searchParams.get('openPlanModal')
+    
     if (upgradeStatus === 'success') {
       showToast('🎉 Payment successful! Your Pro plan is now active.', 'success')
       // Refresh auth to get updated plan
@@ -88,7 +92,14 @@ function TerminalContent() {
       // Remove query param from URL
       window.history.replaceState({}, '', '/terminal')
     }
-  }, [searchParams, showToast, checkAuth])
+    
+    // Open plan modal if query param is present
+    if (openPlanModalParam === 'true') {
+      openPlanModal()
+      // Remove query param from URL
+      window.history.replaceState({}, '', '/terminal')
+    }
+  }, [searchParams, showToast, checkAuth, openPlanModal])
   const [isClaimingPosition, setIsClaimingPosition] = useState<string | null>(null)
   const [showSideBySide, setShowSideBySide] = useState(true) // Default to side-by-side view
   const [hideEnded, setHideEnded] = useState(false) // Toggle to hide ended/closed markets
