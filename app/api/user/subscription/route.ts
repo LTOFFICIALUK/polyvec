@@ -117,8 +117,40 @@ export async function GET(request: NextRequest) {
     // Helper to check if database date is valid
     const isValidDate = (dateValue: any): boolean => {
       if (!dateValue) return false
-      const date = new Date(dateValue)
-      return !isNaN(date.getTime()) && date.getTime() > 0
+      try {
+        const date = new Date(dateValue)
+        const isValid = !isNaN(date.getTime()) && date.getTime() > 0
+        if (!isValid) {
+          console.warn('[Get Subscription] Invalid database date:', dateValue, '->', date.toISOString())
+        }
+        return isValid
+      } catch (error) {
+        console.warn('[Get Subscription] Error parsing database date:', dateValue, error)
+        return false
+      }
+    }
+
+    // Helper to convert database date to ISO string
+    const convertDbDate = (dateValue: any): string | null => {
+      if (!dateValue) return null
+      try {
+        // If it's already an ISO string, return it
+        if (typeof dateValue === 'string' && dateValue.includes('T')) {
+          const date = new Date(dateValue)
+          if (!isNaN(date.getTime()) && date.getTime() > 0) {
+            return dateValue
+          }
+        }
+        // Otherwise, try to convert it
+        const date = new Date(dateValue)
+        if (!isNaN(date.getTime()) && date.getTime() > 0) {
+          return date.toISOString()
+        }
+        return null
+      } catch (error) {
+        console.warn('[Get Subscription] Error converting database date:', dateValue, error)
+        return null
+      }
     }
 
     // Use Stripe data if available, otherwise use database data
@@ -130,21 +162,29 @@ export async function GET(request: NextRequest) {
       currentPeriodEnd = convertStripeTimestamp(stripeSubscription.current_period_end)
       currentPeriodStart = convertStripeTimestamp(stripeSubscription.current_period_start)
       
+      console.log('[Get Subscription] Stripe conversion result:', {
+        periodEnd: currentPeriodEnd,
+        periodStart: currentPeriodStart,
+      })
+      
       // Fall back to database if Stripe conversion failed
-      if (!currentPeriodEnd && isValidDate(dbSubscription.current_period_end)) {
-        currentPeriodEnd = dbSubscription.current_period_end
+      if (!currentPeriodEnd) {
+        currentPeriodEnd = convertDbDate(dbSubscription.current_period_end)
+        console.log('[Get Subscription] Using database periodEnd:', currentPeriodEnd)
       }
-      if (!currentPeriodStart && isValidDate(dbSubscription.current_period_start)) {
-        currentPeriodStart = dbSubscription.current_period_start
+      if (!currentPeriodStart) {
+        currentPeriodStart = convertDbDate(dbSubscription.current_period_start)
+        console.log('[Get Subscription] Using database periodStart:', currentPeriodStart)
       }
     } else {
       // Use database data
-      currentPeriodEnd = isValidDate(dbSubscription.current_period_end) 
-        ? dbSubscription.current_period_end 
-        : null
-      currentPeriodStart = isValidDate(dbSubscription.current_period_start)
-        ? dbSubscription.current_period_start
-        : null
+      console.log('[Get Subscription] No Stripe subscription, using database data')
+      currentPeriodEnd = convertDbDate(dbSubscription.current_period_end)
+      currentPeriodStart = convertDbDate(dbSubscription.current_period_start)
+      console.log('[Get Subscription] Database dates:', {
+        periodEnd: currentPeriodEnd,
+        periodStart: currentPeriodStart,
+      })
     }
 
     const subscription = {
