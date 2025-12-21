@@ -8,7 +8,7 @@ set -e
 DB_HOST="${DB_HOST:-206.189.70.100}"
 DB_USER="${DB_USER:-polytrade}"
 DB_NAME="${DB_NAME:-polytrade}"
-TRADING_KEY_SECRET="a18192d1f072a905a934c3c6f486fe62aadcfc0abc18fdc1098a62d27257d1db"
+TRADING_KEY_SECRET="<YOUR_TRADING_KEY_SECRET>"
 
 echo "🚀 Complete Custodial Wallet Setup"
 echo "===================================="

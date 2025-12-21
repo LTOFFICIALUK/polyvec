@@ -3,10 +3,10 @@
 # Script to set up VPS database connection in .env.local
 # This will add/update the DATABASE_URL for the VPS
 
-VPS_IP="206.189.70.100"
+VPS_IP="<YOUR_VPS_IP>"
 DB_USER="polytrade"
 DB_NAME="polytrade"
-DB_PASSWORD="6Te4WfZi*V/r"
+DB_PASSWORD="<YOUR_DB_PASSWORD>"
 
 # URL encode the password (replace * with %2A and / with %2F)
 ENCODED_PASSWORD=$(echo "$DB_PASSWORD" | sed 's/\*/%2A/g' | sed 's/\//%2F/g')
@@ -54,7 +54,7 @@ echo ""
 echo "✓ Database connection configured!"
 echo ""
 echo "DATABASE_URL has been set to:"
-echo "postgresql://${DB_USER}:***@${VPS_IP}:5432/${DB_NAME}"
+echo "postgresql://${DB_USER}:***@<YOUR_VPS_IP>:5432/${DB_NAME}"
 echo ""
 echo "Next steps:"
 echo "1. Make sure PostgreSQL is running on the VPS"

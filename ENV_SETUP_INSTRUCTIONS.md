@@ -5,7 +5,7 @@
 Using your existing TRADING_KEY_SECRET:
 
 ```
-TRADING_KEY_SECRET=a18192d1f072a905a934c3c6f486fe62aadcfc0abc18fdc1098a62d27257d1db
+TRADING_KEY_SECRET=<YOUR_TRADING_KEY_SECRET>
 ```
 
 ## Local Development (.env.local)

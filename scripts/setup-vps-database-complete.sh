@@ -3,11 +3,11 @@
 # Complete VPS Database Setup Script
 # This script sets up PostgreSQL, creates the database, user, and runs migrations
 
-VPS_IP="206.189.70.100"
+VPS_IP="<YOUR_VPS_IP>"
 DB_USER="polytrade"
 DB_NAME="polytrade"
-DB_PASSWORD="6Te4WfZi*V/r"
-SSH_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFmlZdeNLM+kUP1MphMWK4eYD948vZuq7bXTUsZXsNE3 BLclipproject@gmail.com"
+DB_PASSWORD="<YOUR_DB_PASSWORD>"
+SSH_KEY="<YOUR_SSH_PUBLIC_KEY>"
 
 echo "=========================================="
 echo "VPS Database Setup Script"

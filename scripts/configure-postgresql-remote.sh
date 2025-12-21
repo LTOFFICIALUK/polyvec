@@ -88,5 +88,5 @@ echo ""
 echo "✓ Configuration complete!"
 echo ""
 echo "Test the connection with:"
-echo "psql 'postgresql://polytrade:6Te4WfZi%2AV%2Fr@206.189.70.100:5432/polytrade'"
+echo "psql 'postgresql://polytrade:<YOUR_PASSWORD_URL_ENCODED>@<YOUR_VPS_IP>:5432/polytrade'"
 

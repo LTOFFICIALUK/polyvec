@@ -8,7 +8,7 @@ const { decryptPrivateKey } = require('./lib/wallet-vault')
 const ethers = require('ethers')
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://polytrade:6Te4WfZi*V/r@206.189.70.100:5432/polytrade',
+  connectionString: process.env.DATABASE_URL || 'postgresql://polytrade:<YOUR_PASSWORD>@<YOUR_VPS_IP>:5432/polytrade',
   ssl: { rejectUnauthorized: false }
 })
 
@@ -73,7 +73,8 @@ async function testDecryption() {
 }
 
 // Set environment variable for decryption
-process.env.TRADING_KEY_SECRET = process.env.TRADING_KEY_SECRET || 'a18192d1f072a905a934c3c6f486fe62aadcfc0abc18fdc1098a62d27257d1db'
+// WARNING: This is a test script. In production, use environment variable only.
+process.env.TRADING_KEY_SECRET = process.env.TRADING_KEY_SECRET || '<YOUR_TRADING_KEY_SECRET>'
 
 testDecryption()
 

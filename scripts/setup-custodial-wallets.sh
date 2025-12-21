@@ -26,7 +26,7 @@ if [ -z "$TRADING_KEY_SECRET" ]; then
     echo "⚠️  TRADING_KEY_SECRET not set in environment"
     echo ""
     echo "Using existing secret (add this to your .env.local and VPS environment):"
-    echo "TRADING_KEY_SECRET=a18192d1f072a905a934c3c6f486fe62aadcfc0abc18fdc1098a62d27257d1db"
+    echo "TRADING_KEY_SECRET=<YOUR_TRADING_KEY_SECRET>"
     echo ""
     read -p "Press Enter to continue after adding TRADING_KEY_SECRET to your environment..."
 else

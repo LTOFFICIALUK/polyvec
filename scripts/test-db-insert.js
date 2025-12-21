@@ -2,8 +2,8 @@
 const { Pool } = require('pg')
 const bcrypt = require('bcryptjs')
 
-// URL encode password: 6Te4WfZi*V/r -> 6Te4WfZi%2AV%2Fr
-const DATABASE_URL = 'postgresql://polytrade:6Te4WfZi%2AV%2Fr@206.189.70.100:5432/polytrade'
+// URL encode password: Replace * with %2A and / with %2F
+const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://polytrade:<YOUR_PASSWORD_URL_ENCODED>@<YOUR_VPS_IP>:5432/polytrade'
 
 const pool = new Pool({
   connectionString: DATABASE_URL,

@@ -3,7 +3,7 @@
 # Script to set TRADING_KEY_SECRET on VPS
 # Run this on your VPS or use the commands manually
 
-TRADING_KEY_SECRET="a18192d1f072a905a934c3c6f486fe62aadcfc0abc18fdc1098a62d27257d1db"
+TRADING_KEY_SECRET="<YOUR_TRADING_KEY_SECRET>"
 
 echo "🔐 Setting TRADING_KEY_SECRET on VPS"
 echo "====================================="

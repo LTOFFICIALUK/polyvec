@@ -14,7 +14,7 @@ Add these to your `.env.local` file:
 
 ```env
 # Database connection (VPS)
-DATABASE_URL=postgresql://polytrade:6Te4WfZi*V/r@206.189.70.100:5432/polytrade
+DATABASE_URL=postgresql://polytrade:<YOUR_PASSWORD>@<YOUR_VPS_IP>:5432/polytrade
 
 # JWT Secret (change this to a secure random string in production)
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
@@ -27,14 +27,14 @@ JWT_SECRET=your-super-secret-jwt-key-change-in-production
 SSH into your VPS and run:
 
 ```bash
-ssh root@206.189.70.100
+   ssh root@<YOUR_VPS_IP>
 
 # Connect to PostgreSQL
 sudo -u postgres psql
 
 # Create database and user (if not exists)
 CREATE DATABASE polytrade;
-CREATE USER polytrade WITH PASSWORD '6Te4WfZi*V/r';
+CREATE USER polytrade WITH PASSWORD '<YOUR_DB_PASSWORD>';
 GRANT ALL PRIVILEGES ON DATABASE polytrade TO polytrade;
 \q
 
@@ -205,7 +205,7 @@ Add these to your `.env.local` file:
 
 ```env
 # Database connection (VPS)
-DATABASE_URL=postgresql://polytrade:6Te4WfZi*V/r@206.189.70.100:5432/polytrade
+DATABASE_URL=postgresql://polytrade:<YOUR_PASSWORD>@<YOUR_VPS_IP>:5432/polytrade
 
 # JWT Secret (change this to a secure random string in production)
 JWT_SECRET=your-super-secret-jwt-key-change-in-production
@@ -218,14 +218,14 @@ JWT_SECRET=your-super-secret-jwt-key-change-in-production
 SSH into your VPS and run:
 
 ```bash
-ssh root@206.189.70.100
+   ssh root@<YOUR_VPS_IP>
 
 # Connect to PostgreSQL
 sudo -u postgres psql
 
 # Create database and user (if not exists)
 CREATE DATABASE polytrade;
-CREATE USER polytrade WITH PASSWORD '6Te4WfZi*V/r';
+CREATE USER polytrade WITH PASSWORD '<YOUR_DB_PASSWORD>';
 GRANT ALL PRIVILEGES ON DATABASE polytrade TO polytrade;
 \q
 

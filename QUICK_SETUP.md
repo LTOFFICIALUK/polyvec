@@ -55,7 +55,7 @@ SSH into your VPS and set the environment variable:
 ssh root@206.189.70.100
 
 # Add to environment
-export TRADING_KEY_SECRET=a18192d1f072a905a934c3c6f486fe62aadcfc0abc18fdc1098a62d27257d1db
+export TRADING_KEY_SECRET=<YOUR_TRADING_KEY_SECRET>
 
 # Or add to your app's .env file or systemd service
 ```

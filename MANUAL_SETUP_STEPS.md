@@ -47,13 +47,13 @@ Then run ONE of these options:
 
 ### Option A: Add to .bashrc (Recommended - Persistent)
 ```bash
-echo 'export TRADING_KEY_SECRET=a18192d1f072a905a934c3c6f486fe62aadcfc0abc18fdc1098a62d27257d1db' >> ~/.bashrc
+echo 'export TRADING_KEY_SECRET=<YOUR_TRADING_KEY_SECRET>' >> ~/.bashrc
 source ~/.bashrc
 ```
 
 ### Option B: Export for current session
 ```bash
-export TRADING_KEY_SECRET=a18192d1f072a905a934c3c6f486fe62aadcfc0abc18fdc1098a62d27257d1db
+export TRADING_KEY_SECRET=<YOUR_TRADING_KEY_SECRET>
 ```
 
 ### Option C: Add to systemd service (if using systemd)
@@ -64,7 +64,7 @@ nano /etc/systemd/system/your-app.service
 
 Add this line in the `[Service]` section:
 ```
-Environment="TRADING_KEY_SECRET=a18192d1f072a905a934c3c6f486fe62aadcfc0abc18fdc1098a62d27257d1db"
+Environment="TRADING_KEY_SECRET=<YOUR_TRADING_KEY_SECRET>"
 ```
 
 Then reload:
@@ -95,7 +95,7 @@ After completing all steps:
    ```bash
    echo $TRADING_KEY_SECRET
    ```
-   Should output: `a18192d1f072a905a934c3c6f486fe62aadcfc0abc18fdc1098a62d27257d1db`
+   Should output: `<YOUR_TRADING_KEY_SECRET>`
 
 ## 🎯 Ready to Test
 

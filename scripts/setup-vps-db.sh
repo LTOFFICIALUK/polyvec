@@ -34,7 +34,7 @@ ssh -o StrictHostKeyChecking=no root@${VPS_IP} << 'ENDSSH'
     DO \$\$
     BEGIN
       IF NOT EXISTS (SELECT FROM pg_user WHERE usename = 'polytrade') THEN
-        CREATE USER polytrade WITH PASSWORD '6Te4WfZi*V/r';
+        CREATE USER polytrade WITH PASSWORD '<YOUR_DB_PASSWORD>';
       END IF;
     END
     \$\$;

@@ -6,17 +6,17 @@ The VPS database has been successfully configured and is ready to use for login/
 
 ## Connection Details
 
-- **Host**: 206.189.70.100
+- **Host**: <YOUR_VPS_IP>
 - **Port**: 5432
 - **Database**: polytrade
 - **User**: polytrade
-- **Password**: 6Te4WfZi*V/r
+- **Password**: <YOUR_DB_PASSWORD>
 
 ## Connection String
 
 The `DATABASE_URL` in `.env.local` is set to:
 ```
-postgresql://polytrade:6Te4WfZi%2AV%2Fr@206.189.70.100:5432/polytrade
+postgresql://polytrade:<YOUR_PASSWORD_URL_ENCODED>@<YOUR_VPS_IP>:5432/polytrade
 ```
 
 (Password is URL-encoded: `*` → `%2A`, `/` → `%2F`)
@@ -72,7 +72,7 @@ The connection has been tested and verified:
 
 3. **Verify in database** (optional):
    ```bash
-   ssh root@206.189.70.100
+   ssh root@<YOUR_VPS_IP>
    sudo -u postgres psql -d polytrade
    SELECT * FROM users;
    SELECT * FROM email_list;
@@ -84,12 +84,12 @@ If you encounter connection issues:
 
 1. **Check PostgreSQL is running**:
    ```bash
-   ssh root@206.189.70.100 "systemctl status postgresql"
+   ssh root@<YOUR_VPS_IP> "systemctl status postgresql"
    ```
 
 2. **Check firewall**:
    ```bash
-   ssh root@206.189.70.100 "ufw status | grep 5432"
+   ssh root@<YOUR_VPS_IP> "ufw status | grep 5432"
    ```
 
 3. **Test connection manually**:
