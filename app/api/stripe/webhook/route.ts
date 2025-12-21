@@ -143,6 +143,14 @@ export async function POST(request: NextRequest) {
           // Type assertion for subscription properties (Stripe types can be inconsistent)
           const subData = subscription as any
           
+          // Convert Stripe timestamps to Date objects, only if valid
+          const periodStart = subData.current_period_start && subData.current_period_start > 0
+            ? new Date(subData.current_period_start * 1000)
+            : null
+          const periodEnd = subData.current_period_end && subData.current_period_end > 0
+            ? new Date(subData.current_period_end * 1000)
+            : null
+
           await db.query(
             `INSERT INTO subscriptions (
               user_id,
@@ -167,8 +175,8 @@ export async function POST(request: NextRequest) {
               subscription.id,
               'stripe',
               subscription.status,
-              new Date((subData.current_period_start || 0) * 1000),
-              new Date((subData.current_period_end || 0) * 1000),
+              periodStart,
+              periodEnd,
               subData.cancel_at_period_end || false,
             ]
           )
@@ -205,20 +213,28 @@ export async function POST(request: NextRequest) {
           userId = subResult.rows[0].user_id.toString()
         }
 
+        // Convert Stripe timestamps to Date objects, only if valid
+        const periodStart = subData.current_period_start && subData.current_period_start > 0
+          ? new Date(subData.current_period_start * 1000)
+          : null
+        const periodEnd = subData.current_period_end && subData.current_period_end > 0
+          ? new Date(subData.current_period_end * 1000)
+          : null
+
         // Update subscription status
         await db.query(
           `UPDATE subscriptions 
            SET status = $1,
-               current_period_start = $2,
-               current_period_end = $3,
+               current_period_start = COALESCE($2, current_period_start),
+               current_period_end = COALESCE($3, current_period_end),
                cancel_at_period_end = $4,
-               cancelled_at = CASE WHEN $1 = 'canceled' THEN CURRENT_TIMESTAMP ELSE cancelled_at END,
+               cancelled_at = CASE WHEN $1 IN ('canceled', 'cancelled') THEN CURRENT_TIMESTAMP ELSE cancelled_at END,
                updated_at = CURRENT_TIMESTAMP
            WHERE subscription_id = $5`,
           [
             subscription.status,
-            new Date((subData.current_period_start || 0) * 1000),
-            new Date((subData.current_period_end || 0) * 1000),
+            periodStart,
+            periodEnd,
             subData.cancel_at_period_end || false,
             subscription.id,
           ]
