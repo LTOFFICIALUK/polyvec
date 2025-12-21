@@ -259,11 +259,20 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Prioritize database status if it's 'past_due' (for testing scenarios)
+    // Otherwise, use Stripe status if available, then fall back to database
+    let finalStatus = dbSubscription.status
+    if (stripeSubscription?.status && dbSubscription.status !== 'past_due') {
+      // Only use Stripe status if database status is not 'past_due'
+      // This allows testing payment failures by setting database to 'past_due'
+      finalStatus = stripeSubscription.status
+    }
+
     const subscription = {
       id: dbSubscription.id,
       planTier: dbSubscription.plan_tier,
       subscriptionId: dbSubscription.subscription_id,
-      status: stripeSubscription?.status || dbSubscription.status,
+      status: finalStatus,
       currentPeriodStart,
       currentPeriodEnd,
       cancelAtPeriodEnd: stripeSubscription?.cancel_at_period_end ?? dbSubscription.cancel_at_period_end,
