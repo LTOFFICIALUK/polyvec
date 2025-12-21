@@ -75,12 +75,26 @@ export default function PlanSelectionModal({ isOpen, onClose }: PlanSelectionMod
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return null
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    })
+    try {
+      // Parse the date string (handles both ISO strings and timestamps)
+      const date = new Date(dateString)
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        console.error('Invalid date:', dateString)
+        return null
+      }
+      
+      // Format in user's local timezone (removed UTC timezone to show actual date)
+      return date.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric'
+      })
+    } catch (error) {
+      console.error('Error formatting date:', error, dateString)
+      return null
+    }
   }
 
   const handlePlanSelect = async (plan: PlanTier) => {
