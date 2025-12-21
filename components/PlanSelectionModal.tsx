@@ -20,6 +20,12 @@ export default function PlanSelectionModal({ isOpen, onClose }: PlanSelectionMod
   const [mounted, setMounted] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
   const [currentPlan, setCurrentPlan] = useState<PlanTier | null>(null)
+  const [subscription, setSubscription] = useState<{
+    status: string
+    currentPeriodEnd: string | null
+    cancelAtPeriodEnd: boolean
+    cancelledAt: string | null
+  } | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -28,6 +34,7 @@ export default function PlanSelectionModal({ isOpen, onClose }: PlanSelectionMod
   useEffect(() => {
     if (isOpen && user) {
       fetchCurrentPlan()
+      fetchSubscription()
     }
   }, [isOpen, user])
 
@@ -42,6 +49,38 @@ export default function PlanSelectionModal({ isOpen, onClose }: PlanSelectionMod
     } catch (error) {
       console.error('Failed to fetch plan:', error)
     }
+  }
+
+  const fetchSubscription = async () => {
+    if (!user) return
+    try {
+      const response = await fetch('/api/user/subscription')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.subscription) {
+          setSubscription({
+            status: data.subscription.status,
+            currentPeriodEnd: data.subscription.currentPeriodEnd,
+            cancelAtPeriodEnd: data.subscription.cancelAtPeriodEnd,
+            cancelledAt: data.subscription.cancelledAt,
+          })
+        } else {
+          setSubscription(null)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch subscription:', error)
+    }
+  }
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return null
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })
   }
 
   const handlePlanSelect = async (plan: PlanTier) => {
@@ -111,9 +150,11 @@ export default function PlanSelectionModal({ isOpen, onClose }: PlanSelectionMod
 
         showToast('Successfully downgraded to Free plan', 'success')
         setCurrentPlan('free')
+        setSubscription(null)
         
         // Refresh auth to get updated plan
         await checkAuth()
+        await fetchSubscription()
         
         // Close modal after a brief delay
         setTimeout(() => {
@@ -284,6 +325,26 @@ export default function PlanSelectionModal({ isOpen, onClose }: PlanSelectionMod
                   <h3 className="text-xl font-bold text-white mb-2">Pro</h3>
                   <p className="text-3xl font-bold text-gold-primary mb-1">$49</p>
                   <p className="text-sm text-gray-400">Per month</p>
+                  {subscription && subscription.status === 'active' && (
+                    <div className="mt-3 pt-3 border-t border-gray-700/50">
+                      {subscription.cancelAtPeriodEnd ? (
+                        <p className="text-xs text-yellow-400">
+                          Cancels on {formatDate(subscription.currentPeriodEnd)}
+                        </p>
+                      ) : subscription.currentPeriodEnd ? (
+                        <p className="text-xs text-gray-400">
+                          Renews on {formatDate(subscription.currentPeriodEnd)}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+                  {subscription && subscription.status === 'past_due' && (
+                    <div className="mt-3 pt-3 border-t border-gray-700/50">
+                      <p className="text-xs text-red-400 font-semibold">
+                        ⚠️ Payment failed - Please update your payment method
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <ul className="space-y-3 mb-6">
                   <li className="flex items-start gap-2">

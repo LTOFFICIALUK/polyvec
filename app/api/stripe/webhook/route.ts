@@ -262,16 +262,109 @@ export async function POST(request: NextRequest) {
 
         const db = getDbPool()
         const subResult = await db.query(
-          'SELECT user_id FROM subscriptions WHERE subscription_id = $1',
+          'SELECT user_id, status FROM subscriptions WHERE subscription_id = $1',
           [subscriptionId]
         )
 
-        if (subResult.rows.length > 0) {
-          const userId = subResult.rows[0].user_id
-          
-          // Optionally downgrade user or send notification
-          // For now, just log it
-          console.warn('[Stripe Webhook] Payment failed for user:', userId, invoice.id)
+        if (subResult.rows.length === 0) {
+          console.warn('[Stripe Webhook] Payment failed but subscription not found:', subscriptionId)
+          return NextResponse.json({ received: true })
+        }
+
+        const userId = subResult.rows[0].user_id
+        const currentStatus = subResult.rows[0].status
+
+        // Count failed payment attempts for this subscription
+        const failedPaymentsResult = await db.query(
+          `SELECT COUNT(*) as failed_count 
+           FROM payments 
+           WHERE user_id = $1 
+           AND status = 'failed' 
+           AND reason = 'subscription_renewal'
+           AND created_at > NOW() - INTERVAL '30 days'`,
+          [userId]
+        )
+
+        const failedCount = parseInt(failedPaymentsResult.rows[0]?.failed_count || '0')
+
+        // Record the failed payment
+        const paymentIntentId = invoiceData.payment_intent 
+          ? (typeof invoiceData.payment_intent === 'string' 
+              ? invoiceData.payment_intent 
+              : invoiceData.payment_intent?.id || null)
+          : null
+
+        await db.query(
+          `INSERT INTO payments (
+            user_id,
+            plan_tier,
+            amount,
+            currency,
+            payment_intent_id,
+            payment_method,
+            status,
+            reason,
+            metadata
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            userId,
+            'pro',
+            invoice.amount_due || 0,
+            invoice.currency?.toUpperCase() || 'USD',
+            paymentIntentId,
+            'stripe',
+            'failed',
+            'subscription_renewal',
+            JSON.stringify({
+              invoice_id: invoice.id,
+              subscription_id: subscriptionId,
+              attempt_number: failedCount + 1,
+              failure_reason: invoiceData.last_payment_error?.message || 'Payment failed',
+            }),
+          ]
+        )
+
+        // Update subscription status to past_due
+        await db.query(
+          `UPDATE subscriptions 
+           SET status = 'past_due',
+               updated_at = CURRENT_TIMESTAMP
+           WHERE subscription_id = $1`,
+          [subscriptionId]
+        )
+
+        // Auto-downgrade after 3 failed attempts
+        if (failedCount + 1 >= 3) {
+          await db.query(
+            `UPDATE users 
+             SET plan_tier = 'free', 
+                 plan_updated_at = CURRENT_TIMESTAMP 
+             WHERE id = $1`,
+            [userId]
+          )
+
+          await db.query(
+            `UPDATE subscriptions 
+             SET status = 'expired',
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE subscription_id = $1`,
+            [subscriptionId]
+          )
+
+          console.warn('[Stripe Webhook] Auto-downgraded user after 3 failed payments:', {
+            userId,
+            subscriptionId,
+            failedAttempts: failedCount + 1,
+            invoiceId: invoice.id,
+          })
+        } else {
+          console.warn('[Stripe Webhook] Payment failed for user:', {
+            userId,
+            subscriptionId,
+            failedAttempts: failedCount + 1,
+            totalAllowed: 3,
+            invoiceId: invoice.id,
+          })
         }
 
         break
