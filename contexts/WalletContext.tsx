@@ -40,16 +40,16 @@ export const WalletProvider = ({ children }: { children: ReactNode }) => {
       if (stored) {
         setWalletAddress(stored)
         setIsConnected(true)
-        
+
         // Load credentials for this specific address
         const credsKey = getCredsKey(stored)
         const storedCreds = localStorage.getItem(credsKey)
-        if (storedCreds) {
-          try {
-            const creds = JSON.parse(storedCreds)
-            setPolymarketCredentialsState(creds)
-          } catch (error) {
-            console.error('Failed to parse stored Polymarket credentials:', error)
+      if (storedCreds) {
+        try {
+          const creds = JSON.parse(storedCreds)
+          setPolymarketCredentialsState(creds)
+        } catch (error) {
+          console.error('Failed to parse stored Polymarket credentials:', error)
             localStorage.removeItem(credsKey)
           }
         }

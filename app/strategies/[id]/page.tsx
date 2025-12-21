@@ -71,7 +71,7 @@ export default function StrategyDetailPage() {
 
   if (loading) {
     return (
-      <div className="bg-dark-bg text-white min-h-screen">
+      <div className="bg-dark-bg text-white flex-1">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <div className="py-16 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-primary mx-auto mb-4" />
@@ -84,7 +84,7 @@ export default function StrategyDetailPage() {
 
   if (error || !strategy) {
     return (
-      <div className="bg-dark-bg text-white min-h-screen">
+      <div className="bg-dark-bg text-white flex-1">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <div className="py-16 text-center">
             <p className="text-red-400 text-sm mb-4">{error || 'Strategy not found'}</p>
@@ -111,7 +111,7 @@ export default function StrategyDetailPage() {
   ] as const
 
   return (
-    <div className="bg-dark-bg text-white min-h-screen">
+    <div className="bg-dark-bg text-white flex-1">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-6 sm:mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">

@@ -102,6 +102,7 @@ function StrategyEditorContent() {
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(!!editId)
+  const [loadedFromBacktest, setLoadedFromBacktest] = useState(false)
   const [config, setConfig] = useState<StrategyConfig>({
     name: '',
     description: '',
@@ -225,6 +226,49 @@ function StrategyEditorContent() {
     loadStrategy()
   }, [editId])
 
+  // Load backtest config from sessionStorage if coming from backtest page
+  useEffect(() => {
+    if (editId) return // Don't load if editing existing strategy
+    
+    try {
+      const backtestConfigStr = sessionStorage.getItem('backtestToStrategy')
+      if (backtestConfigStr) {
+        const backtestConfig = JSON.parse(backtestConfigStr)
+        
+        // Pre-fill the strategy config with backtest settings
+        setConfig(prev => ({
+          ...prev,
+          asset: backtestConfig.asset || prev.asset,
+          direction: backtestConfig.direction || prev.direction,
+          timeframe: backtestConfig.timeframe || prev.timeframe,
+          indicators: backtestConfig.indicators || prev.indicators,
+          conditions: backtestConfig.conditions || prev.conditions,
+          conditionLogic: backtestConfig.conditionLogic || prev.conditionLogic,
+          orderbookRules: backtestConfig.orderbookRules || prev.orderbookRules,
+          useOrderLadder: backtestConfig.useOrderLadder || prev.useOrderLadder,
+          orderLadder: backtestConfig.orderLadder || prev.orderLadder,
+          // Set side based on direction
+          side: backtestConfig.direction === 'UP' ? 'Buy YES' : 'Buy NO',
+        }))
+        
+        // Set active tab based on trigger type
+        if (backtestConfig.triggerType === 'orderbook') {
+          setActiveTab('polymarket')
+        } else if (backtestConfig.triggerType === 'indicators') {
+          setActiveTab('tradingview')
+        }
+        
+        // Mark that we loaded from backtest
+        setLoadedFromBacktest(true)
+        
+        // Clear the sessionStorage after loading
+        sessionStorage.removeItem('backtestToStrategy')
+      }
+    } catch (error) {
+      console.error('Error loading backtest config:', error)
+    }
+  }, [editId])
+
   const handleSave = async () => {
     if (!address) {
       setSaveError('Please connect your wallet to save strategies')
@@ -329,7 +373,7 @@ function StrategyEditorContent() {
   // Show loading state while fetching strategy for edit
   if (isLoading) {
     return (
-      <div className="bg-dark-bg text-white min-h-screen">
+      <div className="bg-dark-bg text-white flex-1">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <div className="py-16 text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-primary mx-auto mb-4" />
@@ -341,7 +385,7 @@ function StrategyEditorContent() {
   }
 
   return (
-    <div className="bg-dark-bg text-white min-h-screen">
+    <div className="bg-dark-bg text-white flex-1">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-6 flex items-center justify-between">
@@ -369,6 +413,33 @@ function StrategyEditorContent() {
         {saveError && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
             <p className="text-red-400 text-sm">{saveError}</p>
+          </div>
+        )}
+
+        {/* Success Banner - Loaded from Backtest */}
+        {loadedFromBacktest && (
+          <div className="mb-6 p-4 bg-gold-primary/10 border border-gold-primary/30 rounded-lg">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-gold-primary mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div>
+                  <p className="text-gold-primary font-medium text-sm">Strategy pre-filled from backtest</p>
+                  <p className="text-gray-400 text-xs mt-1">Your backtest configuration has been loaded. Review and adjust settings as needed before saving.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLoadedFromBacktest(false)}
+                className="text-gray-400 hover:text-gray-300 transition-colors"
+                aria-label="Dismiss"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
           </div>
         )}
 
@@ -844,8 +915,8 @@ function TradingViewTab({
     'EMA',
     'Bollinger Bands',
     'Stochastic',
-    'VWAP',
     'ATR',
+    'VWAP',
     'Rolling Up %',
   ]
 
@@ -1240,10 +1311,12 @@ function TradingViewTab({
         return [
           { name: 'K', key: 'k', default: 14 },
           { name: 'D', key: 'd', default: 3 },
-          { name: 'Smoothing', key: 'smoothing', default: 3 },
+          { name: 'Smooth K', key: 'smoothK', default: 1 },
         ]
       case 'ATR':
         return [{ name: 'Length', key: 'length', default: 14 }]
+      case 'VWAP':
+        return [{ name: 'Reset Daily', key: 'resetDaily', default: 1 }]
       case 'Rolling Up %':
         return [{ name: 'Lookback', key: 'length', default: 50 }]
       default:

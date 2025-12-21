@@ -10,6 +10,11 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
+html {
+  height: 100%;
+  overflow-x: hidden;
+}
+
 body {
   background-color: #141210;
   color: #ffffff;
@@ -17,6 +22,9 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: -0.01em;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .font-mono {
@@ -60,7 +68,8 @@ div[id$="-wrapper"] {
 input[type="text"],
 input[type="number"],
 input[type="tel"],
-input[type="email"] {
+input[type="email"],
+input[type="password"] {
   background-color: rgba(20, 18, 16, 0.5) !important;
   color: #ffffff !important;
 }
@@ -68,8 +77,78 @@ input[type="email"] {
 input[type="text"]:focus,
 input[type="number"]:focus,
 input[type="tel"]:focus,
-input[type="email"]:focus {
+input[type="email"]:focus,
+input[type="password"]:focus {
   background-color: rgba(20, 18, 16, 0.5) !important;
   color: #ffffff !important;
 }
+
+/* Fix autofill background color - match gray-900/30 (rgba(17, 24, 39, 0.3)) */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px rgba(17, 24, 39, 0.3) inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background-color: rgba(17, 24, 39, 0.3) !important;
+  transition: background-color 5000s ease-in-out 0s;
+  caret-color: #ffffff !important;
+}
+
+/* Disable TradingView chart interactions when dragging panels */
+body.dragging-panel [id^="tradingview_"] {
+  pointer-events: none !important;
+}
+
+body.dragging-panel [id^="tradingview_"] iframe {
+  pointer-events: none !important;
+}
+
+/* Also disable interactions on PolyLineChart hover area when dragging */
+body.dragging-panel .cursor-crosshair {
+  pointer-events: none !important;
+}
+
+/* Disable TradingView timeframe toolbar button interactions when dragging panels */
+/* This prevents hover effects and clicks on timeframe buttons while dragging panels */
+body.dragging-panel .absolute.z-20 button {
+  pointer-events: none !important;
+  cursor: default !important;
+}
+
+/* Landing page animations */
+@keyframes gradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% 200%;
+  animation: gradient 3s ease infinite;
+}
+
+.scroll-animate {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.8s cubic-bezier(0.4, 0, 0.2, 1), transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.scroll-animate.animate-fade-in-up {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Staggered animation delays for multiple elements */
+.scroll-animate:nth-child(1) { transition-delay: 0ms; }
+.scroll-animate:nth-child(2) { transition-delay: 100ms; }
+.scroll-animate:nth-child(3) { transition-delay: 200ms; }
+.scroll-animate:nth-child(4) { transition-delay: 300ms; }
+.scroll-animate:nth-child(5) { transition-delay: 400ms; }
+.scroll-animate:nth-child(6) { transition-delay: 500ms; }
+.scroll-animate:nth-child(7) { transition-delay: 600ms; }
+.scroll-animate:nth-child(8) { transition-delay: 700ms; }
 

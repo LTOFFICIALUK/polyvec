@@ -35,7 +35,7 @@ export default function ProfilePage() {
   // Show loading state while redirecting
   if (isRedirecting) {
     return (
-      <div className="bg-dark-bg text-white min-h-screen">
+      <div className="bg-dark-bg text-white flex-1">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-6">Profile</h1>
           <div className="flex items-center justify-center py-12">
@@ -53,7 +53,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="bg-dark-bg text-white min-h-screen">
+    <div className="bg-dark-bg text-white flex-1">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         <h1 className="text-2xl sm:text-3xl font-bold mb-6">Profile</h1>
         

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useWallet } from '@/contexts/WalletContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { signClobAuthMessage, ensurePolygonNetwork, getBrowserProvider } from '@/lib/polymarket-auth'
 import { ethers } from 'ethers'
 
@@ -13,10 +14,14 @@ interface PolymarketAuthModalProps {
 }
 
 export default function PolymarketAuthModal({ isOpen, onClose, onSuccess }: PolymarketAuthModalProps) {
-  const { walletAddress, setPolymarketCredentials, connectWallet } = useWallet()
+  const { setPolymarketCredentials } = useWallet()
+  const { custodialWallet } = useAuth()
   const [step, setStep] = useState<'sign' | 'generating' | 'success' | 'error'>('sign')
   const [error, setError] = useState('')
   const [mounted, setMounted] = useState(false)
+  
+  // Use custodial wallet address
+  const walletAddress = custodialWallet?.walletAddress || null
 
   useEffect(() => {
     setMounted(true)
@@ -31,7 +36,7 @@ export default function PolymarketAuthModal({ isOpen, onClose, onSuccess }: Poly
 
   const handleAuthenticate = async () => {
     if (!walletAddress) {
-      setError('Please connect your wallet first')
+      setError('Custodial wallet not found. Please ensure you are logged in.')
       return
     }
 
@@ -39,36 +44,23 @@ export default function PolymarketAuthModal({ isOpen, onClose, onSuccess }: Poly
     setStep('generating')
 
     try {
-      const provider = getBrowserProvider()
-      if (!provider) {
-        throw new Error('No wallet provider found. Please install MetaMask or Phantom.')
+      // Sign authentication message server-side using custodial wallet
+      const signResponse = await fetch('/api/polymarket/auth/sign-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!signResponse.ok) {
+        const errorData = await signResponse.json()
+        throw new Error(errorData.error || 'Failed to sign authentication message')
       }
 
-      // Ensure we're on Polygon network
-      await ensurePolygonNetwork(provider)
+      const signature = await signResponse.json()
 
-      // Get the actual signer address to ensure consistency
-      const signer = await provider.getSigner()
-      const actualSignerAddress = await signer.getAddress()
-      
-      // Ensure the walletAddress in context matches the actual signer address
-      // This ensures credentials are stored for the correct address
-      const normalizedSignerAddress = actualSignerAddress.toLowerCase()
-      if (!walletAddress || walletAddress.toLowerCase() !== normalizedSignerAddress) {
-        console.log('[PolymarketAuth] Updating wallet address in context to match signer:', {
-          oldWalletAddress: walletAddress,
-          newWalletAddress: normalizedSignerAddress,
-        })
-        connectWallet(actualSignerAddress) // This will normalize and store correctly
-      }
-      
-      // Sign the EIP-712 message using the actual signer address
-      const signature = await signClobAuthMessage(provider, actualSignerAddress)
-
-      console.log('[PolymarketAuth] Authenticating with address:', {
-        walletAddressFromContext: walletAddress,
-        actualSignerAddress: actualSignerAddress,
-        signatureAddress: signature.address,
+      console.log('[PolymarketAuth] Authenticating with custodial wallet:', {
+        walletAddress: signature.address,
       })
 
       // Generate API key

@@ -26,11 +26,13 @@ interface ClosedPosition {
   timestamp: number
   title: string
   outcome: string
+  outcomeIndex?: number
 }
 
 interface DisplayTrade {
   id: string
   timestamp: string
+  rawTimestamp: string | number
   market: string
   title: string
   side: string
@@ -52,8 +54,7 @@ interface AnalyticsData {
   avgTradeCost: number
   avgCostPerShare: number
   avgFrequency: {
-    perDay: number
-    perWeek: number
+    perMonth: number
   }
   avgProfit: number
   avgLoss: number
@@ -70,6 +71,24 @@ interface PricePointStats {
   wins: number
   losses: number
   winRate: number
+}
+
+interface MarketTypeStats {
+  type: 'UP' | 'DOWN'
+  totalTrades: number
+  wins: number
+  losses: number
+  winRate: number
+  totalPnL: number
+}
+
+interface AssetStats {
+  asset: string
+  totalTrades: number
+  wins: number
+  losses: number
+  winRate: number
+  totalPnL: number
 }
 
 // Custom Dropdown Component
@@ -204,7 +223,7 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
 
 export default function AnalyticsPage() {
   const { walletAddress, isConnected } = useWallet()
-  const [activeTab, setActiveTab] = useState<'overview' | 'trades' | 'performance'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'trades' | 'performance' | 'markets'>('overview')
   const [expandedTrade, setExpandedTrade] = useState<string | null>(null)
   const [selectedTrade, setSelectedTrade] = useState<DisplayTrade | null>(null)
   const [hoveredPrice, setHoveredPrice] = useState<number | null>(null)
@@ -254,23 +273,25 @@ export default function AnalyticsPage() {
     let sideDisplay: string
     let sideColor: string
 
+    // For "Up or Down" markets: Yes = UP, No = DOWN
     if (isBuy && isYes) {
-      sideDisplay = 'Buy Yes'
+      sideDisplay = 'Buy UP'
       sideColor = 'text-green-400'
     } else if (isBuy && !isYes) {
-      sideDisplay = 'Buy No'
+      sideDisplay = 'Buy DOWN'
       sideColor = 'text-red-400'
     } else if (!isBuy && isYes) {
-      sideDisplay = 'Sell Yes'
+      sideDisplay = 'Sell UP'
       sideColor = 'text-red-400'
     } else {
-      sideDisplay = 'Sell No'
+      sideDisplay = 'Sell DOWN'
       sideColor = 'text-green-400'
     }
 
     return {
       id: trade.id,
       timestamp: formatTimestamp(trade.match_time),
+      rawTimestamp: trade.match_time,
       market: trade.market,
       title: trade.title || 'Unknown Market',
       side: sideDisplay,
@@ -355,17 +376,57 @@ export default function AnalyticsPage() {
       ? trades.reduce((sum, t) => sum + t.price, 0) / trades.length
       : 0
 
-    // Calculate trading frequency
-    const timestamps = trades.map((t) => new Date(t.timestamp).getTime())
-    let perDay = 0
-    let perWeek = 0
+    // Calculate markets per month (unique markets traded)
+    // Use market field if available, otherwise fall back to title
+    const uniqueMarkets = new Set(
+      trades
+        .map((t) => t.market || t.title)
+        .filter((market): market is string => Boolean(market))
+    )
+    const totalUniqueMarkets = uniqueMarkets.size
     
-    if (timestamps.length > 1) {
-      const minTime = Math.min(...timestamps)
-      const maxTime = Math.max(...timestamps)
-      const daysDiff = Math.max(1, (maxTime - minTime) / (1000 * 60 * 60 * 24))
-      perDay = totalTrades / daysDiff
-      perWeek = perDay * 7
+    const timestamps = trades
+      .map((t) => {
+        const rawTime = t.rawTimestamp
+        if (!rawTime) return null
+        
+        // Handle number timestamps (could be seconds or milliseconds)
+        if (typeof rawTime === 'number') {
+          // If it's less than a year 2000 timestamp in seconds, it's likely seconds
+          if (rawTime < 946684800000) {
+            return rawTime * 1000 // Convert seconds to milliseconds
+          }
+          return rawTime // Already in milliseconds
+        }
+        
+        // Handle string timestamps
+        if (typeof rawTime === 'string') {
+          const date = new Date(rawTime)
+          const time = date.getTime()
+          return isNaN(time) ? null : time
+        }
+        
+        return null
+      })
+      .filter((time): time is number => time !== null && !isNaN(time))
+    
+    let perMonth = 0
+    
+    if (totalUniqueMarkets > 0) {
+      if (timestamps.length > 1) {
+        const minTime = Math.min(...timestamps)
+        const maxTime = Math.max(...timestamps)
+        const daysDiff = (maxTime - minTime) / (1000 * 60 * 60 * 24)
+        // Use at least 1 day to avoid division by zero, but allow fractional months
+        const monthsDiff = Math.max(daysDiff / 30.44, 1 / 30.44) // Minimum 1 day = ~0.033 months
+        perMonth = totalUniqueMarkets / monthsDiff
+      } else if (timestamps.length === 1) {
+        // If only one trade with valid timestamp, assume 1 month for calculation
+        perMonth = totalUniqueMarkets
+      } else if (timestamps.length === 0 && trades.length > 0) {
+        // If we have trades but no valid timestamps, assume 1 month
+        perMonth = totalUniqueMarkets
+      }
     }
 
     // Average profit/loss from closed positions
@@ -394,8 +455,7 @@ export default function AnalyticsPage() {
       avgTradeCost: Math.round(avgTradeCost * 100) / 100,
       avgCostPerShare: Math.round(avgCostPerShare * 100) / 100,
       avgFrequency: {
-        perDay: Math.round(perDay * 10) / 10,
-        perWeek: Math.round(perWeek * 10) / 10,
+        perMonth: isNaN(perMonth) || !isFinite(perMonth) ? 0 : Math.round(perMonth),
       },
       avgProfit: Math.round(avgProfit * 100) / 100,
       avgLoss: Math.round(avgLoss * 100) / 100,
@@ -443,6 +503,131 @@ export default function AnalyticsPage() {
         }
       })
       .sort((a, b) => a.price - b.price)
+  }, [closedPositions])
+
+  // Helper functions to extract market information
+  const getMarketType = (side: string): 'UP' | 'DOWN' | null => {
+    if (side.includes('UP')) return 'UP'
+    if (side.includes('DOWN')) return 'DOWN'
+    return null
+  }
+
+  const getAssetType = (title: string): string => {
+    // Extract asset from title (e.g., "Bitcoin Up or Down" -> "BTC", "Ethereum Up or Down" -> "ETH")
+    const titleLower = title.toLowerCase()
+    
+    // Common asset mappings
+    if (titleLower.includes('bitcoin') || titleLower.includes('btc')) return 'BTC'
+    if (titleLower.includes('ethereum') || titleLower.includes('eth')) return 'ETH'
+    if (titleLower.includes('solana') || titleLower.includes('sol')) return 'SOL'
+    if (titleLower.includes('xrp')) return 'XRP'
+    if (titleLower.includes('cardano') || titleLower.includes('ada')) return 'ADA'
+    if (titleLower.includes('polygon') || titleLower.includes('matic')) return 'MATIC'
+    if (titleLower.includes('avalanche') || titleLower.includes('avax')) return 'AVAX'
+    if (titleLower.includes('chainlink') || titleLower.includes('link')) return 'LINK'
+    if (titleLower.includes('litecoin') || titleLower.includes('ltc')) return 'LTC'
+    if (titleLower.includes('dogecoin') || titleLower.includes('doge')) return 'DOGE'
+    
+    // Try to extract from market slug or title pattern
+    const match = title.match(/\b([A-Z]{2,5})\b/i)
+    if (match) {
+      const potential = match[1].toUpperCase()
+      if (['BTC', 'ETH', 'SOL', 'XRP', 'ADA', 'MATIC', 'AVAX', 'LINK', 'LTC', 'DOGE'].includes(potential)) {
+        return potential
+      }
+    }
+    
+    return 'Other'
+  }
+
+  // Calculate market statistics by type (UP/DOWN)
+  const marketTypeStats = useMemo(() => {
+    const stats: Record<'UP' | 'DOWN', { total: number; wins: number; losses: number; pnl: number }> = {
+      UP: { total: 0, wins: 0, losses: 0, pnl: 0 },
+      DOWN: { total: 0, wins: 0, losses: 0, pnl: 0 },
+    }
+
+    // Use closed positions directly
+    // For Polymarket "Up or Down" markets:
+    // - outcome "Yes" / outcomeIndex 0 = UP (betting price goes up)
+    // - outcome "No" / outcomeIndex 1 = DOWN (betting price goes down)
+    closedPositions.forEach((position) => {
+      let marketType: 'UP' | 'DOWN' | null = null
+      
+      // First try outcomeIndex (most reliable) - 0 = Yes/UP, 1 = No/DOWN
+      if (typeof position.outcomeIndex === 'number') {
+        marketType = position.outcomeIndex === 0 ? 'UP' : 'DOWN'
+      }
+      
+      // Fallback to outcome string
+      if (!marketType && position.outcome) {
+        const outcome = position.outcome.toLowerCase().trim()
+        // Handle various formats: "Yes", "yes", "YES", "No", "no", "NO"
+        if (outcome === 'yes' || outcome === 'y') {
+          marketType = 'UP'
+        } else if (outcome === 'no' || outcome === 'n') {
+          marketType = 'DOWN'
+        }
+      }
+
+      if (marketType) {
+        stats[marketType].total++
+        stats[marketType].pnl += position.realizedPnl
+        if (position.realizedPnl > 0) {
+          stats[marketType].wins++
+        } else if (position.realizedPnl < 0) {
+          stats[marketType].losses++
+        }
+      }
+    })
+
+    return (['UP', 'DOWN'] as const).map((type) => {
+      const stat = stats[type]
+      const winRate = stat.total > 0 ? (stat.wins / stat.total) * 100 : 0
+      return {
+        type,
+        totalTrades: stat.total,
+        wins: stat.wins,
+        losses: stat.losses,
+        winRate,
+        totalPnL: stat.pnl,
+      }
+    })
+  }, [closedPositions])
+
+  // Calculate asset statistics
+  const assetStats = useMemo(() => {
+    const stats: Record<string, { total: number; wins: number; losses: number; pnl: number }> = {}
+
+    // Use closed positions directly - extract asset from title
+    closedPositions.forEach((position) => {
+      const asset = getAssetType(position.title)
+      if (!stats[asset]) {
+        stats[asset] = { total: 0, wins: 0, losses: 0, pnl: 0 }
+      }
+      stats[asset].total++
+      stats[asset].pnl += position.realizedPnl
+      if (position.realizedPnl > 0) {
+        stats[asset].wins++
+      } else if (position.realizedPnl < 0) {
+        stats[asset].losses++
+      }
+    })
+
+    return Object.keys(stats)
+      .map((asset) => {
+        const stat = stats[asset]
+        const winRate = stat.total > 0 ? (stat.wins / stat.total) * 100 : 0
+        return {
+          asset,
+          totalTrades: stat.total,
+          wins: stat.wins,
+          losses: stat.losses,
+          winRate,
+          totalPnL: stat.pnl,
+        }
+      })
+      .sort((a, b) => b.totalTrades - a.totalTrades)
   }, [closedPositions])
 
   const handleTradeClick = (trade: DisplayTrade) => {
@@ -504,7 +689,7 @@ export default function AnalyticsPage() {
   // Not connected state
   if (!isConnected) {
     return (
-      <div className="bg-dark-bg text-white min-h-screen">
+      <div className="bg-dark-bg text-white flex-1">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-6">Analytics</h1>
           <div className="py-16 text-center">
@@ -521,7 +706,7 @@ export default function AnalyticsPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="bg-dark-bg text-white min-h-screen">
+      <div className="bg-dark-bg text-white flex-1">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-6">Analytics</h1>
           <div className="flex items-center justify-center py-12">
@@ -539,7 +724,7 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="bg-dark-bg text-white min-h-screen">
+    <div className="bg-dark-bg text-white flex-1">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
@@ -609,6 +794,17 @@ export default function AnalyticsPage() {
             >
               Performance
               {activeTab === 'performance' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('markets')}
+              className={`px-4 py-3 text-sm font-semibold transition-colors relative ${
+                activeTab === 'markets' ? 'text-white' : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Markets
+              {activeTab === 'markets' && (
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
               )}
             </button>
@@ -687,8 +883,10 @@ export default function AnalyticsPage() {
 
                   <div className="bg-dark-bg/60 rounded-lg p-5 border border-gray-800">
                     <div className="text-xs text-gray-400 mb-2 uppercase tracking-wider">Trading Frequency</div>
-                    <div className="text-2xl font-bold text-white mb-1">{analyticsData.avgFrequency.perDay.toFixed(1)}/day</div>
-                    <div className="text-xs text-gray-500">{analyticsData.avgFrequency.perWeek.toFixed(1)} per week</div>
+                    <div className="text-2xl font-bold text-white mb-1">
+                      {isNaN(analyticsData.avgFrequency.perMonth) ? 0 : analyticsData.avgFrequency.perMonth}/month
+                    </div>
+                    <div className="text-xs text-gray-500">Unique markets traded</div>
                       </div>
 
                   <div className="bg-dark-bg/60 rounded-lg p-5 border border-gray-800">
@@ -1084,6 +1282,147 @@ export default function AnalyticsPage() {
               )}
           </div>
         )}
+
+        {/* Markets Tab */}
+        {activeTab === 'markets' && (
+          <div className="space-y-6">
+            {closedPositions.length === 0 ? (
+              <div className="py-12 text-center">
+                <p className="text-sm text-gray-500">
+                  No closed positions to analyze. Complete some trades to see your market analytics.
+                </p>
+              </div>
+            ) : (
+              <>
+                {/* Market Type Overview Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {marketTypeStats.map((stat) => (
+                    <div key={stat.type} className="bg-dark-bg/60 rounded-xl p-6 border border-gray-800">
+                      <div className="text-sm text-gray-400 mb-4 uppercase tracking-wider">
+                        {stat.type} Markets
+                      </div>
+                      <div className="space-y-4">
+                        <div>
+                          <div className="text-3xl font-bold text-white mb-2">{stat.totalTrades}</div>
+                          <div className="text-xs text-gray-500">Total Positions</div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <div className={`text-2xl font-bold mb-1 ${stat.winRate >= 50 ? 'text-green-400' : 'text-red-400'}`}>
+                              {stat.winRate.toFixed(1)}%
+                            </div>
+                            <div className="text-xs text-gray-500">Win Rate</div>
+                          </div>
+                          <div>
+                            <div className={`text-2xl font-bold mb-1 ${stat.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {stat.totalPnL >= 0 ? '+' : ''}${stat.totalPnL.toFixed(2)}
+                            </div>
+                            <div className="text-xs text-gray-500">Total P&L</div>
+                          </div>
+                        </div>
+                        <div className="pt-4 border-t border-gray-800">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-green-400 font-semibold">{stat.wins}W</span>
+                            <span className="text-gray-500">/</span>
+                            <span className="text-red-400 font-semibold">{stat.losses}L</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Asset Performance */}
+                <div className="bg-dark-bg/60 rounded-xl p-6 border border-gray-800">
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-white mb-2">Performance by Asset</h3>
+                    <p className="text-sm text-gray-400">
+                      Your trading statistics broken down by cryptocurrency asset.
+                    </p>
+                  </div>
+                  {assetStats.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500 text-sm">
+                      No asset data available
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {assetStats.map((stat) => (
+                        <div
+                          key={stat.asset}
+                          className="bg-dark-bg/40 rounded-lg p-4 border border-gray-800/50 hover:border-gray-700 transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-full bg-gold-primary/20 flex items-center justify-center">
+                                <span className="text-gold-primary font-bold text-lg">{stat.asset}</span>
+                              </div>
+                              <div>
+                                <div className="text-white font-semibold">{stat.asset}</div>
+                                <div className="text-xs text-gray-500">
+                                  {stat.totalTrades} position{stat.totalTrades !== 1 ? 's' : ''} • {stat.wins}W / {stat.losses}L
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className={`font-bold text-lg ${stat.winRate >= 50 ? 'text-green-400' : 'text-red-400'}`}>
+                                {stat.winRate.toFixed(1)}%
+                              </div>
+                              <div className={`text-sm ${stat.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                {stat.totalPnL >= 0 ? '+' : ''}${stat.totalPnL.toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Market Type Comparison */}
+                <div className="bg-dark-bg/60 rounded-xl p-6 border border-gray-800">
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold text-white mb-2">UP vs DOWN Comparison</h3>
+                    <p className="text-sm text-gray-400">
+                      Compare your performance trading UP markets versus DOWN markets.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {marketTypeStats.map((stat) => (
+                      <div key={stat.type} className="bg-dark-bg/40 rounded-lg p-5 border border-gray-800/50">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className={`text-2xl font-bold ${stat.type === 'UP' ? 'text-green-400' : 'text-red-400'}`}>
+                            {stat.type}
+                          </div>
+                          <div className={`text-xl font-bold ${stat.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {stat.totalPnL >= 0 ? '+' : ''}${stat.totalPnL.toFixed(2)}
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-400">Win Rate</span>
+                            <span className={`font-semibold ${stat.winRate >= 50 ? 'text-green-400' : 'text-red-400'}`}>
+                              {stat.winRate.toFixed(1)}%
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-400">Total Positions</span>
+                            <span className="text-white font-semibold">{stat.totalTrades}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-400">Wins / Losses</span>
+                            <span className="text-white">
+                              <span className="text-green-400">{stat.wins}</span> / <span className="text-red-400">{stat.losses}</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Price Point Detail Modal */}
@@ -1183,7 +1522,7 @@ export default function AnalyticsPage() {
                                     </td>
                                     <td className="py-3 px-4">
                                       <span className={position.outcome === 'Yes' ? 'text-green-400' : 'text-red-400'}>
-                                        {position.outcome}
+                                        {position.outcome === 'Yes' ? 'UP' : 'DOWN'}
                                       </span>
                                     </td>
                                     <td className="py-3 px-4 text-right text-white font-mono">

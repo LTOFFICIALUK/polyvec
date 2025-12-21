@@ -1,1038 +1,393 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
-import PolyLineChart from '@/components/PolyLineChart'
-import TradingViewChart from '@/components/TradingViewChart'
-import TradingPanel from '@/components/TradingPanel'
-import DraggableTradingPanel from '@/components/DraggableTradingPanel'
-import ChartControls from '@/components/ChartControls'
-import OrderBook, { OrderBookHandle } from '@/components/OrderBook'
-import AnimatedPrice from '@/components/AnimatedPrice'
-import { TradingProvider, useTradingContext } from '@/contexts/TradingContext'
-import { useWallet } from '@/contexts/WalletContext'
-import { useToast } from '@/contexts/ToastContext'
-import useCurrentMarket from '@/hooks/useCurrentMarket'
-import { redeemPosition } from '@/lib/redeem-positions'
-import { getBrowserProvider, ensurePolygonNetwork } from '@/lib/polymarket-auth'
-import { createSignedOrder, OrderSide, OrderType } from '@/lib/polymarket-order-signing'
+import { useEffect, useRef, useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+import { useAuth } from '@/contexts/AuthContext'
+import AuthModal from '@/components/AuthModal'
+import Footer from '@/components/Footer'
+import TerminalDemo from '@/components/TerminalDemo'
+import AnalyticsDemo from '@/components/AnalyticsDemo'
+import BacktestDemo from '@/components/BacktestDemo'
 
-interface Position {
-  market: string
-  outcome: string
-  side: string
-  size: number
-  avgPrice: number
-  currentPrice: number
-  pnl: number
-  tokenId?: string
-  conditionId?: string
-  redeemable?: boolean
-  outcomeIndex?: number
-  slug?: string
-  resolved?: boolean  // Market has resolved
-  isLoss?: boolean    // Position lost (curPrice near 0 after resolution)
-}
+const LandingPageContent = () => {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { user } = useAuth()
+  const [isVisible, setIsVisible] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login')
+  const [activeDemo, setActiveDemo] = useState<'terminal' | 'analytics' | 'backtest'>('terminal')
+  const heroRef = useRef<HTMLDivElement>(null)
+  const featuresRef = useRef<HTMLDivElement>(null)
 
-interface Order {
-  id: string
-  market: string
-  outcome: string
-  type: string
-  side: string
-  size: number
-  price: number
-  status: string
-}
+  // Removed automatic modal opening on page load
+  // Modal will only open when user clicks "Login / Register" or "Get Started" buttons
 
-interface Trade {
-  id: string
-  market: string
-  outcome: string
-  side: string
-  size: number
-  price: number
-  total: number
-  timestamp: string
-}
-
-function TerminalContent() {
-  const { selectedPair, showTradingView, selectedTimeframe, marketOffset } = useTradingContext()
-  const { walletAddress, polymarketCredentials } = useWallet()
-  const { showToast } = useToast()
-  const [activeTab, setActiveTab] = useState<'position' | 'orders' | 'history'>('position')
-  const [isClaimingPosition, setIsClaimingPosition] = useState<string | null>(null)
-  const [showSideBySide, setShowSideBySide] = useState(true) // Default to side-by-side view
-  
-  // Get current market for live price matching
-  const { market: currentMarket } = useCurrentMarket({
-    pair: selectedPair,
-    timeframe: selectedTimeframe,
-    offset: marketOffset,
-  })
-  
-  // Real data from Polymarket
-  const [positions, setPositions] = useState<Position[]>([])
-  const [orders, setOrders] = useState<Order[]>([])
-  const [trades, setTrades] = useState<Trade[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [lastRefresh, setLastRefresh] = useState<Date | null>(null)
-  
-  // Live orderbook prices for current market (same as TradingPanel)
-  // For positions, we need bid prices (what you can sell for) and ask prices (what you can buy at)
-  const [livePrices, setLivePrices] = useState<{
-    upBidPrice: number | null  // Best bid (sell price for UP)
-    upAskPrice: number | null  // Best ask (buy price for UP)
-    downBidPrice: number | null  // Best bid (sell price for DOWN)
-    downAskPrice: number | null  // Best ask (buy price for DOWN)
-  }>({ 
-    upBidPrice: null,
-    upAskPrice: null,
-    downBidPrice: null,
-    downAskPrice: null,
-  })
-  
-
-  // Fetch positions from Polymarket
-  const fetchPositions = useCallback(async () => {
-    if (!walletAddress) return
-    try {
-      const response = await fetch(`/api/user/positions?address=${walletAddress}`)
-      if (response.ok) {
-        const data = await response.json()
-        const formattedPositions: Position[] = (data.positions || []).map((pos: any) => {
-          const curPrice = parseFloat(pos.curPrice || pos.currentPrice || '0')
-          const isRedeemable = pos.redeemable === true
-          
-          // A position is a "loss" if:
-          // - Market is resolved (redeemable is true) AND
-          // - Current price is 0 or near 0 (meaning this outcome lost)
-          const isLoss = isRedeemable && curPrice < 0.01
-          
-          // Only truly redeemable (winner) if redeemable=true AND curPrice > 0
-          const isWinner = isRedeemable && curPrice > 0.01
-          
-          return {
-            market: pos.title || pos.market || 'Unknown Market',
-            outcome: pos.outcome || 'Yes',
-            side: pos.side || 'BUY',
-            size: parseFloat(pos.size || '0'),
-            avgPrice: parseFloat(pos.avgPrice || '0'),
-            currentPrice: curPrice,
-            pnl: parseFloat(pos.cashPnl || pos.pnl || '0'),
-            tokenId: pos.asset || pos.tokenId || pos.token_id || '',
-            conditionId: pos.conditionId || pos.condition_id || '',
-            redeemable: isWinner, // Only show Claim for actual winners
-            outcomeIndex: pos.outcomeIndex ?? 0,
-            slug: pos.slug || pos.eventSlug || '',
-            isLoss: isLoss, // Show Close for resolved losers
-          }
-        })
-        setPositions(formattedPositions)
-      }
-    } catch (error) {
-      console.error('[Home] Error fetching positions:', error)
-    }
-  }, [walletAddress])
-
-  // Fetch open orders
-  const fetchOrders = useCallback(async () => {
-    if (!walletAddress) return
-    try {
-      // Build URL with credentials if available (required for Polymarket API)
-      let url = `/api/user/orders?address=${walletAddress}`
-      const hasCredentials = !!polymarketCredentials
-      if (polymarketCredentials) {
-        url += `&credentials=${encodeURIComponent(JSON.stringify(polymarketCredentials))}`
-      }
-      
-      
-      const response = await fetch(url)
-      const data = await response.json()
-      
-      // Log detailed error if API failed
-      if (data.source !== 'polymarket-api' && data.source !== 'websocket') {
-        console.error('[Home] Orders API Error:', data.error, data.errorDetails)
-      }
-      
-      if (response.ok) {
-        const formattedOrders: Order[] = (data.orders || []).map((order: any) => {
-          // Parse size - could be in different formats
-          let size = 0
-          if (order.size) size = parseFloat(order.size)
-          else if (order.original_size) size = parseFloat(order.original_size)
-          else if (order.maker_amount) {
-            // maker_amount is in base units, convert to shares
-            size = parseFloat(order.maker_amount) / 1e6
-          }
-          
-          // Parse price
-          let price = 0
-          if (order.price) price = parseFloat(order.price)
-          else if (order.limit_price) price = parseFloat(order.limit_price)
-          else if (order.maker_amount && order.taker_amount) {
-            // Calculate price from maker/taker amounts
-            price = parseFloat(order.taker_amount) / parseFloat(order.maker_amount)
-          }
-          
-          return {
-            id: order.id || order.order_id || order.hash || order.orderHash || '',
-            market: order.market || order.title || order.market_title || order.question || 'Unknown Market',
-            outcome: order.outcome || (order.side === 'BUY' ? 'Yes' : 'No'),
-            type: order.orderType || order.type || order.order_type || 'Limit',
-            side: order.side || 'BUY',
-            size: size,
-            price: price,
-            status: order.status || order.order_status || 'live',
-          }
-        })
-        setOrders(formattedOrders)
-      }
-    } catch (error) {
-      console.error('[Home] Error fetching orders:', error)
-    }
-  }, [walletAddress, polymarketCredentials])
-
-  // Fetch trade history
-  const fetchTrades = useCallback(async () => {
-    if (!walletAddress) return
-    try {
-      const response = await fetch(`/api/user/trades?address=${walletAddress}`)
-      if (response.ok) {
-        const data = await response.json()
-        const formattedTrades: Trade[] = (data.trades || []).map((trade: any) => ({
-          id: trade.id || '',
-          market: trade.title || trade.market || 'Unknown Market',
-          outcome: trade.outcome || 'Yes',
-          side: trade.side || 'BUY',
-          size: parseFloat(trade.size || '0'),
-          price: parseFloat(trade.price || '0'),
-          total: parseFloat(trade.size || '0') * parseFloat(trade.price || '0'),
-          timestamp: trade.match_time || trade.timestamp || new Date().toISOString(),
-        }))
-        setTrades(formattedTrades)
-      }
-    } catch (error) {
-      console.error('[Home] Error fetching trades:', error)
-    }
-  }, [walletAddress])
-
-  // Refresh all data
-  const refreshData = useCallback(async () => {
-    setIsLoading(true)
-    await Promise.all([fetchPositions(), fetchOrders(), fetchTrades()])
-    setLastRefresh(new Date())
-    setIsLoading(false)
-  }, [fetchPositions, fetchOrders, fetchTrades])
-
-  // Handle claiming a winning position
-  const handleClaimPosition = useCallback(async (position: Position) => {
-    if (!position.conditionId || isClaimingPosition) return
+  useEffect(() => {
+    setIsVisible(true)
     
-    setIsClaimingPosition(position.conditionId)
-    showToast('Preparing to claim position...', 'info')
-    
-    try {
-      const provider = await getBrowserProvider()
-      if (!provider) {
-        throw new Error('No wallet provider found')
-      }
-      
-      showToast('Please confirm the transaction in your wallet...', 'info')
-      
-      const txHash = await redeemPosition(
-        provider,
-        position.conditionId,
-        position.outcomeIndex ?? 0
-      )
-      
-      showToast(`✓ Position claimed! TX: ${txHash.slice(0, 10)}...`, 'success')
-      
-      // Refresh positions after claim
-      setTimeout(() => {
-        fetchPositions()
-      }, 2000)
-    } catch (error: any) {
-      console.error('[Claim] Error:', error)
-      if (error.message?.includes('rejected') || error.code === 4001) {
-        showToast('Claim cancelled', 'warning')
-      } else {
-        showToast(`Failed to claim: ${error.message || 'Unknown error'}`, 'error')
-      }
-    } finally {
-      setIsClaimingPosition(null)
+    // Intersection Observer for scroll animations with better performance
+    const observerOptions = {
+      threshold: 0.15,
+      rootMargin: '0px 0px -100px 0px'
     }
-  }, [isClaimingPosition, showToast, fetchPositions])
 
-  // Handle closing a losing position (same mechanism, just removes from portfolio)
-  const handleClosePosition = useCallback(async (position: Position) => {
-    if (!position.conditionId || isClaimingPosition) return
-    
-    setIsClaimingPosition(position.conditionId)
-    showToast('Preparing to close position...', 'info')
-    
-    try {
-      const provider = await getBrowserProvider()
-      if (!provider) {
-        throw new Error('No wallet provider found')
-      }
-      
-      showToast('Please confirm the transaction in your wallet...', 'info')
-      
-      // Same function as claim - for losing positions, you get $0 back
-      const txHash = await redeemPosition(
-        provider,
-        position.conditionId,
-        position.outcomeIndex ?? 0
-      )
-      
-      showToast(`✓ Position closed! TX: ${txHash.slice(0, 10)}...`, 'success')
-      
-      // Refresh positions after close
-      setTimeout(() => {
-        fetchPositions()
-      }, 2000)
-    } catch (error: any) {
-      console.error('[Close] Error:', error)
-      if (error.message?.includes('rejected') || error.code === 4001) {
-        showToast('Close cancelled', 'warning')
-      } else if (error.message?.includes('condition not resolved')) {
-        showToast('Market not yet resolved. Please wait for resolution.', 'error')
-      } else {
-        showToast(`Failed to close: ${error.message || 'Unknown error'}`, 'error')
-      }
-    } finally {
-      setIsClaimingPosition(null)
-    }
-  }, [isClaimingPosition, showToast, fetchPositions])
-
-  // State for cancelling orders
-  const [isCancellingOrder, setIsCancellingOrder] = useState<string | null>(null)
-  
-  // State for selling positions
-  const [isSellingPosition, setIsSellingPosition] = useState<string | null>(null)
-
-  // Handle cancelling an open order
-  const handleCancelOrder = useCallback(async (order: Order) => {
-    if (!order.id || isCancellingOrder) return
-    if (!walletAddress || !polymarketCredentials) {
-      showToast('Please connect wallet and authenticate with Polymarket', 'error')
-      return
-    }
-    
-    setIsCancellingOrder(order.id)
-    showToast('Cancelling order...', 'info')
-    
-    try {
-      const response = await fetch('/api/trade/cancel-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          orderId: order.id,
-          walletAddress,
-          credentials: polymarketCredentials,
-        }),
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('animate-fade-in-up')
+          // Unobserve after animation to improve performance
+          observer.unobserve(entry.target)
+        }
       })
-      
-      const result = await response.json()
-      
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to cancel order')
-      }
-      
-      showToast('✓ Order cancelled!', 'success')
-      
-      // Refresh orders after cancel
-      setTimeout(() => {
-        fetchOrders()
-      }, 1000)
-    } catch (error: any) {
-      console.error('[Cancel] Error:', error)
-      showToast(`Failed to cancel: ${error.message || 'Unknown error'}`, 'error')
-    } finally {
-      setIsCancellingOrder(null)
+    }, observerOptions)
+
+    const elements = document.querySelectorAll('.scroll-animate')
+    elements.forEach((el) => observer.observe(el))
+
+    return () => {
+      elements.forEach((el) => observer.unobserve(el))
     }
-  }, [isCancellingOrder, walletAddress, polymarketCredentials, showToast, fetchOrders])
+  }, [])
 
-  // Handle selling entire position
-  const handleSellAllPosition = useCallback(async (position: Position) => {
-    if (!position.tokenId || !position.size || isSellingPosition || !polymarketCredentials) {
-      if (!polymarketCredentials) {
-        showToast('Please authenticate with Polymarket first', 'error')
-      }
-      return
+  const handleGetStarted = () => {
+    if (user) {
+      router.push('/terminal')
+            } else {
+      setAuthMode('signup')
+      setShowAuthModal(true)
     }
+  }
 
-    setIsSellingPosition(position.tokenId)
-    showToast(`Preparing to sell ${position.size.toFixed(2)} shares...`, 'info')
-
-    try {
-      const provider = getBrowserProvider()
-      if (!provider) {
-        throw new Error('No wallet provider found')
-      }
-
-      await ensurePolygonNetwork(provider)
-
-      // Get the actual signer address
-      const walletSigner = await provider.getSigner()
-      const actualSignerAddress = await walletSigner.getAddress()
-
-      if (walletAddress && walletAddress.toLowerCase() !== actualSignerAddress.toLowerCase()) {
-        showToast('Wallet address changed. Please reconnect your wallet.', 'warning')
-        setIsSellingPosition(null)
-        return
-      }
-
-      // Fetch current orderbook to get best bid price for market order
-      // The orderbook API returns prices as decimals (0-1), same as how buy orders work
-      // Initialize with position's current price as fallback
-      let priceDecimal: number = position.currentPrice // Already in decimal format
-      let bestBidPriceCents: number = priceDecimal * 100
-      
-      try {
-        const orderbookResponse = await fetch(`/api/polymarket/orderbook?tokenId=${position.tokenId}`)
-        if (orderbookResponse.ok) {
-          const orderbookData = await orderbookResponse.json()
-          if (orderbookData.bids && orderbookData.bids.length > 0) {
-            // Best bid is the highest price someone is willing to pay (first in bids array)
-            // Bids are objects with a 'price' property (decimal 0-1)
-            const bestBid = orderbookData.bids[0]
-            const bidPrice = typeof bestBid.price === 'string' ? parseFloat(bestBid.price) : bestBid.price
-            if (!isNaN(bidPrice) && bidPrice > 0) {
-              priceDecimal = bidPrice
-              bestBidPriceCents = priceDecimal * 100
-            }
-          }
-        }
-      } catch (error) {
-        console.warn('[Sell All] Failed to fetch orderbook, using position price:', error)
-      }
-
-      // Validate price
-      if (isNaN(priceDecimal) || priceDecimal <= 0 || priceDecimal > 1) {
-        throw new Error(`Cannot place market order: invalid price ${priceDecimal}. Please try again or use a limit order.`)
-      }
-
-      // Check if this is a neg-risk market
-      let isNegRiskMarket = false
-      try {
-        const negRiskResponse = await fetch(`/api/polymarket/neg-risk?tokenId=${position.tokenId}`)
-        const negRiskData = await negRiskResponse.json()
-        isNegRiskMarket = negRiskData.negRisk === true
-      } catch (error) {
-        console.warn('[Sell All] Failed to check neg-risk status, defaulting to false:', error)
-      }
-
-      showToast(`Signing SELL order: ${position.size.toFixed(2)} shares @ ${bestBidPriceCents.toFixed(0)}¢`, 'info', 6000)
-
-      // Create signed order (SELL market order - FAK for partial fills)
-      // Use priceDecimal directly (already in 0-1 format, same as buy orders)
-      const signedOrder = await createSignedOrder(
-        {
-          tokenId: position.tokenId,
-          side: OrderSide.SELL,
-          price: priceDecimal, // Already in decimal format (0-1)
-          size: position.size,
-          maker: actualSignerAddress,
-          signer: actualSignerAddress,
-          negRisk: isNegRiskMarket,
-        },
-        provider
-      )
-
-      // Place the order
-      // Use FAK (Fill-And-Kill) for market orders - allows partial fills
-      // This is better than FOK because it will fill as much as possible and cancel the rest
-      const response = await fetch('/api/trade/place-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: actualSignerAddress,
-          credentials: polymarketCredentials,
-          signedOrder: signedOrder,
-          orderType: OrderType.FAK, // Market order - Fill And Kill (partial fills ok)
-        }),
-      })
-
-      const result = await response.json()
-
-      if (!response.ok || !result.success) {
-        // Check if this is a price change error (FAK/FOK fill errors indicate price moved)
-        const errorCode = result.errorCode || ''
-        const errorMsg = (result.error || result.errorMsg || '').toLowerCase()
-        const details = result.details || {}
-        const detailsErrorMsg = (details.error || details.errorMsg || '').toLowerCase()
-        
-        // Check for price change errors - these occur when orderbook moves between fetching price and placing order
-        const isPriceChangeError = 
-          errorCode === 'FOK_ORDER_NOT_FILLED_ERROR' ||
-          errorCode === 'EXECUTION_ERROR' ||
-          errorMsg.includes('fok order') ||
-          errorMsg.includes('fak order') ||
-          errorMsg.includes('couldn\'t be fully filled') ||
-          errorMsg.includes('could not be fully filled') ||
-          errorMsg.includes('order couldn\'t be fully filled') ||
-          detailsErrorMsg.includes('fok order') ||
-          detailsErrorMsg.includes('fak order') ||
-          detailsErrorMsg.includes('couldn\'t be fully filled') ||
-          detailsErrorMsg.includes('could not be fully filled')
-        
-        if (isPriceChangeError) {
-          throw new Error('PRICE_CHANGED')
-        }
-        throw new Error(result.error || result.errorMsg || 'Failed to place sell order')
-      }
-
-      const dollarAmount = position.size * priceDecimal
-      showToast(
-        `✓ Sold ${position.size.toFixed(2)} shares @ ${bestBidPriceCents.toFixed(0)}¢ = $${dollarAmount.toFixed(2)}`,
-        'success',
-        5000
-      )
-
-      // Refresh positions after sell
-      setTimeout(() => {
-        fetchPositions()
-        fetchOrders()
-      }, 1500)
-    } catch (error: any) {
-      console.error('[Sell All] Error:', error)
-      if (error.message?.includes('rejected') || error.code === 4001) {
-        showToast('Sell order cancelled', 'warning')
-      } else if (error.message === 'PRICE_CHANGED') {
-        // Price moved during order placement - show professional message for 15 seconds
-        showToast('The market price changed while placing your order. Please try again.', 'error', 15000)
-      } else if (error.message?.includes('FOK') || error.message?.includes('FAK') || error.message?.includes('fill')) {
-        // Other fill-related errors
-        showToast('Market order failed: The order could not be filled. The price may have changed - please try again.', 'error', 15000)
-      } else {
-        showToast(`Failed to sell: ${error.message || 'Unknown error'}`, 'error')
-      }
-    } finally {
-      setIsSellingPosition(null)
-    }
-  }, [isSellingPosition, walletAddress, polymarketCredentials, showToast, fetchPositions, fetchOrders])
-
-  // Fetch live orderbook prices for current market (same as TradingPanel)
-  useEffect(() => {
-    const fetchLivePrices = async () => {
-      if (!currentMarket?.yesTokenId || !currentMarket?.noTokenId) {
-        setLivePrices({ 
-          upBidPrice: null,
-          upAskPrice: null,
-          downBidPrice: null,
-          downAskPrice: null,
-        })
-        return
-      }
-
-      try {
-        const [upResponse, downResponse] = await Promise.all([
-          fetch(`/api/polymarket/orderbook?tokenId=${currentMarket.yesTokenId}`),
-          fetch(`/api/polymarket/orderbook?tokenId=${currentMarket.noTokenId}`),
-        ])
-
-        if (upResponse.ok && downResponse.ok) {
-          const upData = await upResponse.json()
-          const downData = await downResponse.json()
-
-          // Get best bid (sell price) and best ask (buy price) for both tokens
-          const upBestBid = upData.bids?.[0]?.price ? parseFloat(upData.bids[0].price) * 100 : null
-          const upBestAsk = upData.asks?.[0]?.price ? parseFloat(upData.asks[0].price) * 100 : null
-          const downBestBid = downData.bids?.[0]?.price ? parseFloat(downData.bids[0].price) * 100 : null
-          const downBestAsk = downData.asks?.[0]?.price ? parseFloat(downData.asks[0].price) * 100 : null
-
-          setLivePrices({
-            upBidPrice: upBestBid,
-            upAskPrice: upBestAsk,
-            downBidPrice: downBestBid,
-            downAskPrice: downBestAsk,
-          })
-        }
-      } catch (err) {
-        console.error('[Home] Error fetching live prices:', err)
-      }
-    }
-
-    fetchLivePrices()
-    // Poll every 2 seconds to keep prices fresh (same as TradingPanel)
-    const interval = setInterval(fetchLivePrices, 2000)
-    return () => clearInterval(interval)
-  }, [currentMarket?.yesTokenId, currentMarket?.noTokenId])
-
-  // Auto-refresh on wallet connect
-  useEffect(() => {
-    if (walletAddress) {
-      refreshData()
-      const interval = setInterval(refreshData, 30000)
-      return () => clearInterval(interval)
-    }
-  }, [walletAddress, refreshData])
-
-  // Listen for order placement events to refresh orders and positions
-  useEffect(() => {
-    if (!walletAddress) return // Don't set up listener if no wallet connected
-    
-    const handleOrderPlaced = () => {
-      // Wait a moment for the order to be processed by Polymarket
-      // For market orders (FOK/FAK), positions should update immediately after fill
-      // For limit orders (GTC), position won't update until order is filled
-      setTimeout(() => {
-        fetchOrders()
-        fetchPositions() // Refresh positions after order placement
-      }, 1500)
-      
-      // Second refresh after a longer delay for positions to propagate in Polymarket's system
-      setTimeout(() => {
-        fetchPositions()
-      }, 5000)
-    }
-
-    window.addEventListener('orderPlaced', handleOrderPlaced)
-    return () => window.removeEventListener('orderPlaced', handleOrderPlaced)
-  }, [walletAddress, fetchOrders, fetchPositions]) // Include walletAddress to ensure effect runs when wallet changes
+  const features = [
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      ),
+      title: 'Trading Terminal',
+      description: 'Professional Polymarket crypto trading interface'
+    },
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+      ),
+      title: 'Wallet Connection',
+      description: 'Seamless integration with your Web3 wallet'
+    },
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+        </svg>
+      ),
+      title: '8 Live Markets',
+      description: 'BTC, ETH, SOL, XRP — 15m & 1h timeframes'
+    },
+    {
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      ),
+      title: 'Historical Context',
+      description: 'Basic historical market flow for informed decisions'
+    },
+  ]
 
   return (
-    <div className="bg-dark-bg text-white h-[calc(100vh-73px)] overflow-hidden relative">
-      {/* Full Screen Chart */}
-      <div className="absolute inset-0 flex flex-col">
-            <ChartControls />
-            <div className="flex-1 min-h-0 relative">
-          {/* Default: Side-by-Side View (Poly Orderbook + TradingView) */}
-          <div className="w-full h-full flex">
-            {/* Left: Poly Orderbook Chart */}
-            <div className="flex-1 border-r border-gray-700/50">
-              <PolyLineChart />
-            </div>
-            {/* Right: TradingView Chart */}
-            <div className="flex-1">
-              <TradingViewChart />
-            </div>
-          </div>
+    <div className="bg-dark-bg text-white min-h-screen">
+      {/* Hero Section */}
+      <section 
+        ref={heroRef}
+        className={`relative overflow-hidden pt-32 pb-20 px-4 sm:px-6 lg:px-8 transition-opacity duration-1000 ${isVisible ? 'opacity-100' : 'opacity-0'}`}
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-gold-primary/5 via-transparent to-transparent pointer-events-none" />
+        
+        <div className="max-w-7xl mx-auto text-center">
+          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
+            <span className="bg-gradient-to-r from-gold-primary via-gold-hover to-gold-primary bg-clip-text text-transparent animate-gradient">
+              Identify Markets Worth Trading
+            </span>
+          </h1>
+          
+          <p className="text-xl sm:text-2xl text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed">
+            PolyVec helps Polymarket crypto traders identify when short-term markets are worth trading — and when they&apos;re not.
+          </p>
 
-          {/* Side-by-Side Toggle Button - Commented out, side-by-side is now default */}
-          {/*
-          <div className="absolute top-4 right-4 z-10">
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
             <button
-              onClick={() => setShowSideBySide(!showSideBySide)}
-              className={`px-3 py-2 rounded transition-all duration-200 flex items-center gap-1.5 ${
-                showSideBySide
-                  ? 'bg-gold-primary text-white shadow-lg shadow-gold-primary/20'
-                  : 'bg-gray-900/90 hover:bg-gray-800 text-gray-400 hover:text-white border border-gray-700/50 backdrop-blur-sm'
-              }`}
-              title={showSideBySide ? 'Show single chart' : 'Show charts side by side'}
+              onClick={handleGetStarted}
+              className="px-8 py-4 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white font-semibold text-lg rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-dark-bg uppercase tracking-wider"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 6h8v16H3V6z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M3 10h8M3 14h6"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 6h8v16h-8V6z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M13 10h8M13 14h6"
-                />
-              </svg>
+              Get Started
             </button>
+            <Link
+              href="/terminal"
+              className="px-8 py-4 bg-transparent border-2 border-gold-primary/50 hover:border-gold-primary text-gold-primary hover:text-gold-hover font-semibold text-lg rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-dark-bg uppercase tracking-wider"
+            >
+              View Demo
+            </Link>
           </div>
-          */}
-          
-          {/* Fallback to single chart view - Commented out, side-by-side is now default */}
-          {/*
-          {showSideBySide ? (
-            <div className="w-full h-full flex">
-              <div className="flex-1 border-r border-gray-700/50">
-                <PolyLineChart />
-              </div>
-              <div className="flex-1">
-                <TradingViewChart />
-              </div>
-            </div>
-          ) : (
-            showTradingView ? <TradingViewChart /> : <PolyLineChart />
-          )}
-          */}
-      </div>
 
-        {/* Bottom Section - Tabs and Orderbook */}
-        <div className="h-64 border-t border-gray-700/50 flex">
-          {/* Left: Position/Orders/History Tabs */}
-          <div className="flex-1 flex flex-col">
-            <div className="flex border-b border-gray-700/50 flex-shrink-0">
-          <button
-            onClick={() => setActiveTab('position')}
-            className={`px-4 py-3 text-xs font-medium transition-colors relative h-[49px] uppercase tracking-wider ${
-              activeTab === 'position'
-                ? 'text-white'
-                : 'text-gray-400 hover:text-white'
-            }`}
-            style={{ fontFamily: 'monospace' }}
-          >
-            Positions
-            {activeTab === 'position' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('orders')}
-            className={`px-4 py-3 text-xs font-medium transition-colors relative h-[49px] uppercase tracking-wider ${
-              activeTab === 'orders'
-                ? 'text-white'
-                : 'text-gray-400 hover:text-white'
-            }`}
-            style={{ fontFamily: 'monospace' }}
-          >
-            Orders
-            {activeTab === 'orders' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`px-4 py-3 text-xs font-medium transition-colors relative h-[49px] uppercase tracking-wider ${
-              activeTab === 'history'
-                ? 'text-white'
-                : 'text-gray-400 hover:text-white'
-            }`}
-            style={{ fontFamily: 'monospace' }}
-          >
-            History
-            {activeTab === 'history' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gold-primary" />
-            )}
-          </button>
-        </div>
-        <div className="overflow-y-auto h-[calc(100%-49px)]">
-          {activeTab === 'position' && (
-            <div className="w-full">
-              <table className="w-full text-sm">
-                <thead className="text-gray-400 border-b border-gray-700/50">
-                  <tr>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Market</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Outcome</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Side</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Size</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Avg Price</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Current</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>PnL</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!walletAddress ? (
-                    <tr>
-                      <td colSpan={8} className="py-8 px-4 text-center text-gray-500 text-sm">
-                        Connect wallet to view positions
-                      </td>
-                    </tr>
-                  ) : positions.length > 0 ? (
-                    positions.map((position, idx) => {
-                      // For resolved positions (redeemable or loss), use the position's actual price
-                      // Don't override with live orderbook prices for settled markets
-                      const isResolved = position.redeemable || position.isLoss
-                      
-                      // Check if position matches current market by tokenId or outcome
-                      const positionIsUp = position.outcome?.toLowerCase().includes('yes') || 
-                                          position.outcome?.toLowerCase().includes('up') ||
-                                          position.tokenId === currentMarket?.yesTokenId
-                      const positionIsDown = position.outcome?.toLowerCase().includes('no') || 
-                                            position.outcome?.toLowerCase().includes('down') ||
-                                            position.tokenId === currentMarket?.noTokenId
-                      
-                      const matchesCurrentMarket = !isResolved && currentMarket?.yesTokenId && currentMarket?.noTokenId && 
-                        (position.tokenId === currentMarket.yesTokenId || 
-                         position.tokenId === currentMarket.noTokenId ||
-                         (positionIsUp && currentMarket.yesTokenId) ||
-                         (positionIsDown && currentMarket.noTokenId))
-                      
-                      // Use live price ONLY for active (non-resolved) positions matching current market
-                      let livePriceCents: number | null = null
-                      if (matchesCurrentMarket && !isResolved) {
-                        if (position.tokenId === currentMarket?.yesTokenId || positionIsUp) {
-                          livePriceCents = livePrices.upBidPrice
-                        } else if (position.tokenId === currentMarket?.noTokenId || positionIsDown) {
-                          livePriceCents = livePrices.downBidPrice
-                        }
-                      }
-                      
-                      // For resolved positions, always use the position's curPrice from API
-                      const currentPrice = isResolved 
-                        ? position.currentPrice 
-                        : (livePriceCents !== null ? livePriceCents / 100 : position.currentPrice)
-                      
-                      // Use API PnL for resolved positions, calculate for active ones
-                      const calculatedPnl = isResolved
-                        ? position.pnl
-                        : (matchesCurrentMarket && livePriceCents !== null
-                            ? (currentPrice - position.avgPrice) * position.size
-                            : position.pnl)
-                      
-                      return (
-                        <tr key={idx} className="border-b border-gray-700/30 hover:bg-gray-900/20">
-                          <td className="py-3 px-4 max-w-xs truncate" title={position.market}>
-                            {position.slug ? (
-                              <a
-                                href={`https://polymarket.com/event/${position.slug}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-white hover:text-gold-hover hover:underline transition-colors cursor-pointer"
-                              >
-                                {position.market}
-                              </a>
-                            ) : (
-                              <span className="text-white">{position.market}</span>
-                            )}
-                          </td>
-                          <td className="py-3 px-4 text-gray-300">{position.outcome}</td>
-                          <td className="py-3 px-4">
-                            <span className={position.side === 'BUY' ? 'text-green-400' : 'text-red-400'}>
-                              {position.side}
-                            </span>
-                          </td>
-                          <td className="py-3 px-4 text-right text-white">{position.size.toFixed(2)}</td>
-                          <td className="py-3 px-4 text-right text-gray-400">{(position.avgPrice * 100).toFixed(1)}¢</td>
-                          <td className="py-3 px-4 text-right text-white">
-                            <>
-                              <AnimatedPrice
-                                value={currentPrice * 100}
-                                format={(val) => val.toFixed(1)}
-                              />
-                              ¢
-                            </>
-                          </td>
-                          <td className={`py-3 px-4 text-right ${calculatedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {calculatedPnl >= 0 ? '+' : ''}${calculatedPnl.toFixed(2)}
-                          </td>
-                          <td className="py-3 px-4 text-right">
-                            {position.redeemable ? (
-                              <button
-                                onClick={() => handleClaimPosition(position)}
-                                disabled={isClaimingPosition === position.conditionId}
-                                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                                  isClaimingPosition === position.conditionId
-                                    ? 'bg-gray-600 text-gray-300 cursor-wait'
-                                    : 'bg-green-600 hover:bg-green-500 text-white'
-                                }`}
-                              >
-                                {isClaimingPosition === position.conditionId ? 'Claiming...' : 'Claim'}
-                              </button>
-                            ) : position.isLoss ? (
-                              <button
-                                onClick={() => handleClosePosition(position)}
-                                disabled={isClaimingPosition === position.conditionId}
-                                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                                  isClaimingPosition === position.conditionId
-                                    ? 'bg-gray-600 text-gray-300 cursor-wait'
-                                    : 'bg-red-900/60 hover:bg-red-800/60 text-red-300 border border-red-700/50'
-                                }`}
-                                title="Close losing position (removes from portfolio)"
-                              >
-                                {isClaimingPosition === position.conditionId ? 'Closing...' : 'Close'}
-                              </button>
-                            ) : position.tokenId && position.size > 0 ? (
-                              <button
-                                onClick={() => handleSellAllPosition(position)}
-                                disabled={isSellingPosition === position.tokenId}
-                                className={`px-3 py-1 text-xs font-medium rounded transition-colors ${
-                                  isSellingPosition === position.tokenId
-                                    ? 'bg-gray-600 text-gray-300 cursor-wait'
-                                    : 'bg-orange-600 hover:bg-orange-500 text-white'
-                                }`}
-                                title="Sell entire position at market price"
-                              >
-                                {isSellingPosition === position.tokenId ? 'Selling...' : 'Sell All'}
-                              </button>
-                            ) : (
-                              <span className="text-gray-600 text-xs">-</span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan={8} className="py-8 px-4 text-center text-gray-500 text-sm">
-                        {isLoading ? 'Loading positions...' : 'No open positions'}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+          {/* Trust Indicators */}
+          <div className="flex flex-wrap justify-center items-center gap-8 text-gray-400 text-sm">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-gold-primary" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span>Polymarket Crypto Only</span>
+              </div>
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-gold-primary" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span>Real-time Data</span>
+              </div>
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-gold-primary" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              <span>Secure Wallet Integration</span>
             </div>
-          )}
-          {activeTab === 'orders' && (
-            <div className="w-full">
-              <table className="w-full text-sm">
-                <thead className="text-gray-400 border-b border-gray-700/50">
-                  <tr>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Market</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Type</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Side</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Size</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Price</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Status</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!walletAddress ? (
-                    <tr>
-                      <td colSpan={7} className="py-8 px-4 text-center text-gray-500 text-sm">
-                        Connect wallet to view orders
-                      </td>
-                    </tr>
-                  ) : orders.length > 0 ? (
-                    orders.map((order, idx) => (
-                      <tr key={order.id || idx} className="border-b border-gray-800 hover:bg-gray-900/30">
-                        <td className="py-3 px-4 text-white max-w-xs truncate" title={order.market}>{order.market}</td>
-                        <td className="py-3 px-4 text-gray-400">{order.type}</td>
-                        <td className="py-3 px-4">
-                          <span className={order.side === 'BUY' ? 'text-green-400' : 'text-red-400'}>
-                            {order.side} {order.outcome}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right text-white">{order.size.toFixed(2)}</td>
-                        <td className="py-3 px-4 text-right text-white">
-                          <>
-                            <AnimatedPrice
-                              value={order.price * 100}
-                              format={(val) => val.toFixed(1)}
-                            />
-                            ¢
-                          </>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <span className={`text-xs px-2 py-0.5 rounded ${
-                            order.status === 'live' ? 'bg-green-900/50 text-green-400' : 'bg-gray-800 text-gray-400'
-                          }`}>
-                            {order.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <button 
-                            onClick={() => handleCancelOrder(order)}
-                            disabled={isCancellingOrder === order.id}
-                            className={`text-xs transition-colors ${
-                              isCancellingOrder === order.id
-                                ? 'text-gray-500 cursor-wait'
-                                : 'text-red-400 hover:text-red-300'
-                            }`}
-                          >
-                            {isCancellingOrder === order.id ? 'Cancelling...' : 'Cancel'}
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={7} className="py-8 px-4 text-center text-gray-500 text-sm">
-                        {isLoading ? 'Loading orders...' : 'No open orders'}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {activeTab === 'history' && (
-            <div className="w-full">
-              <table className="w-full text-sm">
-                <thead className="text-gray-400 border-b border-gray-700/50">
-                  <tr>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Time</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Market</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Side</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Size</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Price</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {!walletAddress ? (
-                    <tr>
-                      <td colSpan={6} className="py-8 px-4 text-center text-gray-500 text-sm">
-                        Connect wallet to view trade history
-                      </td>
-                    </tr>
-                  ) : trades.length > 0 ? (
-                    trades.map((trade, idx) => (
-                      <tr key={trade.id || idx} className="border-b border-gray-800 hover:bg-gray-900/30">
-                        <td className="py-3 px-4 text-gray-400">
-                          {new Date(trade.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td className="py-3 px-4 text-white max-w-xs truncate" title={trade.market}>{trade.market}</td>
-                        <td className="py-3 px-4">
-                          <span className={trade.side === 'BUY' ? 'text-green-400' : 'text-red-400'}>
-                            {trade.side} {trade.outcome}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right text-white">{trade.size.toFixed(2)}</td>
-                        <td className="py-3 px-4 text-right text-white">
-                          <>
-                            <AnimatedPrice
-                              value={trade.price * 100}
-                              format={(val) => val.toFixed(1)}
-                            />
-                            ¢
-                          </>
-                        </td>
-                        <td className="py-3 px-4 text-right text-white">${trade.total.toFixed(2)}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={6} className="py-8 px-4 text-center text-gray-500 text-sm">
-                        {isLoading ? 'Loading trade history...' : 'No trade history'}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-            </div>
-          </div>
-          
-          {/* Right: Orderbook */}
-          <div className="w-80 border-l border-gray-700/50 h-full overflow-hidden">
-            <OrderBook />
-          </div>
-        </div>
       </div>
-      
-      {/* Draggable Floating Trading Panel */}
-      <DraggableTradingPanel>
-        <TradingPanel />
-      </DraggableTradingPanel>
+        </div>
+      </section>
+
+      {/* Features Section */}
+      <section 
+        id="features"
+        ref={featuresRef}
+        className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-transparent via-dark-bg/50 to-transparent"
+      >
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16 scroll-animate">
+            <h2 className="text-4xl sm:text-5xl font-bold mb-4">
+              Everything You Need to Trade Smarter
+            </h2>
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              A professional trading terminal designed for Polymarket crypto markets
+            </p>
+              </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+            {features.map((feature, index) => (
+              <div
+                key={index}
+                className="scroll-animate p-6 bg-dark-bg border border-gray-700/20 hover:border-gold-primary/30 rounded-lg transition-all duration-300 transform hover:-translate-y-1 shadow-lg shadow-black/50"
+              >
+                <div className="text-gold-primary mb-4">
+                  {feature.icon}
+              </div>
+                <h3 className="text-xl font-semibold mb-2 text-white">
+                  {feature.title}
+                </h3>
+                <p className="text-gray-400">
+                  {feature.description}
+                </p>
+            </div>
+            ))}
+          </div>
+
+          {/* Pricing Card */}
+          <div id="pricing" className="max-w-md mx-auto scroll-animate">
+            <div className="bg-dark-bg border-2 border-gold-primary/30 rounded-2xl p-8 shadow-lg shadow-black/50 hover:border-gold-primary/50 transition-all duration-300">
+              <div className="text-center mb-8">
+                <h3 className="text-3xl font-bold mb-2 text-white">Trading Terminal</h3>
+                <p className="text-gray-400 mb-6">Polymarket crypto only</p>
+                
+                <div className="mb-8">
+                  <span className="text-5xl font-bold text-gold-primary">$49</span>
+                  <span className="text-xl text-gray-400">/month</span>
+                </div>
+              </div>
+
+              <ul className="space-y-4 mb-8">
+                <li className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-gold-primary mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-gray-300">Login & Wallet connection</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-gold-primary mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-gray-300">8 live markets (BTC, ETH, SOL, XRP)</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-gold-primary mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-gray-300">15m & 1h timeframes</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <svg className="w-5 h-5 text-gold-primary mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-gray-300">Basic historical market flow (context, not backtests)</span>
+                </li>
+              </ul>
+
+                              <button
+                onClick={handleGetStarted}
+                className="w-full px-6 py-4 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white font-semibold rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-gray-900 uppercase tracking-wider"
+              >
+                Get Started
+                              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Demo Section */}
+      <section id="demo" className="py-20 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12 scroll-animate">
+            <h2 className="text-4xl sm:text-5xl font-bold mb-4">
+              See It In Action
+            </h2>
+            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+              A professional trading terminal designed for Polymarket crypto markets
+            </p>
+          </div>
+
+          <div className="scroll-animate max-w-7xl mx-auto">
+            {/* Browser Chrome Frame */}
+            <div className="relative bg-dark-bg border border-gray-700/30 rounded-lg overflow-hidden shadow-2xl shadow-black/50">
+              {/* Browser Chrome */}
+              <div className="bg-gray-800/50 px-4 py-3 flex items-center gap-2 border-b border-gray-700/30 relative z-10">
+                <div className="flex gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
+                  <div className="w-3 h-3 rounded-full bg-yellow-500/50"></div>
+                  <div className="w-3 h-3 rounded-full bg-green-500/50"></div>
+                </div>
+                <div className="flex-1 mx-4">
+                  <div className="bg-gray-900/50 rounded px-3 py-1 text-xs text-gray-400 text-center">
+                    {activeDemo === 'terminal' && 'polyvec.com/terminal'}
+                    {activeDemo === 'analytics' && 'polyvec.com/analytics'}
+                    {activeDemo === 'backtest' && 'polyvec.com/strategies/backtest'}
+                  </div>
+                </div>
+                
+                {/* Navigation Arrows */}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const demos: Array<'terminal' | 'analytics' | 'backtest'> = ['terminal', 'analytics', 'backtest']
+                      const currentIndex = demos.indexOf(activeDemo)
+                      const prevIndex = currentIndex === 0 ? demos.length - 1 : currentIndex - 1
+                      setActiveDemo(demos[prevIndex])
+                    }}
+                    className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded transition-all duration-200"
+                    aria-label="Previous demo"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <div className="flex items-center gap-1">
+                    {(['terminal', 'analytics', 'backtest'] as const).map((demo, index) => (
+                      <div
+                        key={demo}
+                        className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                          activeDemo === demo ? 'bg-gold-primary w-6' : 'bg-gray-600'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <button
+                    onClick={() => {
+                      const demos: Array<'terminal' | 'analytics' | 'backtest'> = ['terminal', 'analytics', 'backtest']
+                      const currentIndex = demos.indexOf(activeDemo)
+                      const nextIndex = currentIndex === demos.length - 1 ? 0 : currentIndex + 1
+                      setActiveDemo(demos[nextIndex])
+                    }}
+                    className="p-2 text-gray-400 hover:text-white hover:bg-gray-700/50 rounded transition-all duration-200"
+                    aria-label="Next demo"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              
+              {/* Demo Content - Preview Mode */}
+              <div className="relative h-[600px] overflow-hidden">
+                {activeDemo === 'terminal' && <TerminalDemo />}
+                {activeDemo === 'analytics' && <AnalyticsDemo />}
+                {activeDemo === 'backtest' && <BacktestDemo />}
+                
+                {/* Overlay to prevent interactions */}
+                <div className="absolute inset-0 bg-transparent z-50 cursor-not-allowed" 
+                     style={{ pointerEvents: 'auto' }}
+                     onClick={(e) => e.preventDefault()}
+                     onMouseDown={(e) => e.preventDefault()}
+                     title="Preview - Sign up to access the full features" />
+              </div>
+              
+              {/* Caption */}
+              <div className="bg-gray-900/30 px-6 py-4 border-t border-gray-700/30">
+                <p className="text-center text-gray-400 text-sm">
+                  {activeDemo === 'terminal' && 'Professional trading interface with real-time market data, advanced charts, and seamless wallet integration'}
+                  {activeDemo === 'analytics' && 'Comprehensive trading analytics with performance metrics, win rate analysis, and market insights'}
+                  {activeDemo === 'backtest' && 'Test your trading strategies with historical data to optimize performance before going live'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Final CTA Section */}
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-gradient-to-b from-transparent via-gold-primary/5 to-transparent">
+        <div className="max-w-4xl mx-auto text-center scroll-animate">
+          <h2 className="text-4xl sm:text-5xl font-bold mb-6">
+            Ready to Trade Smarter?
+          </h2>
+          <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
+            Join PolyVec today and identify when short-term markets are worth trading — and when they&apos;re not.
+          </p>
+          <button
+            onClick={handleGetStarted}
+            className="px-10 py-5 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white font-bold text-lg rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-dark-bg uppercase tracking-wider"
+          >
+            Get Started Now
+          </button>
+          </div>
+      </section>
+
+      {/* Footer */}
+      <Footer />
+
+      {/* Auth Modal */}
+      <AuthModal 
+        isOpen={showAuthModal} 
+        onClose={() => setShowAuthModal(false)}
+        initialMode={authMode}
+      />
     </div>
   )
 }
 
-export default function Home() {
+const LandingPage = () => {
   return (
-    <TradingProvider>
-      <TerminalContent />
-    </TradingProvider>
+    <Suspense fallback={
+      <div className="bg-dark-bg text-white min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold-primary"></div>
+          <p className="mt-4 text-gray-400">Loading...</p>
+        </div>
+      </div>
+    }>
+      <LandingPageContent />
+    </Suspense>
   )
 }
 
+export default LandingPage

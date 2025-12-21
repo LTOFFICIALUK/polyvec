@@ -204,8 +204,16 @@ const TradingViewChart = () => {
 
   // Global drag handlers
   useEffect(() => {
+    if (!isDragging) {
+      // Remove drag class when not dragging
+      document.body.classList.remove('dragging-panel')
+      return
+    }
+
+    // Add class to body to disable chart interactions
+    document.body.classList.add('dragging-panel')
+
     const handleMouseMove = (e: MouseEvent) => {
-      if (isDragging) {
         // Calculate new position relative to container
         if (containerRef.current && toolbarRef.current) {
           const containerRect = containerRef.current.getBoundingClientRect()
@@ -223,22 +231,25 @@ const TradingViewChart = () => {
           y = Math.max(0, Math.min(y, maxY))
 
           setToolbarPos({ x, y })
-        }
       }
     }
 
     const handleMouseUp = () => {
       setIsDragging(false)
+      document.body.classList.remove('dragging-panel')
     }
 
-    if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
-    }
+    document.body.style.cursor = 'grabbing'
+    document.body.style.userSelect = 'none'
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.body.classList.remove('dragging-panel')
     }
   }, [isDragging])
 

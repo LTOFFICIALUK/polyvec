@@ -18,6 +18,13 @@ let pool: Pool | null = null
 let isInitialized = false
 let migrationRun = false
 
+/**
+ * Get the current database pool (if initialized)
+ */
+export const getPriceRecorderPool = (): Pool | null => {
+  return pool
+}
+
 // In-memory buffer for current market prices
 // Key: marketId, Value: { eventStart, eventEnd, yesTokenId, noTokenId, prices: [] }
 interface PricePoint {
@@ -94,13 +101,13 @@ const runMigrations = async (pool: Pool): Promise<void> => {
 /**
  * Initialize database connection pool
  */
-export const initializePriceRecorder = async (): Promise<void> => {
-  if (isInitialized) return
+export const initializePriceRecorder = async (): Promise<Pool | null> => {
+  if (isInitialized) return pool
 
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) {
     console.log('[PriceRecorder] No DATABASE_URL - price recording disabled')
-    return
+    return null
   }
 
   try {
@@ -127,8 +134,11 @@ export const initializePriceRecorder = async (): Promise<void> => {
     // Start periodic flush
     setInterval(flushAllBuffers, FLUSH_INTERVAL_MS)
     console.log(`[PriceRecorder] Started periodic flush every ${FLUSH_INTERVAL_MS/1000}s`)
+    
+    return pool
   } catch (error: any) {
     console.error('[PriceRecorder] Failed to initialize:', error.message)
+    return null
   }
 }
 

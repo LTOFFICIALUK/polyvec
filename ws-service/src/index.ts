@@ -11,6 +11,12 @@ import { WebSocketServer } from './ws/server'
 import { MarketsStateStore } from './state/marketsState'
 import { fetchMarketsList, fetchOrderbook, fetchMultipleOrderbooks, fetchMarketBySlug, MarketMetadata } from './polymarket/clobClient'
 import { initializePriceRecorder, recordMarketPrices, closePriceRecorder, queryPriceHistory } from './db/priceRecorder'
+import { 
+  initializeIndicatorCache, 
+  preCalculateIndicators, 
+  cleanupOldIndicators,
+  getCachedIndicators 
+} from './db/indicatorCache'
 import {
   initializeStrategyRecorder,
   closeStrategyRecorder,
@@ -42,6 +48,10 @@ import {
   storePrivateKey,
   hasStoredKey,
   getKeyMetadata,
+} from './db/tradingKeyRecorder'
+import {
+  initializeCustodialWallet,
+  getCustodialWalletPrivateKey,
   deactivateKey,
   deleteKey,
   getKeyAuditLog,
@@ -52,6 +62,7 @@ import { executeTrade, canExecuteTrades, testKeySignature } from './trading/trad
 import { initializeBacktester, runBacktest, isStrategyProfitable, closeBacktester } from './backtesting/backtester'
 import { makeAuthenticatedRequest } from './polymarket/hmacAuth'
 import type { PolymarketApiCredentials } from './polymarket/hmacAuth'
+import { ethers } from 'ethers'
 
 const POLYMARKET_GAMMA_API = process.env.POLYMARKET_GAMMA_API || 'https://gamma-api.polymarket.com'
 
@@ -299,7 +310,16 @@ const httpServer = http.createServer(async (req, res) => {
     await new Promise<void>(resolve => req.on('end', resolve))
 
     try {
-      const { strategyId, strategy, marketId, startTime, endTime, initialBalance } = JSON.parse(body)
+      const { 
+        strategyId, 
+        strategy, 
+        marketId, 
+        startTime, 
+        endTime, 
+        initialBalance,
+        numberOfMarkets,
+        exitPrice 
+      } = JSON.parse(body)
 
       // Either provide strategyId to fetch from DB, or provide full strategy object
       let strategyToTest: Strategy | null = null
@@ -319,11 +339,13 @@ const httpServer = http.createServer(async (req, res) => {
         return
       }
 
-      // Parse dates
-      const start = startTime ? new Date(startTime) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Default: 7 days ago
-      const end = endTime ? new Date(endTime) : new Date()
+      // Parse dates (only used if not using numberOfMarkets mode)
+      const start = startTime ? new Date(startTime) : undefined
+      const end = endTime ? new Date(endTime) : undefined
 
       console.log(`[Backtest API] Running backtest for "${strategyToTest.name}"`)
+      console.log(`[Backtest API] Mode: ${numberOfMarkets ? `Multi-market (${numberOfMarkets})` : 'Single market'}`)
+      console.log(`[Backtest API] Exit Price: ${exitPrice ? `¢${exitPrice}` : 'None'}`)
 
       const result = await runBacktest({
         strategy: strategyToTest,
@@ -331,17 +353,118 @@ const httpServer = http.createServer(async (req, res) => {
         endTime: end,
         initialBalance: initialBalance || 1000,
         marketId: marketId || strategyToTest.market,
+        numberOfMarkets: numberOfMarkets,
+        exitPrice: exitPrice,
       })
 
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({
         success: true,
-        data: result,
+        result: result,
       }))
     } catch (error: any) {
       console.error('[Backtest API] Error:', error.message)
       res.writeHead(500, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ success: false, error: error.message || 'Backtest failed' }))
+    }
+    return
+  }
+
+  // Get chart data for backtest visualization
+  if (path === '/api/backtest/chart-data' && req.method === 'POST') {
+    let body = ''
+    req.on('data', (chunk) => { body += chunk.toString() })
+    await new Promise<void>(resolve => req.on('end', resolve))
+
+    try {
+      const { asset, timeframe, direction, indicatorType, indicatorParameters, marketIds } = JSON.parse(body)
+
+      if (!asset || !timeframe) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ success: false, error: 'Missing asset or timeframe' }))
+        return
+      }
+
+      // Use crypto price feeder for asset data (same as live trading)
+      const feeder = getCryptoPriceFeeder()
+      const symbolMap: Record<string, string> = {
+        BTC: 'btcusdt',
+        ETH: 'ethusdt',
+        SOL: 'solusdt',
+        XRP: 'xrpusdt',
+      }
+      const symbol = symbolMap[asset.toUpperCase()] || 'btcusdt'
+      const tf = timeframe === '1h' || timeframe === 'hourly' ? '1h' : '15m'
+
+      // Get candle history from VPS
+      const rawCandles = feeder.getCandleHistory(symbol as any, tf as any, 500) // Get last 500 candles
+
+      if (rawCandles.length === 0) {
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          success: true,
+          candles: [],
+          indicatorData: [],
+          message: 'No candle data available',
+        }))
+        return
+      }
+
+      // Convert to chart format
+      const candles = rawCandles.map(c => ({
+        timestamp: c.timestamp,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
+      }))
+
+      // Calculate indicator if specified
+      let indicatorData: any[] = []
+      if (indicatorType && indicatorParameters) {
+        try {
+          const { calculateIndicator } = await import('./indicators/indicatorCalculator')
+          const indicatorCandles = rawCandles.map(c => ({
+            timestamp: c.timestamp,
+            open: c.open,
+            high: c.high,
+            low: c.low,
+            close: c.close,
+            volume: c.volume,
+          }))
+          
+          const results = calculateIndicator(indicatorCandles, {
+            type: indicatorType as any,
+            parameters: indicatorParameters,
+          })
+          indicatorData = results.map(r => ({
+            timestamp: r.timestamp,
+            value: r.value,
+            values: r.values,
+          }))
+        } catch (err: any) {
+          console.warn(`[Chart Data] Failed to calculate indicator ${indicatorType}:`, err.message)
+        }
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        success: true,
+        candles: candles.map(c => ({
+          timestamp: c.timestamp,
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+          volume: c.volume,
+        })),
+        indicatorData,
+      }))
+    } catch (error: any) {
+      console.error('[Chart Data API] Error:', error.message)
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: error.message || 'Failed to fetch chart data' }))
     }
     return
   }
@@ -674,6 +797,113 @@ const httpServer = http.createServer(async (req, res) => {
         latest,
       }))
     } catch (error: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ success: false, error: error.message }))
+    }
+    return
+  }
+
+  // Admin endpoint - get cached indicators from database
+  if (path === '/api/admin/indicators' && req.method === 'GET') {
+    const asset = url.searchParams.get('asset') || 'BTC'
+    const timeframe = url.searchParams.get('timeframe') || '15m'
+    const indicatorType = url.searchParams.get('indicatorType')
+    const startTime = url.searchParams.get('startTime')
+    const endTime = url.searchParams.get('endTime')
+    
+      try {
+        // Ensure indicator cache is initialized
+        const { isIndicatorCacheInitialized, initializeIndicatorCache } = await import('./db/indicatorCache')
+        if (!isIndicatorCacheInitialized()) {
+          try {
+            const { initializePriceRecorder } = await import('./db/priceRecorder')
+            const pool = await initializePriceRecorder()
+            if (pool) {
+              await initializeIndicatorCache(pool)
+              console.log('[Admin/Indicators] Indicator cache initialized')
+            }
+          } catch (initError: any) {
+            console.error('[Admin/Indicators] Initialization error:', initError.message)
+            // Continue anyway - might return empty results
+          }
+        }
+        
+        try {
+          const { getCachedIndicators } = await import('./db/indicatorCache')
+        
+        // Get all cached indicators for this asset/timeframe
+        const allIndicators: any[] = []
+        const indicatorTypes = indicatorType 
+          ? [indicatorType]
+          : ['RSI', 'MACD', 'SMA', 'EMA', 'Bollinger Bands', 'Stochastic', 'ATR', 'VWAP', 'Rolling Up %']
+        
+        for (const type of indicatorTypes) {
+          // Get all parameter variations for this indicator type
+          const paramVariations: Record<string, any>[] = []
+          
+          if (type === 'RSI') {
+            paramVariations.push({ length: 14 }, { length: 9 }, { length: 21 })
+          } else if (type === 'MACD') {
+            paramVariations.push({ fast: 12, slow: 26, signal: 9 }, { fast: 8, slow: 21, signal: 5 })
+          } else if (type === 'SMA') {
+            paramVariations.push({ length: 20 }, { length: 50 })
+          } else if (type === 'EMA') {
+            paramVariations.push({ length: 9 }, { length: 20 }, { length: 21 }, { length: 50 })
+          } else if (type === 'Bollinger Bands') {
+            paramVariations.push({ length: 20, stdDev: 2 })
+          } else if (type === 'Stochastic') {
+            paramVariations.push({ k: 14, smoothK: 1, d: 3 })
+          } else if (type === 'ATR') {
+            paramVariations.push({ length: 14 })
+          } else if (type === 'VWAP') {
+            paramVariations.push({ resetDaily: 1 })
+          } else if (type === 'Rolling Up %') {
+            paramVariations.push({ length: 50 })
+          }
+          
+          for (const params of paramVariations) {
+            try {
+              const start = startTime ? parseInt(startTime) : undefined
+              const end = endTime ? parseInt(endTime) : undefined
+              const data = await getCachedIndicators(asset, timeframe, type, params, start, end)
+              
+              if (data.length > 0) {
+                allIndicators.push({
+                  indicator_type: type,
+                  indicator_params: params,
+                  data: data.slice(-100), // Last 100 values
+                  latest_timestamp: data[data.length - 1]?.timestamp || 0,
+                  count: data.length,
+                })
+              }
+            } catch (queryError: any) {
+              // Skip this indicator if query fails
+              console.warn(`[Admin/Indicators] Error querying ${type}:`, queryError.message)
+            }
+          }
+        }
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          success: true,
+          asset,
+          timeframe,
+          indicators: allIndicators,
+        }))
+      } catch (cacheError: any) {
+        // If cache is not available, return empty results instead of error
+        console.warn('[Admin/Indicators] Cache not available:', cacheError.message)
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          success: true,
+          asset,
+          timeframe,
+          indicators: [],
+          message: 'Indicator cache not yet initialized. Pre-calculation job will populate data shortly.',
+        }))
+      }
+    } catch (error: any) {
+      console.error('[Admin/Indicators] Error:', error.message)
       res.writeHead(500, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ success: false, error: error.message }))
     }
@@ -2067,6 +2297,176 @@ const httpServer = http.createServer(async (req, res) => {
     return
   }
 
+  // Sign order endpoint - signs orders using custodial wallet private key (SECURE - keys never leave VPS)
+  if (path === '/api/trade/sign-order' && req.method === 'POST') {
+    let body = ''
+    req.on('data', (chunk) => { body += chunk.toString() })
+    req.on('end', async () => {
+      try {
+        const requestData = JSON.parse(body)
+        const {
+          userId,
+          tokenId,
+          side,
+          price,
+          size,
+          negRisk = false,
+        } = requestData
+
+        if (!userId || !tokenId || price === undefined || size === undefined || side === undefined) {
+          res.writeHead(400, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: 'Missing required fields: userId, tokenId, side, price, size',
+            errorCode: 'MISSING_FIELDS',
+          }))
+          return
+        }
+
+        // Get custodial wallet private key
+        const walletData = await getCustodialWalletPrivateKey(userId)
+        if (!walletData) {
+          res.writeHead(404, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: 'Custodial wallet not found',
+            errorCode: 'WALLET_NOT_FOUND',
+          }))
+          return
+        }
+
+        const { walletAddress, privateKey } = walletData
+
+        // Create wallet from private key
+        const wallet = new ethers.Wallet(privateKey)
+
+        // Verify wallet address matches
+        if (wallet.address.toLowerCase() !== walletAddress.toLowerCase()) {
+          res.writeHead(500, { 'Content-Type': 'application/json' })
+          res.end(JSON.stringify({ 
+            success: false, 
+            error: 'Wallet address mismatch',
+            errorCode: 'ADDRESS_MISMATCH',
+          }))
+          return
+        }
+
+        // Calculate amounts
+        const TOKEN_DECIMALS = 1e6
+        let makerAmount: string
+        let takerAmount: string
+
+        const orderSide = side === 0 || side === 'BUY' ? 'BUY' : 'SELL'
+        if (orderSide === 'BUY') {
+          const rawTakerAmount = Math.floor(size * 100) / 100
+          const rawMakerAmount = Math.floor(rawTakerAmount * price * 10000) / 10000
+          makerAmount = Math.floor(rawMakerAmount * TOKEN_DECIMALS).toString()
+          takerAmount = Math.floor(rawTakerAmount * TOKEN_DECIMALS).toString()
+        } else {
+          const rawMakerAmount = Math.floor(size * 100) / 100
+          const rawTakerAmount = Math.floor(rawMakerAmount * price * 10000) / 10000
+          makerAmount = Math.floor(rawMakerAmount * TOKEN_DECIMALS).toString()
+          takerAmount = Math.floor(rawTakerAmount * TOKEN_DECIMALS).toString()
+        }
+
+        // Get exchange nonce
+        const nonceResponse = await fetch(`https://clob.polymarket.com/nonce?address=${walletAddress}`)
+        const nonceData = await nonceResponse.json().catch(() => ({ nonce: '0' }))
+        const nonce = nonceData.nonce?.toString() || '0'
+
+        // Generate salt
+        const salt = Math.round(Math.random() * Date.now())
+        const saltBigInt = BigInt(salt)
+
+        // Determine exchange address
+        const EXCHANGE_ADDRESS = '0x4bFb41d5B3570DeFd03C39a9A4D8dE6Bd8B8982E'
+        const NEG_RISK_EXCHANGE_ADDRESS = '0xC5d563A36AE78145C45a50134d48A1215220f80a'
+        const exchangeAddress = negRisk ? NEG_RISK_EXCHANGE_ADDRESS : EXCHANGE_ADDRESS
+        const POLYGON_CHAIN_ID = 137
+
+        // EIP-712 domain
+        const domain = {
+          name: 'Polymarket CTF Exchange',
+          version: '1',
+          chainId: POLYGON_CHAIN_ID,
+          verifyingContract: exchangeAddress,
+        }
+
+        // EIP-712 types
+        const types = {
+          Order: [
+            { name: 'salt', type: 'uint256' },
+            { name: 'maker', type: 'address' },
+            { name: 'signer', type: 'address' },
+            { name: 'taker', type: 'address' },
+            { name: 'tokenId', type: 'uint256' },
+            { name: 'makerAmount', type: 'uint256' },
+            { name: 'takerAmount', type: 'uint256' },
+            { name: 'expiration', type: 'uint256' },
+            { name: 'nonce', type: 'uint256' },
+            { name: 'feeRateBps', type: 'uint256' },
+            { name: 'side', type: 'uint8' },
+            { name: 'signatureType', type: 'uint8' },
+          ],
+        }
+
+        // Build order for signing
+        const numericSide = orderSide === 'BUY' ? 0 : 1
+        const orderForSigning = {
+          salt: saltBigInt,
+          maker: ethers.getAddress(walletAddress),
+          signer: ethers.getAddress(walletAddress),
+          taker: ethers.ZeroAddress,
+          tokenId: BigInt(tokenId),
+          makerAmount: BigInt(makerAmount),
+          takerAmount: BigInt(takerAmount),
+          expiration: BigInt(0),
+          nonce: BigInt(nonce),
+          feeRateBps: BigInt(0),
+          side: numericSide,
+          signatureType: 0, // EOA
+        }
+
+        // Sign the order
+        const signature = await wallet.signTypedData(domain, types, orderForSigning)
+
+        // Clear sensitive data from memory
+        privateKey = null
+        wallet = null
+
+        // Return signed order
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          success: true,
+          signedOrder: {
+            salt: saltBigInt.toString(),
+            maker: orderForSigning.maker,
+            signer: orderForSigning.signer,
+            taker: orderForSigning.taker,
+            tokenId: BigInt(tokenId).toString(),
+            makerAmount: makerAmount,
+            takerAmount: takerAmount,
+            expiration: '0',
+            nonce: nonce,
+            feeRateBps: '0',
+            side: orderSide,
+            signatureType: 0,
+            signature: signature,
+          },
+        }))
+      } catch (error: any) {
+        console.error('[VPS Sign Order] Error:', error)
+        res.writeHead(500, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ 
+          success: false, 
+          error: error.message || 'Failed to sign order',
+          errorCode: 'INTERNAL_ERROR',
+        }))
+      }
+    })
+    return
+  }
+
   // Trade submission endpoint - accepts signed orders from Next.js and submits to Polymarket
   // Uses official Polymarket SDK's postOrder() method for clean, reliable order submission
   if (path === '/api/trade/submit-order' && req.method === 'POST') {
@@ -2744,8 +3144,77 @@ function startAutomaticMarketRefresh() {
   }, 60 * 1000) // 1 minute after startup
 }
 
-// Initialize database recorders (price, strategy, trading keys, and backtester)
-initializePriceRecorder()
+// Initialize database recorders (price, strategy, trading keys, backtester, and indicator cache)
+// Initialize indicator cache after PriceRecorder is ready
+const initializeIndicatorCacheAfterPriceRecorder = async () => {
+  // Try to get pool from PriceRecorder (it might already be initialized)
+  const { getPriceRecorderPool } = await import('./db/priceRecorder')
+  let pool = getPriceRecorderPool()
+  
+  // If not initialized yet, wait for it
+  if (!pool) {
+    console.log('[IndicatorCache] Waiting for PriceRecorder to initialize...')
+    pool = await initializePriceRecorder()
+  }
+  
+  console.log('[IndicatorCache] PriceRecorder pool available:', pool ? 'YES' : 'NO')
+  if (pool) {
+    try {
+      console.log('[IndicatorCache] Initializing indicator cache with database pool...')
+      await initializeIndicatorCache(pool)
+      console.log('[IndicatorCache] ✅ Indicator cache initialized successfully')
+      
+      // Initialize custodial wallet access
+      await initializeCustodialWallet(pool)
+      console.log('[CustodialWallet] ✅ Custodial wallet access initialized')
+      
+      // Start background job to pre-calculate indicators every 15 minutes
+      const preCalculateAllIndicators = async () => {
+        try {
+          console.log('[IndicatorCache] Starting pre-calculation job...')
+          const assets = ['BTC', 'ETH', 'SOL', 'XRP']
+          const timeframes = ['15m', '1h']
+          
+          for (const asset of assets) {
+            for (const timeframe of timeframes) {
+              try {
+                console.log(`[IndicatorCache] Pre-calculating ${asset} ${timeframe}...`)
+                await preCalculateIndicators(asset, timeframe, 200)
+                console.log(`[IndicatorCache] ✅ Completed ${asset} ${timeframe}`)
+              } catch (error: any) {
+                console.error(`[IndicatorCache] Error pre-calculating ${asset} ${timeframe}:`, error.message)
+              }
+            }
+          }
+          
+          // Cleanup old indicators
+          await cleanupOldIndicators()
+          console.log('[IndicatorCache] ✅ Pre-calculation job completed')
+        } catch (error: any) {
+          console.error('[IndicatorCache] Pre-calculation job error:', error.message)
+          console.error('[IndicatorCache] Stack:', error.stack)
+        }
+      }
+      
+      // Run immediately on startup (after a short delay to ensure DB is ready)
+      console.log('[IndicatorCache] Scheduling initial pre-calculation job in 5 seconds...')
+      setTimeout(preCalculateAllIndicators, 5000)
+      
+      // Then run every 15 minutes as a backup/fallback
+      // Note: Indicators are also recalculated immediately when candles close (see candleClosed event listener)
+      console.log('[IndicatorCache] Scheduling periodic pre-calculation job (every 15 minutes) as backup...')
+      setInterval(preCalculateAllIndicators, 15 * 60 * 1000)
+    } catch (error: any) {
+      console.error('[IndicatorCache] Initialization error:', error.message)
+      console.error('[IndicatorCache] Stack:', error.stack)
+    }
+  } else {
+    console.error('[IndicatorCache] No database pool available from PriceRecorder')
+  }
+}
+
+// Start initialization after a short delay to ensure PriceRecorder is ready
+setTimeout(initializeIndicatorCacheAfterPriceRecorder, 2000)
 initializeStrategyRecorder()
 initializeTradingKeyRecorder()
 initializeBacktester()
@@ -2763,8 +3232,41 @@ cryptoPriceFeeder.on('price', (data) => {
     ;(cryptoPriceFeeder as any)[logKey] = now
   }
 })
-cryptoPriceFeeder.on('candleClosed', (candle) => {
+cryptoPriceFeeder.on('candleClosed', async (candle) => {
   console.log(`[CryptoPrices] ${candle.symbol} ${candle.timeframe} candle closed: O=${candle.open.toFixed(2)} C=${candle.close.toFixed(2)}`)
+  
+  // Recalculate indicators immediately when 15m or 1h candles close
+  if (candle.timeframe === '15m' || candle.timeframe === '1h') {
+    try {
+      // Map symbol to asset name
+      const symbolToAsset: Record<string, string> = {
+        'btcusdt': 'BTC',
+        'ethusdt': 'ETH',
+        'solusdt': 'SOL',
+        'xrpusdt': 'XRP',
+      }
+      
+      const asset = symbolToAsset[candle.symbol]
+      if (asset) {
+        // Check if indicator cache is initialized
+        const { isIndicatorCacheInitialized } = await import('./db/indicatorCache')
+        if (!isIndicatorCacheInitialized()) {
+          console.log(`[IndicatorCache] Cache not yet initialized, skipping recalculation for ${asset} ${candle.timeframe}`)
+          return
+        }
+        console.log(`[IndicatorCache] 🔄 Candle closed - recalculating indicators for ${asset} ${candle.timeframe}...`)
+        
+        // Import indicator cache functions
+        const { preCalculateIndicators } = await import('./db/indicatorCache')
+        
+        // Recalculate indicators for this specific asset/timeframe
+        await preCalculateIndicators(asset, candle.timeframe, 200)
+        console.log(`[IndicatorCache] ✅ Indicators updated for ${asset} ${candle.timeframe} after candle close`)
+      }
+    } catch (error: any) {
+      console.error(`[IndicatorCache] Error recalculating indicators after candle close:`, error.message)
+    }
+  }
 })
 
 // Start strategy monitor (checks active strategies every minute)
@@ -2813,10 +3315,11 @@ strategyMonitor.on('strategyTriggered', async (trigger: StrategyTrigger) => {
       const allMarkets = stateStore.getAllMarkets()
       
       // Try to find by marketId, slug, or partial match
+      const strategyMarket = strategy.market || ''
       const marketData = allMarkets.find(m => 
-        m.marketId === strategy.market ||
-        m.metadata?.slug === strategy.market ||
-        m.metadata?.question?.toLowerCase().includes(strategy.market.toLowerCase())
+        m.marketId === strategyMarket ||
+        m.metadata?.slug === strategyMarket ||
+        (strategyMarket && m.metadata?.question?.toLowerCase().includes(strategyMarket.toLowerCase()))
       )
       
       if (marketData?.metadata) {
@@ -2827,11 +3330,11 @@ strategyMonitor.on('strategyTriggered', async (trigger: StrategyTrigger) => {
           tokenId = marketData.metadata.noTokenId || marketData.metadata.tokenIds?.[1] || null
         }
         
-        // Get current best price from orderbook
-        if (side === 'BUY' && marketData.orderbook?.asks?.[0]) {
-          currentPrice = parseFloat(marketData.orderbook.asks[0][0])
-        } else if (side === 'SELL' && marketData.orderbook?.bids?.[0]) {
-          currentPrice = parseFloat(marketData.orderbook.bids[0][0])
+        // Get current best price from market state
+        if (side === 'BUY' && marketData.bestAsk) {
+          currentPrice = marketData.bestAsk
+        } else if (side === 'SELL' && marketData.bestBid) {
+          currentPrice = marketData.bestBid
         }
       }
       

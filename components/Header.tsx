@@ -4,9 +4,12 @@ import { useRouter, usePathname } from 'next/navigation'
 import Image from 'next/image'
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useWallet } from '@/contexts/WalletContext'
+import { useAuth } from '@/contexts/AuthContext'
 import ConnectWalletModal from './ConnectWalletModal'
 import PolymarketAuthModal from './PolymarketAuthModal'
 import DepositModal from './DepositModal'
+import AuthModal from './AuthModal'
+import PlanSelectionModal from './PlanSelectionModal'
 
 interface BalanceData {
   portfolioValue: number
@@ -17,12 +20,19 @@ const Header = () => {
   const router = useRouter()
   const pathname = usePathname()
   const { isConnected, walletAddress, disconnectWallet, isPolymarketAuthenticated } = useWallet()
+  const { user, isLoading: authLoading, logout: authLogout, custodialWallet } = useAuth()
+  const isAuthenticated = !!user
   const [showConnectModal, setShowConnectModal] = useState(false)
   const [showPolymarketAuthModal, setShowPolymarketAuthModal] = useState(false)
   const [showDepositModal, setShowDepositModal] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [showPlanModal, setShowPlanModal] = useState(false)
   const [isProfileMenuVisible, setIsProfileMenuVisible] = useState(false)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement | null>(null)
   const [balances, setBalances] = useState<BalanceData>({ portfolioValue: 0, cashBalance: 0 })
+
+  const isLandingPage = pathname === '/'
 
   // Format currency
   const formatCurrency = (value: number) => {
@@ -36,7 +46,7 @@ const Header = () => {
 
   // Fetch balances from API (silent refresh - only updates if values change)
   const fetchBalances = useCallback(async () => {
-    if (!walletAddress) {
+    if (!walletAddress || isLandingPage) {
       setBalances({ portfolioValue: 0, cashBalance: 0 })
       return
     }
@@ -71,16 +81,22 @@ const Header = () => {
         return prev
       })
     }
-  }, [walletAddress])
+  }, [walletAddress, isLandingPage])
+
+  // Use custodial wallet balances from AuthContext (auto-refreshes every 5 seconds)
+  const custodialUsdcBalance = custodialWallet ? parseFloat(custodialWallet.usdcBalance) : 0
+  const custodialPolBalance = custodialWallet ? parseFloat(custodialWallet.polBalance) : 0
 
   // Fetch balances on mount and when auth changes
   useEffect(() => {
+    if (!isLandingPage) {
     fetchBalances()
     
     // Refresh balances every 5 seconds
     const interval = setInterval(fetchBalances, 5000)
     return () => clearInterval(interval)
-  }, [fetchBalances])
+    }
+  }, [fetchBalances, isLandingPage])
 
   const handleLogoClick = () => {
     router.push('/')
@@ -93,15 +109,63 @@ const Header = () => {
     }
   }
 
+  const handleAuthClick = () => {
+    if (isAuthenticated) {
+      router.push('/terminal')
+    } else {
+      setShowAuthModal(true)
+    }
+  }
+
+  const scrollToSection = (sectionId: string) => {
+    setIsMobileMenuOpen(false)
+    if (pathname !== '/') {
+      router.push('/')
+      setTimeout(() => {
+        const element = document.getElementById(sectionId)
+        if (element) {
+          const headerOffset = 80
+          const elementPosition = element.getBoundingClientRect().top
+          const offsetPosition = elementPosition + window.pageYOffset - headerOffset
+          window.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+          })
+        }
+      }, 100)
+    } else {
+      const element = document.getElementById(sectionId)
+      if (element) {
+        const headerOffset = 80
+        const elementPosition = element.getBoundingClientRect().top
+        const offsetPosition = elementPosition + window.pageYOffset - headerOffset
+        window.scrollTo({
+          top: offsetPosition,
+          behavior: 'smooth'
+        })
+      }
+    }
+  }
+
+  // Landing page navigation items
+  const landingPageNavItems = [
+    { label: 'Features', onClick: () => scrollToSection('features') },
+    { label: 'Pricing', onClick: () => scrollToSection('pricing') },
+    { label: 'Demo', onClick: () => scrollToSection('demo') },
+  ]
+
+  // Regular navigation items
   const navigationItems = [
-    { label: 'Terminal', href: '/' },
+    { label: 'Terminal', href: '/terminal' },
     { label: 'Analytics', href: '/analytics' },
     { label: 'History', href: '/history' },
-    { label: 'Strategies', href: '/strategies' },
+    // Only show Strategies for Pro users
+    ...(user?.plan_tier === 'pro' ? [{ label: 'Strategies', href: '/strategies' }] : []),
   ]
 
   const handleNavClick = (href: string) => {
     router.push(href)
+    setIsMobileMenuOpen(false)
   }
 
   const handleNavKeyDown = (
@@ -115,19 +179,32 @@ const Header = () => {
   }
 
   const handleDepositClick = () => {
-    if (!isConnected) {
-      setShowConnectModal(true)
+    // First check if user is authenticated (email/password login)
+    if (!isAuthenticated) {
+      setShowAuthModal(true)
       return
     }
+    // If authenticated, show deposit modal with custodial wallet address
     setShowDepositModal(true)
   }
 
   const handleProfileClick = () => {
-    if (isConnected && walletAddress) {
-      router.push(`/profile/${walletAddress}`)
+    // If authenticated, navigate to profile page
+    if (isAuthenticated) {
+      // Use custodial wallet address if available, otherwise use connected wallet
+      const profileAddress = custodialWallet?.walletAddress || walletAddress
+      if (profileAddress) {
+        router.push(`/profile/${profileAddress}`)
+      } else {
+        // If no wallet address, go to profile page (it will handle redirect)
+        router.push('/profile')
+      }
       return
     }
-    setShowConnectModal(true)
+    // If not authenticated, show auth modal
+    if (!isAuthenticated) {
+      setShowAuthModal(true)
+    }
   }
 
   const handleProfileKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -138,7 +215,7 @@ const Header = () => {
   }
 
   const handleProfileMouseEnter = () => {
-    if (!isConnected) {
+    if (!isAuthenticated) {
       return
     }
     setIsProfileMenuVisible(true)
@@ -147,7 +224,6 @@ const Header = () => {
   const handleProfileMouseLeave = (
     event: React.MouseEvent<HTMLDivElement, MouseEvent>
   ) => {
-    // The invisible bridge will handle the gap - just close if not moving to dropdown
     const nextTarget = event.relatedTarget as Node
     if (profileMenuRef.current && profileMenuRef.current.contains(nextTarget)) {
       return
@@ -156,7 +232,7 @@ const Header = () => {
   }
 
   const handleProfileFocus = () => {
-    if (!isConnected) {
+    if (!isAuthenticated) {
       return
     }
     setIsProfileMenuVisible(true)
@@ -177,12 +253,127 @@ const Header = () => {
     setIsProfileMenuVisible(false)
   }
 
-  const handleLogoutClick = () => {
-    disconnectWallet()
+  const handleLogoutClick = async () => {
     setIsProfileMenuVisible(false)
-    router.push('/')
+    // Log out from email/password auth
+    if (isAuthenticated) {
+      await authLogout()
+    }
+    // Disconnect wallet if connected
+    if (isConnected) {
+      disconnectWallet()
+    }
   }
 
+  // Landing Page Header
+  if (isLandingPage) {
+    return (
+      <>
+        <header className="w-full border-b border-gray-700/30 bg-dark-bg/95 backdrop-blur-sm relative z-[9999]">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              {/* Logo */}
+              <div
+                onClick={handleLogoClick}
+                onKeyDown={handleLogoKeyDown}
+                tabIndex={0}
+                role="button"
+                aria-label="Navigate to home"
+                className="cursor-pointer focus:outline-none rounded"
+              >
+                <Image
+                  src="/logo.png"
+                  alt="PolyVec"
+                  width={112}
+                  height={36}
+                  className="h-7 w-auto"
+                  priority
+                />
+              </div>
+
+              {/* Desktop Navigation */}
+              <nav className="hidden md:flex items-center space-x-8">
+                {landingPageNavItems.map((item) => (
+                  <button
+                    key={item.label}
+                    onClick={item.onClick}
+                    className="text-gray-400 hover:text-white transition-colors duration-200 focus:outline-none text-sm font-medium uppercase tracking-wider"
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
+
+              {/* Auth Button */}
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={handleAuthClick}
+                  className="px-6 py-2.5 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white text-sm font-semibold rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none uppercase tracking-wider"
+                >
+                  {isAuthenticated ? 'Go to Terminal' : 'Login / Register'}
+                </button>
+
+                {/* Mobile Menu Button */}
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="md:hidden p-2 text-gray-400 hover:text-white focus:outline-none"
+                  aria-label="Toggle menu"
+                >
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    {isMobileMenuOpen ? (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    ) : (
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M4 6h16M4 12h16M4 18h16"
+                      />
+                    )}
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Mobile Menu */}
+            {isMobileMenuOpen && (
+              <div className="md:hidden border-t border-gray-700/30 py-4">
+                <nav className="flex flex-col space-y-4">
+                  {landingPageNavItems.map((item) => (
+                    <button
+                      key={item.label}
+                      onClick={item.onClick}
+                      className="text-left text-gray-400 hover:text-white transition-colors duration-200 focus:outline-none text-sm font-medium uppercase tracking-wider py-2"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+            )}
+          </div>
+        </header>
+
+        {/* Auth Modal */}
+        <AuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+        />
+      </>
+    )
+  }
+
+  // Regular Header (for terminal and other pages)
   return (
     <header className="w-full border-b border-gray-700/50 bg-dark-bg/95 backdrop-blur-sm relative z-[9999]">
       <div className="px-4 sm:px-6 py-4">
@@ -205,9 +396,9 @@ const Header = () => {
                 priority
               />
             </div>
-            <nav className="flex items-center space-x-6">
+            <nav className="hidden md:flex items-center space-x-6">
               {navigationItems.map((item) => {
-                const isActive = pathname === item.href || (item.href === '/' && pathname === '/terminal')
+                const isActive = pathname === item.href
                 return (
                   <div
                     key={item.href}
@@ -235,7 +426,7 @@ const Header = () => {
             {isConnected && !isPolymarketAuthenticated && (
               <button
                 onClick={() => setShowPolymarketAuthModal(true)}
-                className="px-4 py-2 bg-gold-primary hover:bg-gold-hover text-white text-sm font-medium rounded transition-colors duration-200 focus:outline-none flex items-center gap-2 uppercase tracking-wide"
+                className="px-4 py-2 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white text-sm font-medium rounded transition-all duration-200 transform hover:scale-105 focus:outline-none flex items-center gap-2 uppercase tracking-wide"
                 style={{ fontFamily: 'monospace' }}
                 title="Connect to Polymarket for fast trading"
               >
@@ -245,33 +436,37 @@ const Header = () => {
                 Connect to Polymarket
               </button>
             )}
-            {/* Portfolio Balance */}
-            <div className="flex flex-col">
-              <span className="text-xs text-gray-400 uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Portfolio</span>
+            {/* Cash Balance (USDC.e) */}
+            {isAuthenticated && (
+            <div className="hidden lg:flex flex-col">
+                <span className="text-xs text-gray-400 uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Cash</span>
               <span 
-                key={`portfolio-${balances.portfolioValue}`}
+                  key={`cash-${custodialUsdcBalance}`}
                 className="text-sm font-semibold text-green-400 transition-all duration-300 font-mono"
               >
-                {formatCurrency(balances.portfolioValue)}
+                  {formatCurrency(custodialUsdcBalance)}
               </span>
             </div>
-            {/* Cash Balance */}
-            <div className="flex flex-col">
-              <span className="text-xs text-gray-400 uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Cash</span>
+            )}
+            {/* Gas Balance (POL) */}
+            {isAuthenticated && (
+            <div className="hidden lg:flex flex-col">
+                <span className="text-xs text-gray-400 uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Gas</span>
               <span 
-                key={`cash-${balances.cashBalance}`}
+                  key={`gas-${custodialPolBalance}`}
                 className="text-sm font-semibold text-green-400 transition-all duration-300 font-mono"
               >
-                {formatCurrency(balances.cashBalance)}
+                  {custodialPolBalance.toFixed(4)}
               </span>
             </div>
+            )}
             {/* Deposit / Log In Button */}
             <button
               onClick={handleDepositClick}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded transition-colors duration-200 focus:outline-none uppercase tracking-wide"
+              className="px-4 py-2 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white text-sm font-medium rounded transition-all duration-200 transform hover:scale-105 focus:outline-none uppercase tracking-wide"
               style={{ fontFamily: 'monospace' }}
             >
-              {isConnected ? 'Deposit' : 'Log In'}
+              {isAuthenticated ? 'Deposit' : 'Log In'}
             </button>
             {/* Profile Picture */}
             <div
@@ -296,7 +491,7 @@ const Header = () => {
                   <span className="text-white text-xs font-semibold">U</span>
                 </div>
               </div>
-              {isConnected && isProfileMenuVisible && (
+              {isAuthenticated && isProfileMenuVisible && (
                 <div
                   ref={profileMenuRef}
                   onMouseEnter={handleDropdownMouseEnter}
@@ -307,6 +502,28 @@ const Header = () => {
                   style={{ zIndex: 9999 }}
                 >
                   <div className="w-40 rounded-lg border border-gray-800 bg-dark-bg/95 text-white shadow-lg backdrop-blur overflow-hidden">
+                    <button
+                      onClick={() => {
+                        setIsProfileMenuVisible(false)
+                        handleProfileClick()
+                      }}
+                      className="block w-full px-4 py-2.5 text-left text-sm text-gray-200 hover:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-primary transition-colors uppercase tracking-wide"
+                      style={{ fontFamily: 'monospace' }}
+                    >
+                      Profile
+                    </button>
+                    <div className="h-px bg-gray-800" />
+                    <button
+                      onClick={() => {
+                        setIsProfileMenuVisible(false)
+                        setShowPlanModal(true)
+                      }}
+                      className="block w-full px-4 py-2.5 text-left text-sm text-gray-200 hover:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-primary transition-colors uppercase tracking-wide"
+                      style={{ fontFamily: 'monospace' }}
+                    >
+                      Choose Plan
+                    </button>
+                    <div className="h-px bg-gray-800" />
                     <button
                       onClick={() => {
                         setIsProfileMenuVisible(false)
@@ -353,13 +570,22 @@ const Header = () => {
         isOpen={showDepositModal}
         onClose={() => {
           setShowDepositModal(false)
-          // Refresh balances when modal closes
-          fetchBalances()
         }}
+      />
+
+      {/* Auth Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+      />
+
+      {/* Plan Selection Modal */}
+      <PlanSelectionModal
+        isOpen={showPlanModal}
+        onClose={() => setShowPlanModal(false)}
       />
     </header>
   )
 }
 
 export default Header
-

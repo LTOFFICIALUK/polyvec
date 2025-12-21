@@ -16,13 +16,18 @@
   "dependencies": {
     "@polymarket/clob-client": "^4.22.8",
     "@types/pg": "^8.15.6",
+    "bcryptjs": "^2.4.3",
     "framer-motion": "^12.23.25",
+    "jose": "^5.9.6",
+    "lightweight-charts": "^5.1.0",
     "next": "^14.0.0",
     "pg": "^8.16.3",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "stripe": "^20.1.0"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",

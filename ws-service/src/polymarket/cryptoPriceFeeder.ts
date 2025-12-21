@@ -365,11 +365,14 @@ export class CryptoPriceFeeder extends EventEmitter {
 
   /**
    * Get closed candle history for indicator calculation
+   * Only returns closed candles (isClosed: true) to ensure indicators are calculated on finalized data
    */
   getCandleHistory(symbol: Symbol, timeframe: Timeframe, count: number = 50): Candle[] {
     const key = `${symbol}_${timeframe}`
     const history = this.candleHistory.get(key) || []
-    return history.slice(-count)
+    // Explicitly filter to only return closed candles (safety check)
+    // Note: candleHistory should only contain closed candles, but this ensures no open candles slip through
+    return history.filter(c => c.isClosed === true).slice(-count)
   }
 
   /**

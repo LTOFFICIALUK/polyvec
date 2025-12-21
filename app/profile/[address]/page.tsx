@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { useWallet } from '@/contexts/WalletContext'
+import PlanSelectionModal from '@/components/PlanSelectionModal'
 
 interface BalanceData {
   portfolioValue: number
@@ -80,6 +81,7 @@ export default function ProfilePage({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copiedAddress, setCopiedAddress] = useState(false)
+  const [showPlanModal, setShowPlanModal] = useState(false)
 
   const isOwnProfile = walletAddress?.toLowerCase() === address.toLowerCase()
 
@@ -217,7 +219,7 @@ export default function ProfilePage({
   // Loading state
   if (loading) {
     return (
-      <div className="bg-dark-bg text-white min-h-screen">
+      <div className="bg-dark-bg text-white flex-1">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-6">Profile</h1>
           <div className="flex items-center justify-center py-12">
@@ -235,7 +237,7 @@ export default function ProfilePage({
   }
 
   return (
-    <div className="bg-dark-bg text-white min-h-screen">
+    <div className="bg-dark-bg text-white flex-1">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         {/* Header Section */}
         <div className="mb-8">
@@ -298,6 +300,12 @@ export default function ProfilePage({
                   >
                     Trade History
                   </Link>
+                  <button
+                    onClick={() => setShowPlanModal(true)}
+                    className="px-4 py-2 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white rounded text-sm font-medium transition-all duration-200 transform hover:scale-105"
+                  >
+                    Choose Plan
+                  </button>
                 </>
               )}
             </div>
@@ -467,7 +475,7 @@ export default function ProfilePage({
                         </td>
                         <td className="py-3 px-4">
                           <span className={position.outcome === 'Yes' ? 'text-green-400' : 'text-red-400'}>
-                            {position.outcome || '-'}
+                            {position.outcome === 'Yes' ? 'UP' : position.outcome === 'No' ? 'DOWN' : '-'}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right text-white font-mono">
@@ -503,6 +511,12 @@ export default function ProfilePage({
 
 
       </div>
+
+      {/* Plan Selection Modal */}
+      <PlanSelectionModal
+        isOpen={showPlanModal}
+        onClose={() => setShowPlanModal(false)}
+      />
     </div>
   )
 }

@@ -1,32 +1,22 @@
 'use client'
 
 // ============================================
-// COMING SOON PAGE - Launch Version
+// COMING SOON PAGE - Commented out for future use
 // ============================================
-// Original content commented out below for future restoration
+// Original "Coming Soon" content commented out below
+// To restore: Uncomment the ComingSoonPage component and update the default export
 // ============================================
 
-// Original imports - kept uncommented for TypeScript to type-check the if(false) block code
 import { useState, useEffect, KeyboardEvent, MouseEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { useStrategies, Strategy, fetchStrategyAnalytics } from '@/hooks/useStrategies'
 import { useWallet } from '@/contexts/WalletContext'
-
-import Link from 'next/link'
+import { useAuth } from '@/contexts/AuthContext'
+import PlanSelectionModal from '@/components/PlanSelectionModal'
 
 // ============================================
-// ORIGINAL CODE COMMENTED OUT FOR LAUNCH
-// All code below is wrapped in a false conditional to prevent compilation
-// To restore: Remove the "if (false) {" wrapper and closing brace
+// Auto-Trading Setup Component
 // ============================================
-
-// @ts-nocheck
-if (false) {
-  // ============================================
-  // Auto-Trading Setup Component (Commented out for launch)
-  // ============================================
-  // All code below is inside if(false) block - TypeScript will still check it
-  // but it won't execute. To restore: Remove if(false) wrapper.
 
 interface TradingKeyStatus {
   hasKey: boolean
@@ -287,7 +277,7 @@ const AutoTradingSetup = function({ userAddress }: { userAddress: string }) {
 }
 
 // ============================================
-// Main Strategies Page (Original - Also inside if(false) block)
+// Main Strategies Page Component
 // ============================================
 
 interface StrategyWithAnalytics extends Strategy {
@@ -299,8 +289,7 @@ interface StrategyWithAnalytics extends Strategy {
   type?: string
 }
 
-const StrategiesPage_ORIGINAL_MAIN = function() {
-  // Original main function - inside if(false) block - DO NOT EXPORT
+const LiveTradingContent = function() {
   const router = useRouter()
   const { walletAddress: address } = useWallet()
   
@@ -447,7 +436,7 @@ const StrategiesPage_ORIGINAL_MAIN = function() {
   })
 
   return (
-    <div className="bg-dark-bg text-white min-h-screen">
+    <div className="bg-dark-bg text-white flex-1">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         <div className="mb-6 sm:mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl sm:text-3xl font-bold">Strategies</h1>
@@ -640,17 +629,338 @@ const StrategiesPage_ORIGINAL_MAIN = function() {
   )
 }
 
-} // End of if (false) wrapper - Remove this line and the opening "if (false) {" above to restore original code
+// ============================================
+// Mode Selector Component
+// ============================================
 
-// ============================================
-// Coming Soon Page - ACTIVE CODE BELOW
-// ============================================
+type TradingMode = 'select' | 'live' | 'paper'
 
 export default function StrategiesPage() {
+  const router = useRouter()
+  const { user } = useAuth()
+  const [mode, setMode] = useState<TradingMode>('select')
+  const [showPlanModal, setShowPlanModal] = useState(false)
+  
+  // Check if user has pro plan
+  const hasProPlan = user?.plan_tier === 'pro'
+  
+  // If user doesn't have pro plan, show upgrade message
+  if (!hasProPlan) {
+    return (
+      <div className="bg-dark-bg text-white flex-1 min-h-screen">
+        <div className="px-4 sm:px-6 py-12 sm:py-16 max-w-4xl mx-auto">
+          {/* Header */}
+          <div className="text-center mb-12">
+            <div className="mb-6 flex justify-center">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-gold-primary/20 to-gold-dark/20 flex items-center justify-center border-2 border-gold-primary/30">
+                <svg 
+                  className="w-10 h-10 sm:w-12 sm:h-12 text-gold-primary" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round" 
+                    strokeWidth={1.5} 
+                    d="M13 10V3L4 14h7v7l9-11h-7z" 
+                  />
+                </svg>
+              </div>
+            </div>
+            
+            <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-gold-primary to-gold-hover bg-clip-text text-transparent">
+              Automated Trading Strategies
+            </h1>
+            
+            <p className="text-xl sm:text-2xl text-gray-300 mb-2 font-medium">
+              Trade 24/7 Without Being Online
+            </p>
+            
+            <p className="text-gray-400 text-base sm:text-lg max-w-2xl mx-auto">
+              Create custom trading bots that automatically execute trades on Polymarket based on TradingView signals, technical indicators, and your custom rules.
+            </p>
+          </div>
+
+          {/* What You Get Section */}
+          <div className="mb-12">
+            <h2 className="text-2xl sm:text-3xl font-bold text-white mb-6 text-center">
+              What You're Getting
+            </h2>
+            
+            <div className="grid md:grid-cols-2 gap-6 mb-8">
+              {/* Feature 1 */}
+              <div className="bg-dark-bg/50 border border-gray-800 rounded-lg p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-gold-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-gold-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-white font-semibold text-lg mb-2">TradingView Integration</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      Connect TradingView indicators (RSI, MACD, Moving Averages, etc.) to automatically trigger trades when your conditions are met. No coding required.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feature 2 */}
+              <div className="bg-dark-bg/50 border border-gray-800 rounded-lg p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-gold-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-gold-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-white font-semibold text-lg mb-2">24/7 Automated Execution</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      Your strategies run continuously, even when you're asleep. Never miss a trading opportunity on BTC, ETH, SOL, or XRP markets.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feature 3 */}
+              <div className="bg-dark-bg/50 border border-gray-800 rounded-lg p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-gold-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-gold-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-white font-semibold text-lg mb-2">Risk Management Controls</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      Set stop-loss, take-profit, position limits, daily loss caps, and trading schedules. Full control over your automated trading.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Feature 4 */}
+              <div className="bg-dark-bg/50 border border-gray-800 rounded-lg p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-gold-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg className="w-6 h-6 text-gold-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-white font-semibold text-lg mb-2">Backtesting & Analytics</h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      Test your strategies on historical data before going live. Track performance, win rate, P&L, and optimize your strategies.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Use Cases */}
+          <div className="mb-12 bg-gray-900/30 border border-gray-800 rounded-lg p-6 sm:p-8">
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-4">
+              Real Examples of What You Can Build:
+            </h2>
+            <ul className="space-y-3 text-gray-300">
+              <li className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-gold-primary mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm sm:text-base"><strong className="text-white">RSI Strategy:</strong> Automatically buy when RSI drops below 30 and sell when it rises above 70 on BTC markets</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-gold-primary mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm sm:text-base"><strong className="text-white">Moving Average Crossover:</strong> Buy when 50-day MA crosses above 200-day MA, sell on reverse crossover</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-gold-primary mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm sm:text-base"><strong className="text-white">Time-Based Trading:</strong> Only trade during market hours (9 AM - 10 PM), pause on weekends</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-gold-primary mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm sm:text-base"><strong className="text-white">Multi-Asset Strategy:</strong> Monitor BTC, ETH, SOL, and XRP simultaneously with different rules for each</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* CTA Section */}
+          <div className="text-center">
+            <div className="mb-6">
+              <p className="text-gray-300 text-lg sm:text-xl mb-2 font-medium">
+                Start Building Your First Strategy
+              </p>
+              <p className="text-gray-400 text-sm sm:text-base">
+                Upgrade to Pro for $49/month and unlock unlimited automated trading strategies
+              </p>
+            </div>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+              <button
+                onClick={() => setShowPlanModal(true)}
+                className="px-8 py-4 bg-gold-primary hover:bg-gold-hover text-white rounded-lg font-semibold text-base transition-all duration-200 inline-flex items-center gap-2 transform hover:scale-105 shadow-lg shadow-gold-primary/20"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Upgrade to Pro - $49/month
+              </button>
+              <button
+                onClick={() => router.push('/terminal')}
+                className="px-6 py-4 bg-dark-bg/60 border border-gray-800 hover:border-gray-700 text-white rounded-lg font-medium transition-colors duration-200 inline-flex items-center gap-2"
+              >
+                Continue Manual Trading
+              </button>
+            </div>
+          </div>
+        </div>
+        
+        {/* Plan Selection Modal */}
+        <PlanSelectionModal
+          isOpen={showPlanModal}
+          onClose={() => setShowPlanModal(false)}
+        />
+      </div>
+    )
+  }
+
+  const handleLiveTrading = () => {
+    setMode('live')
+  }
+
+  const handlePaperTesting = () => {
+    router.push('/strategies/backtest')
+  }
+
+  const handleBackToSelect = () => {
+    setMode('select')
+  }
+
+  const handleLiveTradingKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return
+    }
+    event.preventDefault()
+    handleLiveTrading()
+  }
+
+  const handlePaperTestingKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return
+    }
+    event.preventDefault()
+    handlePaperTesting()
+  }
+
+  // Show mode selector initially
+  if (mode === 'select') {
+    return (
+      <div className="bg-dark-bg text-white flex-1 flex items-center justify-center">
+        <div className="px-4 sm:px-6 py-12 sm:py-16 max-w-2xl mx-auto text-center">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-gold-primary to-gold-hover bg-clip-text text-transparent leading-[1.15] pb-2">
+            Trading Strategies
+          </h1>
+
+          {/* Subheading */}
+          <p className="text-xl sm:text-2xl text-gray-300 mb-10 font-medium leading-relaxed">
+            Select your trading mode to begin automating your strategies professionally
+          </p>
+
+          {/* Mode Selection Buttons */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
+            {/* Live Trading Button */}
+            <button
+              type="button"
+              tabIndex={0}
+              aria-label="Live Trading - Execute strategies with real funds"
+              onClick={handleLiveTrading}
+              onKeyDown={handleLiveTradingKeyDown}
+              className="group relative p-8 bg-dark-bg/60 border-2 border-gray-800 hover:border-gold-primary rounded-lg transition-all duration-200 hover:bg-dark-bg/80 focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-dark-bg"
+            >
+              <div className="w-16 h-16 bg-gold-primary/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-gold-primary/30 transition-colors">
+                <svg className="w-8 h-8 text-gold-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <h3 className="text-white font-semibold mb-2 text-lg">Live Trading</h3>
+              <p className="text-gray-400 text-sm">
+                Execute strategies with real funds on Polymarket
+              </p>
+            </button>
+
+            {/* Paper Testing Button */}
+            <button
+              type="button"
+              tabIndex={0}
+              aria-label="Paper Testing - Test strategies without real funds"
+              onClick={handlePaperTesting}
+              onKeyDown={handlePaperTestingKeyDown}
+              className="group relative p-8 bg-dark-bg/60 border-2 border-gray-800 hover:border-gold-primary rounded-lg transition-all duration-200 hover:bg-dark-bg/80 focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-dark-bg"
+            >
+              <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:bg-blue-500/30 transition-colors">
+                <svg className="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              </div>
+              <h3 className="text-white font-semibold mb-2 text-lg">Paper Testing</h3>
+              <p className="text-gray-400 text-sm">
+                Test strategies without real funds using historical data
+              </p>
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show live trading content
+  if (mode === 'live') {
+    return (
+      <div>
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-800">
+          <button
+            type="button"
+            tabIndex={0}
+            aria-label="Back to mode selection"
+            onClick={handleBackToSelect}
+            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-dark-bg rounded px-2 py-1"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Selection
+          </button>
+        </div>
+        <LiveTradingContent />
+      </div>
+    )
+  }
+
+  return null
+}
+
+// ============================================
+// Coming Soon Page - Commented out for future use
+// ============================================
+// Uncomment below to restore the "Coming Soon" page
+// ============================================
+
+/*
+import Link from 'next/link'
+
+const ComingSoonPage = function() {
   return (
     <div className="bg-dark-bg text-white min-h-screen flex items-center justify-center">
       <div className="px-4 sm:px-6 py-12 sm:py-16 max-w-2xl mx-auto text-center">
-        {/* Icon/Illustration */}
+        {/* Icon/Illustration *\/}
         <div className="mb-8 flex justify-center">
           <div className="relative">
             <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-gold-primary/20 to-gold-dark/20 flex items-center justify-center border-2 border-gold-primary/30">
@@ -668,28 +978,28 @@ export default function StrategiesPage() {
                 />
               </svg>
             </div>
-            {/* Animated pulse ring */}
+            {/* Animated pulse ring *\/}
             <div className="absolute inset-0 rounded-full bg-gold-primary/20 animate-ping opacity-75"></div>
           </div>
         </div>
 
-        {/* Heading */}
+        {/* Heading *\/}
         <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-4 bg-gradient-to-r from-gold-primary to-gold-hover bg-clip-text text-transparent">
           Coming Soon
         </h1>
 
-        {/* Subheading */}
+        {/* Subheading *\/}
         <p className="text-xl sm:text-2xl text-gray-300 mb-6 font-medium">
           Automated Trading Strategies
         </p>
 
-        {/* Description */}
+        {/* Description *\/}
         <p className="text-gray-400 text-base sm:text-lg mb-10 max-w-lg mx-auto leading-relaxed">
           We&apos;re building powerful automated trading strategies that will help you trade smarter, faster, and more efficiently. 
           Stay tuned for the launch.
         </p>
 
-        {/* Feature Preview */}
+        {/* Feature Preview *\/}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
           <div className="bg-dark-bg/60 border border-gray-800 rounded-lg p-5">
             <div className="w-10 h-10 bg-gold-primary/20 rounded-lg flex items-center justify-center mb-3 mx-auto">
@@ -722,7 +1032,7 @@ export default function StrategiesPage() {
           </div>
         </div>
 
-        {/* CTA Button */}
+        {/* CTA Button *\/}
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
           <Link
             href="/terminal"
@@ -747,3 +1057,4 @@ export default function StrategiesPage() {
     </div>
   )
 }
+*/

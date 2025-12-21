@@ -16,12 +16,28 @@ const DraggableTradingPanel = ({ children, initialX = 50, initialY = 100 }: Drag
   const panelRef = useRef<HTMLDivElement>(null)
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    // Don't drag if another panel is already being dragged (check for dragging-panel class)
+    if (document.body.classList.contains('dragging-panel') && !isDragging) {
+      return
+    }
     // Don't drag if clicking on the eye icon or three dots
     if ((e.target as HTMLElement).closest('.eye-icon') || (e.target as HTMLElement).closest('.three-dots')) {
       return
     }
-    // Only drag from the header area
-    if ((e.target as HTMLElement).closest('.drag-handle')) {
+    // Don't drag if clicking on the quick limit panel or any of its children
+    if ((e.target as HTMLElement).closest('#quick-limit-panel') ||
+        (e.target as HTMLElement).closest('.quick-limit-drag-handle')) {
+      return
+    }
+    // Only drag from the header area - make sure it's THIS panel's drag-handle
+    const dragHandle = (e.target as HTMLElement).closest('.drag-handle')
+    if (dragHandle && panelRef.current && panelRef.current.contains(dragHandle)) {
+      // Double-check it's not the quick limit panel's drag handle
+      if ((e.target as HTMLElement).closest('.quick-limit-drag-handle')) {
+        return
+      }
+      e.stopPropagation() // Prevent event from bubbling to other panels
+      e.preventDefault() // Prevent default behavior
       setIsDragging(true)
       setDragStart({
         x: e.clientX - position.x,
@@ -36,9 +52,16 @@ const DraggableTradingPanel = ({ children, initialX = 50, initialY = 100 }: Drag
   }
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return
+    if (!isDragging) {
+      // Remove drag class when not dragging
+      document.body.classList.remove('dragging-panel')
+      return
+    }
 
+    // Add class to body to disable chart interactions
+    document.body.classList.add('dragging-panel')
+
+    const handleMouseMove = (e: MouseEvent) => {
       const newX = e.clientX - dragStart.x
       const newY = e.clientY - dragStart.y
 
@@ -58,20 +81,20 @@ const DraggableTradingPanel = ({ children, initialX = 50, initialY = 100 }: Drag
 
     const handleMouseUp = () => {
       setIsDragging(false)
+      document.body.classList.remove('dragging-panel')
     }
 
-    if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
       document.body.style.cursor = 'grabbing'
       document.body.style.userSelect = 'none'
-    }
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
       document.body.style.cursor = ''
       document.body.style.userSelect = ''
+      document.body.classList.remove('dragging-panel')
     }
   }, [isDragging, dragStart])
 
@@ -86,7 +109,7 @@ const DraggableTradingPanel = ({ children, initialX = 50, initialY = 100 }: Drag
       }}
       onMouseDown={handleMouseDown}
     >
-      <div className={`bg-dark-bg border border-gray-700/50 rounded-lg shadow-2xl w-[380px] ${isCollapsed ? '' : 'max-h-[85vh]'} flex flex-col backdrop-blur-sm`}>
+      <div className={`bg-dark-bg border border-gray-700/50 rounded-lg w-[380px] ${isCollapsed ? '' : 'max-h-[85vh]'} flex flex-col backdrop-blur-sm`}>
         {/* Drag Handle Header */}
         <div className={`drag-handle cursor-grab active:cursor-grabbing px-4 py-2.5 ${isCollapsed ? '' : 'border-b border-gray-700/50'} flex items-center justify-between bg-dark-bg/40 hover:bg-dark-bg/60 transition-colors`}>
           <div className="flex items-center gap-2">

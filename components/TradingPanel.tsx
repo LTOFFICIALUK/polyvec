@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useRef, useEffect, useMemo, useCallback, KeyboardEvent, MouseEvent } from 'react'
+import { createPortal } from 'react-dom'
 import AnimatedPrice from './AnimatedPrice'
 import usePolymarketPrices from '@/hooks/usePolymarketPrices'
 import { useTradingContext } from '@/contexts/TradingContext'
 import useCurrentMarket from '@/hooks/useCurrentMarket'
 import { useWallet } from '@/contexts/WalletContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
-import { getBrowserProvider, ensurePolygonNetwork } from '@/lib/polymarket-auth'
-import { createSignedOrder, OrderSide, OrderType } from '@/lib/polymarket-order-signing'
+import { OrderSide, OrderType } from '@/lib/polymarket-order-signing'
 import PolymarketAuthModal from './PolymarketAuthModal'
 import { 
   checkUsdcAllowance, 
@@ -34,8 +35,12 @@ interface MarketPosition {
 
 const TradingPanel = () => {
   const { selectedPair, selectedTimeframe, activeTokenId, setActiveTokenId, marketOffset } = useTradingContext()
-  const { walletAddress, polymarketCredentials, isPolymarketAuthenticated } = useWallet()
+  const { polymarketCredentials, isPolymarketAuthenticated } = useWallet()
+  const { custodialWallet, refreshCustodialWallet } = useAuth()
   const { showToast } = useToast()
+  
+  // Use custodial wallet address
+  const walletAddress = custodialWallet?.walletAddress || null
   // Removed orderType - only market trading now
   const [executionType, setExecutionType] = useState<'market' | 'limit'>('market')
   const [amount, setAmount] = useState('')
@@ -116,18 +121,38 @@ const TradingPanel = () => {
 
   // Drag handlers for Quick Limit popup
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!popupRef.current) return
-    const rect = popupRef.current.getBoundingClientRect()
+    // Don't drag if another panel is already being dragged (check for dragging-panel class)
+    if (document.body.classList.contains('dragging-panel') && !isDragging) {
+      return
+    }
+    // Don't drag if clicking on buttons
+    if ((e.target as HTMLElement).closest('button')) return
+    // Only drag from the quick limit panel's drag-handle
+    const dragHandle = (e.target as HTMLElement).closest('.quick-limit-drag-handle')
+    if (!dragHandle || !popupRef.current || !popupRef.current.contains(dragHandle)) return
+    
+    e.stopPropagation() // Prevent event from bubbling to other panels
+    e.preventDefault() // Prevent default behavior
+    
     setDragOffset({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
+      x: e.clientX - popupPosition.x,
+      y: e.clientY - popupPosition.y,
     })
     setIsDragging(true)
   }
 
   useEffect(() => {
+    if (!isDragging) {
+      // Remove drag class when not dragging
+      document.body.classList.remove('dragging-panel')
+      return
+    }
+
+    // Add class to body to disable chart interactions
+    document.body.classList.add('dragging-panel')
+
     const handleMouseMove = (e: globalThis.MouseEvent) => {
-      if (!isDragging || !popupRef.current) return
+      if (!popupRef.current) return
       
       const newX = e.clientX - dragOffset.x
       const newY = e.clientY - dragOffset.y
@@ -146,18 +171,22 @@ const TradingPanel = () => {
 
     const handleMouseUp = () => {
       setIsDragging(false)
+      document.body.classList.remove('dragging-panel')
     }
 
-    if (isDragging) {
       document.addEventListener('mousemove', handleMouseMove)
       document.addEventListener('mouseup', handleMouseUp)
-    }
+    document.body.style.cursor = 'grabbing'
+    document.body.style.userSelect = 'none'
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove)
       document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.body.classList.remove('dragging-panel')
     }
-  }, [isDragging, dragOffset])
+  }, [isDragging, dragOffset, popupPosition])
 
   const handleBuy = () => {
     // Only switch to Buy mode, don't change UP/DOWN selection
@@ -314,7 +343,7 @@ const TradingPanel = () => {
     handlePolymarketLinkClick()
   }
 
-  // Check USDC allowance when wallet connects or changes
+  // Check USDC allowance when wallet connects or changes (server-side for custodial wallet)
   useEffect(() => {
     const checkAllowance = async () => {
       if (!walletAddress || typeof window === 'undefined') {
@@ -324,25 +353,14 @@ const TradingPanel = () => {
 
       setIsCheckingAllowance(true)
       try {
-        const provider = await getBrowserProvider()
-        if (!provider) {
-          console.warn('[Allowance] No provider available')
-          return
+        // Check allowance server-side for custodial wallet
+        const response = await fetch('/api/user/allowance')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.allowance) {
+            setAllowanceStatus(data.allowance)
+          }
         }
-
-        // Check both regular and neg-risk exchanges
-        const [regularStatus, negRiskStatus] = await Promise.all([
-          checkUsdcAllowance(provider, walletAddress, CTF_EXCHANGE),
-          checkUsdcAllowance(provider, walletAddress, NEG_RISK_CTF_EXCHANGE),
-        ])
-
-        // Combine status - need approval for both exchanges
-        const combinedStatus: AllowanceStatus = {
-          ...regularStatus,
-          needsAnyApproval: regularStatus.needsAnyApproval || negRiskStatus.needsAnyApproval,
-        }
-
-        setAllowanceStatus(combinedStatus)
       } catch (error) {
         console.error('[Allowance] Error checking:', error)
       } finally {
@@ -353,7 +371,7 @@ const TradingPanel = () => {
     checkAllowance()
   }, [walletAddress])
 
-  // Check conditional token approval when wallet connects (needed for SELL orders)
+  // Check conditional token approval when wallet connects (needed for SELL orders) - server-side
   useEffect(() => {
     const checkCtfAllowance = async () => {
       if (!walletAddress || typeof window === 'undefined') {
@@ -361,18 +379,14 @@ const TradingPanel = () => {
         return
       }
 
-      
       try {
-        const provider = await getBrowserProvider()
-        if (!provider) {
-          console.warn('[CTF Approval] No provider available')
-          return
-        }
-
-        const status = await checkConditionalTokenApproval(provider, walletAddress)
-        setCtfApprovalStatus(status)
-        
-        if (status.needsApproval) {
+        // Check approval server-side for custodial wallet
+        const response = await fetch('/api/user/allowance')
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success && data.conditionalTokens) {
+            setCtfApprovalStatus(data.conditionalTokens)
+          }
         }
       } catch (error) {
         console.error('[CTF Approval] Error checking:', error)
@@ -388,7 +402,7 @@ const TradingPanel = () => {
     checkCtfAllowance()
   }, [walletAddress])
 
-  // Handle conditional token approval (for selling)
+  // Handle conditional token approval (for selling) - server-side
   const handleApproveConditionalTokens = async () => {
     if (!walletAddress) {
       showToast('Please connect your wallet first', 'error')
@@ -398,15 +412,21 @@ const TradingPanel = () => {
     setIsApprovingCtf(true)
 
     try {
-      const provider = await getBrowserProvider()
-      if (!provider) throw new Error('No provider available')
+      showToast('Approving tokens...', 'info')
 
-      await ensurePolygonNetwork(provider)
-      
-      showToast('Approving tokens... Please confirm 2 transactions in your wallet', 'info')
+      // Approve conditional tokens server-side using custodial wallet
+      const response = await fetch('/api/user/approve-conditional-tokens', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
 
-      // Approve conditional tokens (2 transactions)
-      const result = await approveConditionalTokens(provider)
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to approve conditional tokens')
+      }
 
       showToast('✓ On-chain approval complete!', 'success')
 
@@ -417,13 +437,18 @@ const TradingPanel = () => {
       }
 
       // Refresh status
-      const newStatus = await checkConditionalTokenApproval(provider, walletAddress)
-      setCtfApprovalStatus(newStatus)
+      const allowanceResponse = await fetch('/api/user/allowance')
+      if (allowanceResponse.ok) {
+        const allowanceData = await allowanceResponse.json()
+        if (allowanceData.success && allowanceData.conditionalTokens) {
+          setCtfApprovalStatus(allowanceData.conditionalTokens)
 
-      if (!newStatus.needsApproval) {
+          if (!allowanceData.conditionalTokens.needsApproval) {
         showToast('🎉 Tokens approved! You can now sell your positions.', 'success')
       } else {
         showToast('Approval completed but status still shows pending. Try refreshing.', 'info')
+          }
+        }
       }
     } catch (error: any) {
       console.error('[CTF Approval] Error:', error)
@@ -494,7 +519,7 @@ const TradingPanel = () => {
     }
   }
 
-  // Handle USDC approval
+  // Handle USDC approval (server-side for custodial wallet)
   const handleApproveUsdc = async () => {
     if (!walletAddress) {
       showToast('Please connect your wallet first', 'error')
@@ -502,32 +527,26 @@ const TradingPanel = () => {
     }
 
     setIsApprovingUsdc(true)
-    showToast('Approving USDC for trading... Please confirm in your wallet', 'info')
+    showToast('Approving USDC for trading...', 'info')
 
     try {
-      const provider = await getBrowserProvider()
-      if (!provider) {
-        throw new Error('No provider available')
+      // Approve USDC server-side using custodial wallet
+      const response = await fetch('/api/user/approve-usdc', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to approve USDC')
       }
-
-      // Ensure we're on Polygon
-      await ensurePolygonNetwork(provider)
-
-      // Determine which USDC to approve (native has balance)
-      const usdcType = allowanceStatus?.nativeUsdc.balance ? 'native' : 'bridged'
-
-      // Approve for regular CTF Exchange
-      showToast(`Approving ${usdcType} USDC for CTF Exchange...`, 'info')
-      await approveUsdc(provider, usdcType, CTF_EXCHANGE)
-
-      // Approve for Neg-Risk CTF Exchange
-      showToast(`Approving ${usdcType} USDC for Neg-Risk Exchange...`, 'info')
-      await approveUsdc(provider, usdcType, NEG_RISK_CTF_EXCHANGE)
 
       showToast('On-chain approval complete! Syncing with Polymarket...', 'info')
 
       // Sync with Polymarket's internal balance/allowance system
-      // This is required for Polymarket to recognize the on-chain approval
       if (polymarketCredentials) {
         const syncResult = await syncAllowanceWithPolymarket(walletAddress, polymarketCredentials)
         
@@ -541,15 +560,16 @@ const TradingPanel = () => {
       }
 
       // Refresh allowance status
-      const newStatus = await checkUsdcAllowance(provider, walletAddress, CTF_EXCHANGE)
-      setAllowanceStatus(newStatus)
+      const allowanceResponse = await fetch('/api/user/allowance')
+      if (allowanceResponse.ok) {
+        const allowanceData = await allowanceResponse.json()
+        if (allowanceData.success && allowanceData.allowance) {
+          setAllowanceStatus(allowanceData.allowance)
+        }
+      }
     } catch (error: any) {
       console.error('[Approval] Error:', error)
-      if (error.code === 4001 || error.message?.includes('rejected')) {
-        showToast('Approval cancelled by user', 'error')
-      } else {
         showToast(`Approval failed: ${error.message || 'Unknown error'}`, 'error')
-      }
     } finally {
       setIsApprovingUsdc(false)
     }
@@ -592,7 +612,7 @@ const TradingPanel = () => {
   const handlePlaceOrder = async () => {
     // Validation
     if (!walletAddress) {
-      showToast('Please connect your wallet first', 'error')
+      showToast('Custodial wallet not available. Please contact support.', 'error')
       return
     }
 
@@ -653,15 +673,6 @@ const TradingPanel = () => {
     setIsPlacingOrder(true)
 
     try {
-      // Get browser provider
-      const provider = getBrowserProvider()
-      if (!provider) {
-        throw new Error('No wallet provider found. Please install MetaMask or Phantom.')
-      }
-
-      // Ensure we're on Polygon network
-      await ensurePolygonNetwork(provider)
-
       // Determine token ID based on selected outcome
       const tokenId = selectedOutcome === 'up' ? currentMarket.yesTokenId! : currentMarket.noTokenId!
 
@@ -684,7 +695,7 @@ const TradingPanel = () => {
       // Determine order type
       const orderType = executionType === 'limit' ? OrderType.GTC : OrderType.FOK
 
-      // Check if this is a neg-risk market (determines which exchange to use for signing)
+      // Check if this is a neg-risk market
       let isNegRiskMarket = false
       try {
         const negRiskResponse = await fetch(`/api/polymarket/neg-risk?tokenId=${tokenId}`)
@@ -694,51 +705,40 @@ const TradingPanel = () => {
         console.warn('[Trading] Failed to check neg-risk status, defaulting to false:', error)
       }
 
-      // Calculate amounts for display before signing
+      // Calculate amounts for display
       const displayPriceCents = executionType === 'limit' 
         ? parseFloat(limitPrice)
-        : priceDecimal * 100 // Use the already-validated priceDecimal
+        : priceDecimal * 100
       const displayDollarAmount = (shares * displayPriceCents) / 100
       
-      // Show detailed info toast with USDC amount before signing
+      // Show order summary
       const orderSummary = isBuy
-        ? `Signing BUY order: ${shares} shares @ ${displayPriceCents.toFixed(0)}¢ = $${displayDollarAmount.toFixed(2)} USDC.e`
-        : `Signing SELL order: ${shares} shares @ ${displayPriceCents.toFixed(0)}¢`
-      showToast(orderSummary + '\n\n⚠️ Wallet may show a warning - this is safe to confirm for Polymarket orders.', 'info', 6000)
+        ? `Placing BUY order: ${shares} shares @ ${displayPriceCents.toFixed(0)}¢ = $${displayDollarAmount.toFixed(2)} USDC.e`
+        : `Placing SELL order: ${shares} shares @ ${displayPriceCents.toFixed(0)}¢`
+      showToast(orderSummary, 'info', 3000)
 
-      // Get the actual signer address from the provider to ensure it matches
-      const walletSigner = await provider.getSigner()
-      const actualSignerAddress = await walletSigner.getAddress()
-
-      if (!polymarketCredentials) {
-        throw new Error('Polymarket credentials not found. Please authenticate first.')
-      }
-
-      // Validate that the actual signer address matches the wallet address in context (case-insensitive)
-      // This ensures credentials were created for the correct address
-      if (walletAddress && walletAddress.toLowerCase() !== actualSignerAddress.toLowerCase()) {
-        console.warn('[Trading] Wallet address mismatch:', {
-          contextAddress: walletAddress,
-          actualSignerAddress: actualSignerAddress,
-        })
-        showToast('Wallet address changed. Please reconnect your wallet.', 'warning')
-        setIsPlacingOrder(false)
-        return
-      }
-
-      // Create signed order using direct EIP-712 signing (the working approach from Dec 3-9)
-      const signedOrder = await createSignedOrder(
-        {
-          tokenId: tokenId,
-          side: side,
+      // Sign order using VPS (secure - keys never leave VPS)
+      const signResponse = await fetch('/api/trade/sign-order-vps', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tokenId,
+          side,
           price: priceDecimal,
           size: shares,
-          maker: actualSignerAddress,
-          signer: actualSignerAddress,
           negRisk: isNegRiskMarket,
-        },
-        provider
-      )
+        }),
+      })
+
+      if (!signResponse.ok) {
+        const errorData = await signResponse.json()
+        throw new Error(errorData.error || 'Failed to sign order')
+      }
+
+      const signData = await signResponse.json()
+      const signedOrder = signData.signedOrder
 
       // Post signed order through our API/VPS proxy to bypass CORS/Cloudflare
       const response = await fetch('/api/trade/place-order', {
@@ -747,10 +747,10 @@ const TradingPanel = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          walletAddress: actualSignerAddress,
+          walletAddress: walletAddress,
           credentials: polymarketCredentials,
-          signedOrder: signedOrder, // Direct SignedOrder object from createSignedOrder
-          orderType: orderType, // 'GTC' or 'FOK'
+          signedOrder: signedOrder,
+          orderType: orderType,
         }),
       })
 
@@ -823,6 +823,12 @@ const TradingPanel = () => {
       })} total`
       
       showToast(successMessage, 'success', 5000)
+      
+      // Instant refresh: Update balances and positions immediately
+      await Promise.all([
+        refreshCustodialWallet(true), // Sync from blockchain
+        fetchCurrentPosition(), // Refresh current market position
+      ])
       
       // Dispatch event to refresh orders in the positions panel and show trade bubble on chart
       if (typeof window !== 'undefined') {
@@ -1482,21 +1488,23 @@ const TradingPanel = () => {
       </div>
 
 
-      {/* Quick Limit Popup - Draggable */}
-      {showQuickTradePanel && (
+      {/* Quick Limit Popup - Draggable - Rendered via Portal to avoid DOM hierarchy issues */}
+      {showQuickTradePanel && typeof window !== 'undefined' && createPortal(
         <div
           ref={popupRef}
-          className="fixed z-50 bg-dark-bg border border-gray-700/50 rounded-lg shadow-2xl w-[280px]"
+          id="quick-limit-panel"
+          className="fixed z-[60] bg-dark-bg border border-gray-700/50 rounded-lg w-[280px] select-none"
           style={{
             left: `${popupPosition.x}px`,
             top: `${popupPosition.y}px`,
-            cursor: isDragging ? 'grabbing' : 'default',
+            transform: 'translateZ(0)',
           }}
+          onMouseDown={(e) => e.stopPropagation()}
         >
             {/* Draggable Header */}
             <div
               onMouseDown={handleMouseDown}
-              className="flex items-center justify-between px-3 py-2 border-b border-gray-700/50 cursor-grab active:cursor-grabbing bg-dark-bg rounded-t-lg"
+              className="quick-limit-drag-handle drag-handle flex items-center justify-between px-3 py-2 border-b border-gray-700/50 cursor-grab active:cursor-grabbing bg-dark-bg/40 hover:bg-dark-bg/60 transition-colors rounded-t-lg"
             >
               <span className="text-xs text-white font-semibold">Quick Limit</span>
               <div className="flex items-center gap-1">
@@ -1701,7 +1709,8 @@ const TradingPanel = () => {
                 </div>
               )}
             </div>
-        </div>
+        </div>,
+        document.body
           )}
 
       {/* Re-authentication Modal - shown when API key doesn't match wallet */}

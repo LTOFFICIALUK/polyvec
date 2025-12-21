@@ -107,17 +107,18 @@ export default function HistoryPage() {
     let sideDisplay: string
     let sideColor: string
 
+    // For "Up or Down" markets: Yes = UP, No = DOWN
     if (isBuy && isYes) {
-      sideDisplay = 'Buy Yes'
+      sideDisplay = 'Buy UP'
       sideColor = 'text-green-400'
     } else if (isBuy && !isYes) {
-      sideDisplay = 'Buy No'
+      sideDisplay = 'Buy DOWN'
       sideColor = 'text-red-400'
     } else if (!isBuy && isYes) {
-      sideDisplay = 'Sell Yes'
+      sideDisplay = 'Sell UP'
       sideColor = 'text-red-400'
     } else {
-      sideDisplay = 'Sell No'
+      sideDisplay = 'Sell DOWN'
       sideColor = 'text-green-400'
     }
 
@@ -216,7 +217,7 @@ export default function HistoryPage() {
   // Not connected state
   if (!isConnected) {
     return (
-      <div className="bg-dark-bg text-white min-h-screen">
+      <div className="bg-dark-bg text-white flex-1">
         <div className="px-4 sm:px-6 py-6 sm:py-8">
           <h1 className="text-2xl sm:text-3xl font-bold mb-6">Trading History</h1>
           <div className="py-16 text-center">
@@ -231,7 +232,7 @@ export default function HistoryPage() {
   }
 
   return (
-    <div className="bg-dark-bg text-white min-h-screen">
+    <div className="bg-dark-bg text-white flex-1">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
@@ -452,7 +453,7 @@ export default function HistoryPage() {
                           </td>
                           <td className="py-3 px-4">
                             <span className={position.outcome === 'Yes' ? 'text-green-400' : 'text-red-400'}>
-                              {position.outcome}
+                              {position.outcome === 'Yes' ? 'UP' : 'DOWN'}
                             </span>
                           </td>
                           <td className="py-3 px-4 text-right text-white font-mono">
