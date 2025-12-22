@@ -4,10 +4,9 @@
  */
 
 import { google } from 'googleapis'
-import nodemailer from 'nodemailer'
 
 // Gmail API OAuth2 configuration
-const getGmailTransporter = async () => {
+const getGmailClient = async () => {
   const clientId = process.env.GMAIL_CLIENT_ID
   const clientSecret = process.env.GMAIL_CLIENT_SECRET
   const refreshToken = process.env.GMAIL_REFRESH_TOKEN
@@ -27,25 +26,9 @@ const getGmailTransporter = async () => {
     refresh_token: refreshToken,
   })
 
-  const accessToken = await oauth2Client.getAccessToken()
+  const gmail = google.gmail({ version: 'v1', auth: oauth2Client })
 
-  if (!accessToken.token) {
-    throw new Error('Failed to get Gmail access token')
-  }
-
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      type: 'OAuth2',
-      user: userEmail,
-      clientId,
-      clientSecret,
-      refreshToken,
-      accessToken: accessToken.token,
-    },
-  })
-
-  return transporter
+  return { gmail, userEmail }
 }
 
 export interface EmailOptions {
@@ -60,22 +43,35 @@ export interface EmailOptions {
  */
 export const sendEmail = async (options: EmailOptions): Promise<void> => {
   try {
-    const transporter = await getGmailTransporter()
+    const { gmail, userEmail } = await getGmailClient()
     
-    const mailOptions = {
-      from: {
-        name: 'PolyVec',
-        address: process.env.GMAIL_USER_EMAIL || 'noreply@polyvec.com',
-      },
-      to: options.to,
-      subject: options.subject,
-      html: options.html,
-      text: options.text || options.subject, // Fallback text version
-    }
+    // Create email message in RFC 2822 format
+    const message = [
+      `From: PolyVec <${userEmail}>`,
+      `To: ${options.to}`,
+      `Subject: ${options.subject}`,
+      `Content-Type: text/html; charset=utf-8`,
+      '',
+      options.html,
+    ].join('\n')
 
-    const info = await transporter.sendMail(mailOptions)
+    // Encode message in base64url format (Gmail API requirement)
+    const encodedMessage = Buffer.from(message)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+
+    const response = await gmail.users.messages.send({
+      userId: 'me',
+      requestBody: {
+        raw: encodedMessage,
+      },
+    })
+
     console.log('[Email Service] Email sent successfully:', {
-      messageId: info.messageId,
+      messageId: response.data.id,
+      threadId: response.data.threadId,
       to: options.to,
       subject: options.subject,
     })
@@ -84,6 +80,7 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
       to: options.to,
       subject: options.subject,
       error: error.message,
+      details: error.response?.data,
     })
     throw error
   }
@@ -94,8 +91,9 @@ export const sendEmail = async (options: EmailOptions): Promise<void> => {
  */
 export const verifyEmailConnection = async (): Promise<boolean> => {
   try {
-    const transporter = await getGmailTransporter()
-    await transporter.verify()
+    const { gmail } = await getGmailClient()
+    // Test connection by getting user profile
+    await gmail.users.getProfile({ userId: 'me' })
     console.log('[Email Service] Gmail connection verified')
     return true
   } catch (error: any) {
