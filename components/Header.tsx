@@ -162,6 +162,8 @@ const Header = () => {
     { label: 'History', href: '/history' },
     // Only show Strategies for Pro users
     ...(user?.plan_tier === 'pro' ? [{ label: 'Strategies', href: '/strategies' }] : []),
+    // TEMPORARY: Test email page (remove when admin page is created)
+    { label: 'Test Email', href: '/test-email' },
   ]
 
   const handleNavClick = (href: string) => {
