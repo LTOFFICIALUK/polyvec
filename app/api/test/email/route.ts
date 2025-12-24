@@ -16,6 +16,24 @@ const secret = new TextEncoder().encode(
 )
 
 /**
+ * GET /api/test/email
+ * 
+ * Returns information about the test email endpoint
+ */
+export async function GET() {
+  return NextResponse.json({
+    message: 'This endpoint requires POST. Use the /test-email page to send test emails.',
+    availableEmailTypes: [
+      'welcome-pro',
+      'payment-confirmation',
+      'payment-failed',
+      'subscription-cancelled',
+      'renewal-reminder',
+    ],
+  })
+}
+
+/**
  * POST /api/test/email
  * 
  * Test endpoint to send email notifications
