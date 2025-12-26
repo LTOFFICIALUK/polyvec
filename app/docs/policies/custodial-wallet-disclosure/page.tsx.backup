@@ -1,6 +1,6 @@
 'use client'
 
-import { DocsPage, DocsSection, DocsParagraph, DocsNote, DocsList, DocsSubheading } from '@/components/DocsPage'
+import { DocsPage, DocsSection, DocsParagraph, DocsNote, DocsSubheading } from '@/components/DocsPage'
 
 export default function CustodialWalletDisclosurePage() {
   return (

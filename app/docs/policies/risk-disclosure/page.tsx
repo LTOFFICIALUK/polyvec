@@ -18,136 +18,129 @@ export default function RiskDisclosurePage() {
       ]}
     >
       <DocsNote type="warning">
-        <strong>Critical:</strong> Trading prediction markets involves substantial risk of loss. 
-        You may lose some or all of your funds. Only trade with money you can afford to lose.
+        <strong>Warning:</strong> Trading prediction markets involves substantial risk of loss. 
+        You may lose some or all of your invested capital.
       </DocsNote>
 
-      <DocsSection id="trading" title="1. Trading Risks">
-        <DocsParagraph>
-          <strong>You make your own trading decisions.</strong> All trades are executed at your 
-          discretion. We provide tools, not advice.
-        </DocsParagraph>
-        <DocsSubheading>Loss of Capital</DocsSubheading>
-        <DocsParagraph>
-          You can lose your entire investment or more. Prediction markets are zero-sum: for 
-          every winner, there is a loser. Most traders lose money over time.
-        </DocsParagraph>
-        <DocsSubheading>Liquidity Risk</DocsSubheading>
-        <DocsParagraph>
-          Markets may have limited liquidity, making it difficult to enter or exit positions 
-          at desired prices. You may be unable to close positions when you want to.
-        </DocsParagraph>
+      <DocsSection id="trading" title="Trading Risks">
         <DocsSubheading>Price Volatility</DocsSubheading>
         <DocsParagraph>
-          Market prices can move rapidly and unpredictably. You may experience significant 
-          losses in short periods of time.
+          Prediction market prices can be highly volatile. Prices may move rapidly and 
+          unpredictably based on news, events, or market sentiment. You may experience 
+          significant losses in a short period.
+        </DocsParagraph>
+        <DocsSubheading>Liquidity Risks</DocsSubheading>
+        <DocsParagraph>
+          Some markets may have limited liquidity, making it difficult to enter or exit 
+          positions at desired prices. Low liquidity can result in wider bid-ask spreads 
+          and slippage.
+        </DocsParagraph>
+        <DocsSubheading>Execution Risks</DocsSubheading>
+        <DocsParagraph>
+          Orders may not execute at expected prices due to market movements, network 
+          delays, or technical issues. Partial fills and rejected orders are possible.
         </DocsParagraph>
       </DocsSection>
 
-      <DocsSection id="market" title="2. Market Risks">
-        <DocsSubheading>Market Manipulation</DocsSubheading>
-        <DocsParagraph>
-          Markets may be subject to manipulation, coordinated trading, or other activities 
-          that affect prices in ways that are difficult to predict.
-        </DocsSubheading>
-        <DocsSubheading>Resolution Disputes</DocsSubheading>
-        <DocsParagraph>
-          Market outcomes may be disputed or resolved incorrectly, potentially affecting your 
-          positions. We are not responsible for market resolution decisions made by third parties.
-        </DocsSubheading>
+      <DocsSection id="market" title="Market Risks">
         <DocsSubheading>Market Closure</DocsSubheading>
         <DocsParagraph>
-          Markets may close early, be cancelled, or fail to resolve, potentially resulting in 
-          loss of your investment.
+          Markets may close or be suspended at any time. If a market closes before you 
+          can exit your position, you may be forced to hold until resolution, which could 
+          result in losses.
+        </DocsParagraph>
+        <DocsSubheading>Resolution Disputes</DocsSubheading>
+        <DocsParagraph>
+          Market resolutions are determined by market operators. Disputes over resolution 
+          outcomes may delay payouts or result in unexpected outcomes.
+        </DocsParagraph>
+        <DocsSubheading>Market Manipulation</DocsSubheading>
+        <DocsParagraph>
+          Markets may be subject to manipulation by large traders or coordinated groups. 
+          This can cause prices to move in ways that do not reflect true probabilities.
         </DocsParagraph>
       </DocsSection>
 
-      <DocsSection id="technical" title="3. Technical Risks">
+      <DocsSection id="technical" title="Technical Risks">
         <DocsSubheading>Platform Availability</DocsSubheading>
         <DocsParagraph>
-          The platform may experience downtime, technical failures, or delays. We are not liable 
-          for losses resulting from platform unavailability.
-        </DocsSubheading>
-        <DocsSubheading>Execution Errors</DocsSubheading>
-        <DocsParagraph>
-          Orders may fail to execute, execute at incorrect prices, or execute partially. 
-          Technical glitches may affect order processing.
-        </DocsSubheading>
-        <DocsSubheading>Data Accuracy</DocsSubheading>
-        <DocsParagraph>
-          Market data, analytics, and insights are provided for informational purposes only. 
-          They are historical context, not predictions. Do not rely on them as guarantees.
+          The platform may experience downtime, maintenance, or technical failures. During 
+          these periods, you may not be able to access your account or execute trades.
         </DocsParagraph>
-        <DocsSubheading>Network and Blockchain Risks</DocsSubheading>
+        <DocsSubheading>Network Issues</DocsSubheading>
         <DocsParagraph>
-          Blockchain networks may experience congestion, high fees, or failures. Transactions 
-          may be delayed or fail, potentially affecting your ability to trade or withdraw funds.
+          Blockchain network congestion, high gas fees, or network failures can prevent 
+          or delay transactions. You may incur additional costs or miss trading opportunities.
+        </DocsParagraph>
+        <DocsSubheading>Software Bugs</DocsSubheading>
+        <DocsParagraph>
+          Software bugs or errors may cause incorrect order execution, display errors, or 
+          data inconsistencies. We are not responsible for losses resulting from software errors.
         </DocsParagraph>
       </DocsSection>
 
-      <DocsSection id="regulatory" title="4. Regulatory Risks">
+      <DocsSection id="regulatory" title="Regulatory Risks">
+        <DocsSubheading>Regulatory Changes</DocsSubheading>
         <DocsParagraph>
-          Prediction market trading may be restricted or prohibited in your jurisdiction. 
-          Regulatory changes could affect platform availability or your ability to trade.
-        </DocsParagraph>
+          Laws and regulations governing prediction markets may change. New regulations 
+          could restrict or prohibit trading, require additional compliance, or affect 
+          market operations.
+        </DocsSubheading>
+        <DocsSubheading>Jurisdictional Issues</DocsSubheading>
         <DocsParagraph>
-          You are responsible for compliance with applicable laws. We may restrict access 
-          from certain jurisdictions or suspend accounts to comply with regulations.
-        </DocsParagraph>
+          Prediction markets may be illegal or restricted in your jurisdiction. You are 
+          responsible for ensuring your use of the platform complies with local laws.
+        </DocsSubheading>
+        <DocsSubheading>Enforcement Actions</DocsSubheading>
         <DocsParagraph>
-          Tax obligations vary by jurisdiction. You are responsible for reporting and paying 
-          taxes on trading activity.
+          Regulatory authorities may take enforcement actions against platforms or users, 
+          potentially resulting in account freezes, asset seizures, or legal consequences.
         </DocsParagraph>
       </DocsSection>
 
-      <DocsSection id="custodial" title="5. Custodial Risks">
+      <DocsSection id="custodial" title="Custodial Risks">
+        <DocsSubheading>Third-Party Custody</DocsSubheading>
+        <DocsParagraph>
+          Funds held in custodial wallets are controlled by third parties. If the custodian 
+          experiences security breaches, insolvency, or operational failures, you may lose 
+          access to your funds.
+        </DocsSubheading>
+        <DocsSubheading>No Insurance</DocsSubheading>
+        <DocsParagraph>
+          Custodial funds are not insured by FDIC, SIPC, or any other insurance program. 
+          Losses due to security breaches, technical failures, or business failures are not 
+          covered by insurance.
+        </DocsSubheading>
+      </DocsSection>
+
+      <DocsSection id="guarantees" title="No Guarantees">
         <DocsNote type="warning">
-          <strong>Custodial, Not Insured:</strong> Funds in custodial wallets are not insured 
-          by FDIC, SIPC, or any other insurance program.
+          <strong>No Guarantees:</strong> We make no guarantees about:
         </DocsNote>
         <DocsParagraph>
-          While we implement security measures, custodial wallets carry risks:
-        </DocsParagraph>
-        <DocsParagraph>
-          • Security breaches or hacking attempts<br/>
-          • Technical failures or operational errors<br/>
-          • Loss of private keys or access credentials<br/>
-          • Insolvency or business failure
-        </DocsParagraph>
-        <DocsParagraph>
-          You may lose some or all funds held in custodial wallets. We are not responsible 
-          for losses resulting from security breaches, technical failures, or events beyond 
-          our reasonable control.
-        </DocsParagraph>
-      </DocsSection>
-
-      <DocsSection id="guarantees" title="6. No Guarantees">
-        <DocsParagraph>
-          <strong>We make no guarantees about:</strong>
-        </DocsParagraph>
-        <DocsParagraph>
-          • Market outcomes or trading results<br/>
+          • Market outcomes or prices<br/>
           • Platform availability or uptime<br/>
-          • Accuracy of market data or analytics<br/>
+          • Order execution speed or prices<br/>
           • Profitability of any trading strategy<br/>
-          • Security of funds (beyond our security measures)
+          • Security of funds or data<br/>
+          • Regulatory compliance in your jurisdiction
         </DocsParagraph>
         <DocsParagraph>
-          <strong>Past performance does not guarantee future results.</strong> Historical 
-          market data and analytics are for informational purposes only. They are not 
-          predictions or guarantees of future performance.
-        </DocsParagraph>
-        <DocsParagraph>
-          All trading involves risk. You should only trade with funds you can afford to lose 
-          completely.
+          <strong>You trade at your own risk.</strong> Past performance does not guarantee 
+          future results. You should only trade with funds you can afford to lose.
         </DocsParagraph>
       </DocsSection>
 
       <DocsSection id="acknowledgment" title="Acknowledgment">
         <DocsParagraph>
-          By using PolyVec, you acknowledge that you have read, understood, and accept 
-          these risks. You understand that trading involves substantial risk of loss and 
-          that you are solely responsible for your trading decisions.
+          By using this platform, you acknowledge that:
+        </DocsParagraph>
+        <DocsParagraph>
+          • You understand the risks described in this disclosure<br/>
+          • You may lose some or all of your invested capital<br/>
+          • You are trading at your own risk<br/>
+          • We are not responsible for your trading losses<br/>
+          • You have read and understood this risk disclosure
         </DocsParagraph>
         <DocsParagraph>
           <strong>Last Updated:</strong> {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -156,4 +149,3 @@ export default function RiskDisclosurePage() {
     </DocsPage>
   )
 }
-
