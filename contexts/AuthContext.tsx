@@ -39,25 +39,55 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const fetchCustodialWallet = useCallback(async (syncFromBlockchain = false) => {
     try {
       const [walletResponse, balanceResponse] = await Promise.all([
-        fetch('/api/user/wallet'),
-        fetch(`/api/user/balances${syncFromBlockchain ? '?sync=true' : ''}`),
+        fetch('/api/user/wallet').catch(err => {
+          console.error('[Auth] Wallet fetch error:', err)
+          return { ok: false, json: async () => ({ error: err.message }) }
+        }),
+        fetch(`/api/user/balances${syncFromBlockchain ? '?sync=true' : ''}`).catch(err => {
+          console.error('[Auth] Balances fetch error:', err)
+          return { ok: false, json: async () => ({ usdc_balance: '0', pol_balance: '0' }) }
+        }),
       ])
 
-      if (walletResponse.ok && balanceResponse.ok) {
+      // Handle wallet response - 404 is okay (wallet not created yet), but 500 means error
+      let walletAddress: string | null = null
+      if (walletResponse.ok) {
         const walletData = await walletResponse.json()
+        walletAddress = walletData.wallet_address || null
+      } else if (walletResponse.status === 404) {
+        // Wallet not found - this is okay, user might not have one yet
+        walletAddress = null
+      } else {
+        // Other error (500, etc.) - log but don't fail completely
+        console.warn('[Auth] Wallet fetch failed with status:', walletResponse.status)
+      }
+
+      // Handle balance response - always try to get balances, default to 0 if fails
+      let usdcBalance = '0'
+      let polBalance = '0'
+      if (balanceResponse.ok) {
         const balanceData = await balanceResponse.json()
-        
+        usdcBalance = balanceData.usdc_balance || '0'
+        polBalance = balanceData.pol_balance || '0'
+      } else {
+        // Balance fetch failed - use defaults
+        console.warn('[Auth] Balance fetch failed with status:', balanceResponse.status)
+      }
+      
+      // Only set custodial wallet if we have an address, otherwise set to null
+      if (walletAddress) {
         setCustodialWallet({
-          walletAddress: walletData.wallet_address || null,
-          usdcBalance: balanceData.usdc_balance || '0',
-          polBalance: balanceData.pol_balance || '0',
+          walletAddress,
+          usdcBalance,
+          polBalance,
         })
       } else {
         setCustodialWallet(null)
       }
     } catch (error) {
       console.error('[Auth] Failed to fetch custodial wallet:', error)
-      setCustodialWallet(null)
+      // Don't set to null on error - keep existing state if available
+      // setCustodialWallet(null)
     }
   }, [])
 
