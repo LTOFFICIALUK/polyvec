@@ -47,32 +47,47 @@ export async function GET(request: NextRequest) {
     // Get user's custodial wallet address
     const db = getDbPool()
     const walletResult = await db.query(
-      'SELECT wallet_address FROM users WHERE id = $1 AND wallet_address IS NOT NULL',
+      'SELECT wallet_address FROM users WHERE id = $1',
       [userId]
     )
 
-    if (walletResult.rows.length === 0 || !walletResult.rows[0].wallet_address) {
+    if (walletResult.rows.length === 0) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      )
+    }
+
+    const walletAddress = walletResult.rows[0].wallet_address
+    if (!walletAddress) {
       return NextResponse.json(
         { error: 'Custodial wallet not found' },
         { status: 404 }
       )
     }
 
-    const walletAddress = walletResult.rows[0].wallet_address
-
     // Create provider
     const provider = new ethers.JsonRpcProvider(POLYGON_RPC_URL)
     const usdcContract = new ethers.Contract(USDC_E_ADDRESS, ERC20_ABI, provider)
     const conditionalTokensContract = new ethers.Contract(CONDITIONAL_TOKENS, ERC1155_ABI, provider)
 
-    // Check balances and allowances
-    const [usdcBalance, regularAllowance, negRiskAllowance, ctfApproved, negRiskApproved] = await Promise.all([
-      usdcContract.balanceOf(walletAddress),
-      usdcContract.allowance(walletAddress, CTF_EXCHANGE),
-      usdcContract.allowance(walletAddress, NEG_RISK_CTF_EXCHANGE),
-      conditionalTokensContract.isApprovedForAll(walletAddress, CTF_EXCHANGE),
-      conditionalTokensContract.isApprovedForAll(walletAddress, NEG_RISK_CTF_EXCHANGE),
+    // Check balances and allowances with timeout
+    const timeoutPromise = new Promise<never>((_, reject) => 
+      setTimeout(() => reject(new Error('RPC call timeout')), 10000)
+    )
+    
+    const results = await Promise.race([
+      Promise.all([
+        usdcContract.balanceOf(walletAddress),
+        usdcContract.allowance(walletAddress, CTF_EXCHANGE),
+        usdcContract.allowance(walletAddress, NEG_RISK_CTF_EXCHANGE),
+        conditionalTokensContract.isApprovedForAll(walletAddress, CTF_EXCHANGE),
+        conditionalTokensContract.isApprovedForAll(walletAddress, NEG_RISK_CTF_EXCHANGE),
+      ]),
+      timeoutPromise
     ])
+    
+    const [usdcBalance, regularAllowance, negRiskAllowance, ctfApproved, negRiskApproved] = results
 
     const balanceNum = Number(ethers.formatUnits(usdcBalance, 6))
     const regularAllowanceNum = Number(ethers.formatUnits(regularAllowance, 6))
@@ -101,6 +116,16 @@ export async function GET(request: NextRequest) {
     })
   } catch (error: any) {
     console.error('[Allowance API] Error:', error)
+    // Log more details for debugging
+    if (error.code) {
+      console.error('[Allowance API] Error code:', error.code)
+    }
+    if (error.message?.includes('timeout')) {
+      return NextResponse.json(
+        { error: 'Blockchain RPC timeout. Please try again.' },
+        { status: 504 }
+      )
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to check allowance' },
       { status: 500 }

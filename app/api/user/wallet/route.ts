@@ -33,7 +33,15 @@ export async function GET(request: NextRequest) {
       [userId]
     )
 
-    if (result.rows.length === 0 || !result.rows[0].wallet_address) {
+    if (result.rows.length === 0) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      )
+    }
+
+    const walletAddress = result.rows[0].wallet_address
+    if (!walletAddress) {
       return NextResponse.json(
         { error: 'Wallet not found. Please contact support.' },
         { status: 404 }
@@ -41,10 +49,14 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      wallet_address: result.rows[0].wallet_address,
+      wallet_address: walletAddress,
     })
   } catch (error: any) {
     console.error('[Wallet API] Error:', error)
+    // Log more details for debugging
+    if (error.code) {
+      console.error('[Wallet API] Database error code:', error.code)
+    }
     return NextResponse.json(
       { error: error.message || 'Failed to get wallet' },
       { status: 500 }
