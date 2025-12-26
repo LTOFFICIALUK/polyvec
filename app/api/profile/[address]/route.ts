@@ -1,8 +1,12 @@
-'use server'
-
 import { NextRequest, NextResponse } from 'next/server'
-import { getDbPool, runMigrations } from '@/lib/db'
-import { verifyAuth } from '@/lib/auth'
+import { jwtVerify } from 'jose'
+import { getDbPool } from '@/lib/db'
+
+export const dynamic = 'force-dynamic'
+
+const secret = new TextEncoder().encode(
+  process.env.JWT_SECRET || 'your-secret-key-change-in-production'
+)
 
 // GET profile data by wallet address
 export async function GET(
@@ -18,9 +22,6 @@ export async function GET(
       )
     }
 
-    // Ensure migrations are run
-    await runMigrations()
-    
     const db = getDbPool()
     const result = await db.query(
       `SELECT 
@@ -66,13 +67,16 @@ export async function PATCH(
 ) {
   try {
     // Verify authentication
-    const authResult = await verifyAuth(request)
-    if (!authResult.user) {
+    const token = request.cookies.get('auth-token')?.value
+    if (!token) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
+
+    const { payload } = await jwtVerify(token, secret)
+    const userId = payload.userId as number
 
     const { address } = params
     if (!address || !address.match(/^0x[a-fA-F0-9]{40}$/)) {
@@ -82,14 +86,11 @@ export async function PATCH(
       )
     }
 
-    // Ensure migrations are run
-    await runMigrations()
-    
     // Verify the user owns this wallet address
     const db = getDbPool()
     const userCheck = await db.query(
       `SELECT id, wallet_address FROM users WHERE id = $1`,
-      [authResult.user.id]
+      [userId]
     )
 
     if (userCheck.rows.length === 0) {
@@ -170,7 +171,7 @@ export async function PATCH(
 
     // Add profile_updated_at
     updates.push(`profile_updated_at = CURRENT_TIMESTAMP`)
-    values.push(authResult.user.id)
+    values.push(userId)
 
     const updateQuery = `
       UPDATE users 
