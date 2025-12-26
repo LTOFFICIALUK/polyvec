@@ -1,6 +1,6 @@
 'use client'
 
-import { DocsPage, DocsSection, DocsParagraph, DocsNote, DocsList, DocsSubheading } from '@/components/DocsPage'
+import { DocsPage, DocsSection, DocsParagraph, DocsNote, DocsSubheading } from '@/components/DocsPage'
 
 export default function CustodialWalletDisclosurePage() {
   return (
@@ -49,7 +49,7 @@ export default function CustodialWalletDisclosurePage() {
         <DocsParagraph>
           When you deposit funds, they are sent to your custodial wallet address. We manage 
           the wallet and execute transactions on your behalf when you trade or withdraw.
-        </DocsSubheading>
+        </DocsParagraph>
         <DocsSubheading>Access</DocsSubheading>
         <DocsParagraph>
           You access your funds through your PolyVec account. You do not have direct access 

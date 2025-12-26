@@ -85,12 +85,12 @@ export default function RiskDisclosurePage() {
           Laws and regulations governing prediction markets may change. New regulations 
           could restrict or prohibit trading, require additional compliance, or affect 
           market operations.
-        </DocsSubheading>
+        </DocsParagraph>
         <DocsSubheading>Jurisdictional Issues</DocsSubheading>
         <DocsParagraph>
           Prediction markets may be illegal or restricted in your jurisdiction. You are 
           responsible for ensuring your use of the platform complies with local laws.
-        </DocsSubheading>
+        </DocsParagraph>
         <DocsSubheading>Enforcement Actions</DocsSubheading>
         <DocsParagraph>
           Regulatory authorities may take enforcement actions against platforms or users, 
@@ -104,13 +104,13 @@ export default function RiskDisclosurePage() {
           Funds held in custodial wallets are controlled by third parties. If the custodian 
           experiences security breaches, insolvency, or operational failures, you may lose 
           access to your funds.
-        </DocsSubheading>
+        </DocsParagraph>
         <DocsSubheading>No Insurance</DocsSubheading>
         <DocsParagraph>
           Custodial funds are not insured by FDIC, SIPC, or any other insurance program. 
           Losses due to security breaches, technical failures, or business failures are not 
           covered by insurance.
-        </DocsSubheading>
+        </DocsParagraph>
       </DocsSection>
 
       <DocsSection id="guarantees" title="No Guarantees">
@@ -149,3 +149,4 @@ export default function RiskDisclosurePage() {
     </DocsPage>
   )
 }
+
