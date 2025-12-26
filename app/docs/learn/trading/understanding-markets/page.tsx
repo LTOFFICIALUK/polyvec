@@ -90,7 +90,7 @@ export default function UnderstandingMarketsPage() {
 
       <DocsSection id="selection" title="Market Selection">
         <DocsParagraph>
-          PolyTrade offers various crypto price prediction markets:
+          PolyVec offers various crypto price prediction markets:
         </DocsParagraph>
 
         <DocsSubheading>Asset Pairs</DocsSubheading>

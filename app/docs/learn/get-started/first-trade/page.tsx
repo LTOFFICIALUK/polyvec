@@ -7,7 +7,7 @@ export default function FirstTradePage() {
     <DocsPage
       breadcrumb="Get Started"
       title="Making Your First Trade"
-      description="Learn how to place your first trade on PolyTrade. We'll walk through selecting a market, understanding the interface, and executing a trade."
+      description="Learn how to place your first trade on PolyVec. We'll walk through selecting a market, understanding the interface, and executing a trade."
       tableOfContents={[
         { name: 'Select a Market', href: '#select-market' },
         { name: 'Understand the Interface', href: '#interface' },
@@ -19,7 +19,7 @@ export default function FirstTradePage() {
     >
       <DocsSection id="select-market" title="Select a Market">
         <DocsParagraph>
-          PolyTrade focuses on crypto price prediction markets. Use the dropdown selectors 
+          PolyVec focuses on crypto price prediction markets. Use the dropdown selectors 
           at the top of the terminal to choose:
         </DocsParagraph>
 
@@ -41,7 +41,7 @@ export default function FirstTradePage() {
 
       <DocsSection id="interface" title="Understand the Interface">
         <DocsParagraph>
-          The PolyTrade terminal is divided into several key areas:
+          The PolyVec terminal is divided into several key areas:
         </DocsParagraph>
 
         <DocsSubheading>Price Chart (Left)</DocsSubheading>
@@ -88,7 +88,7 @@ export default function FirstTradePage() {
           <strong>Step 1:</strong> Select YES or NO based on your prediction<br />
           <strong>Step 2:</strong> Enter the amount of shares to buy<br />
           <strong>Step 3:</strong> For limit orders, set your desired price<br />
-          <strong>Step 4:</strong> Click &quot;Buy&quot; and confirm in your wallet
+          <strong>Step 4:</strong> Click &quot;Buy&quot; — your order executes immediately (no wallet confirmation needed!)
         </DocsParagraph>
       </DocsSection>
 

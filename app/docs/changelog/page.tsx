@@ -7,7 +7,7 @@ export default function ChangelogPage() {
     <DocsPage
       breadcrumb="Changelog"
       title="Changelog"
-      description="Track updates, new features, and improvements to PolyTrade."
+      description="Track updates, new features, and improvements to PolyVec."
       tableOfContents={[
         { name: 'Overview', href: '#overview' },
       ]}

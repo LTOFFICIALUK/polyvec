@@ -1,7 +1,7 @@
 {
-  "name": "polytrade-ws-service",
+  "name": "polyvec-ws-service",
   "version": "1.0.0",
-  "description": "WebSocket service for PolyTrade - real-time data bus between Polymarket and frontend",
+  "description": "WebSocket service for PolyVec - real-time data bus between Polymarket and frontend",
   "main": "dist/index.js",
   "engines": {
     "node": ">=20.0.0"

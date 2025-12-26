@@ -1,13 +1,11 @@
 'use client'
 
 import { useRouter, usePathname } from 'next/navigation'
-import Image from 'next/image'
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { useWallet } from '@/contexts/WalletContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePlanModal } from '@/contexts/PlanModalContext'
 import ConnectWalletModal from './ConnectWalletModal'
-import PolymarketAuthModal from './PolymarketAuthModal'
 import DepositModal from './DepositModal'
 import AuthModal from './AuthModal'
 import PlanSelectionModal from './PlanSelectionModal'
@@ -24,7 +22,6 @@ const Header = () => {
   const { user, isLoading: authLoading, logout: authLogout, custodialWallet } = useAuth()
   const isAuthenticated = !!user
   const [showConnectModal, setShowConnectModal] = useState(false)
-  const [showPolymarketAuthModal, setShowPolymarketAuthModal] = useState(false)
   const [showDepositModal, setShowDepositModal] = useState(false)
   const [showAuthModal, setShowAuthModal] = useState(false)
   const { isOpen: showPlanModal, openModal: openPlanModal, closeModal: closePlanModal } = usePlanModal()
@@ -162,8 +159,6 @@ const Header = () => {
     { label: 'History', href: '/history' },
     // Only show Strategies for Pro users
     ...(user?.plan_tier === 'pro' ? [{ label: 'Strategies', href: '/strategies' }] : []),
-    // TEMPORARY: Test email page (remove when admin page is created)
-    { label: 'Test Email', href: '/test-email' },
   ]
 
   const handleNavClick = (href: string) => {
@@ -275,6 +270,8 @@ const Header = () => {
         <header className="w-full border-b border-gray-700/30 bg-dark-bg/95 backdrop-blur-sm relative z-[9999]">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
+              {/* Left side: Logo, Separator, Navigation */}
+              <div className="flex items-center gap-4">
               {/* Logo */}
               <div
                 onClick={handleLogoClick}
@@ -282,18 +279,23 @@ const Header = () => {
                 tabIndex={0}
                 role="button"
                 aria-label="Navigate to home"
-                className="cursor-pointer focus:outline-none rounded"
+                className="cursor-pointer focus:outline-none rounded flex items-center justify-center"
               >
-                <Image
-                  src="/logo.png"
-                  alt="PolyVec"
-                  width={112}
-                  height={36}
-                  className="h-7 w-auto"
-                  priority
-                />
+                <span 
+                  className="text-base font-semibold uppercase text-gold-primary"
+                  style={{ 
+                    letterSpacing: '-0.08em',
+                    fontFamily: 'monospace',
+                    lineHeight: '1'
+                  }}
+                >
+                  POLYVEC
+                </span>
               </div>
-
+                
+                {/* Separator */}
+              <div className="h-4 w-px bg-gray-700/50"></div>
+                
               {/* Desktop Navigation */}
               <nav className="hidden md:flex items-center space-x-8">
                 {landingPageNavItems.map((item) => (
@@ -306,14 +308,15 @@ const Header = () => {
                   </button>
                 ))}
               </nav>
+              </div>
 
-              {/* Auth Button */}
+              {/* Right side: Auth Button */}
               <div className="flex items-center space-x-4">
                 <button
                   onClick={handleAuthClick}
                   className="px-6 py-2.5 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white text-sm font-semibold rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none uppercase tracking-wider"
                 >
-                  {isAuthenticated ? 'Go to Terminal' : 'Login / Register'}
+                  {isAuthenticated ? 'GO TO TERMINAL' : 'Login / Register'}
                 </button>
 
                 {/* Mobile Menu Button */}
@@ -388,17 +391,20 @@ const Header = () => {
               tabIndex={0}
               role="button"
               aria-label="Navigate to home"
-              className="cursor-pointer focus:outline-none rounded"
+              className="cursor-pointer focus:outline-none rounded px-2 py-1 flex items-center justify-center"
             >
-              <Image
-                src="/logo.png"
-                alt="PolyTrade"
-                width={112}
-                height={36}
-                className="h-7 w-auto"
-                priority
-              />
+              <span 
+                className="text-base font-semibold uppercase text-gold-primary"
+                style={{ 
+                  letterSpacing: '-0.08em',
+                  fontFamily: 'monospace',
+                  lineHeight: '1'
+                }}
+              >
+                POLYVEC
+              </span>
             </div>
+            <div className="h-4 w-px bg-gray-700/50"></div>
             <nav className="hidden md:flex items-center space-x-6">
               {navigationItems.map((item) => {
                 const isActive = pathname === item.href
@@ -410,13 +416,13 @@ const Header = () => {
                     tabIndex={0}
                     role="button"
                     aria-label={`Navigate to ${item.label}`}
-                    className={`cursor-pointer transition-colors duration-200 focus:outline-none rounded px-2 py-1 ${
+                    className={`cursor-pointer transition-colors duration-200 focus:outline-none rounded px-2 py-1 flex items-center justify-center ${
                       isActive
                         ? 'text-gold-primary font-semibold'
                         : 'text-gray-400 hover:text-white'
                     }`}
                   >
-                    <span className="text-sm font-medium tracking-wide uppercase" style={{ fontFamily: 'monospace' }}>
+                    <span className="text-sm font-medium tracking-wide uppercase" style={{ fontFamily: 'monospace', lineHeight: '1' }}>
                       {item.label}
                     </span>
                   </div>
@@ -425,20 +431,6 @@ const Header = () => {
             </nav>
           </div>
           <div className="flex items-center space-x-6">
-            {/* Polymarket Auth Status/Button */}
-            {isConnected && !isPolymarketAuthenticated && (
-              <button
-                onClick={() => setShowPolymarketAuthModal(true)}
-                className="px-4 py-2 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white text-sm font-medium rounded transition-all duration-200 transform hover:scale-105 focus:outline-none flex items-center gap-2 uppercase tracking-wide"
-                style={{ fontFamily: 'monospace' }}
-                title="Connect to Polymarket for fast trading"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-                Connect to Polymarket
-              </button>
-            )}
             {/* Cash Balance (USDC.e) */}
             {isAuthenticated && (
             <div className="hidden lg:flex flex-col">
@@ -462,6 +454,16 @@ const Header = () => {
                   {custodialPolBalance.toFixed(4)}
               </span>
             </div>
+            )}
+            {/* Upgrade to Pro Button - Only show for authenticated non-pro users */}
+            {isAuthenticated && user?.plan_tier !== 'pro' && (
+              <button
+                onClick={() => openPlanModal()}
+                className="px-4 py-2 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white text-sm font-medium rounded transition-all duration-200 transform hover:scale-105 focus:outline-none uppercase tracking-wide"
+                style={{ fontFamily: 'monospace' }}
+              >
+                Upgrade to Pro
+              </button>
             )}
             {/* Deposit / Log In Button */}
             <button
@@ -557,15 +559,6 @@ const Header = () => {
       <ConnectWalletModal
         isOpen={showConnectModal}
         onClose={() => setShowConnectModal(false)}
-      />
-
-      {/* Polymarket Auth Modal */}
-      <PolymarketAuthModal
-        isOpen={showPolymarketAuthModal}
-        onClose={() => setShowPolymarketAuthModal(false)}
-        onSuccess={() => {
-          setShowPolymarketAuthModal(false)
-        }}
       />
 
       {/* Deposit Modal */}

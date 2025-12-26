@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import { useWallet } from '@/contexts/WalletContext'
 import { usePlanModal } from '@/contexts/PlanModalContext'
+import EditProfileModal from '@/components/EditProfileModal'
 
 interface BalanceData {
   portfolioValue: number
@@ -67,12 +68,9 @@ interface ProfileStats {
   profitFactor: number
 }
 
-export default function ProfilePage({
-  params,
-}: {
-  params: { address: string }
-}) {
-  const { address } = params
+export default function ProfilePage() {
+  const params = useParams()
+  const address = params.address as string
   const { walletAddress } = useWallet()
   const { openModal: openPlanModal } = usePlanModal()
   const [balance, setBalance] = useState<BalanceData | null>(null)
@@ -82,21 +80,28 @@ export default function ProfilePage({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [copiedAddress, setCopiedAddress] = useState(false)
+  const [profileData, setProfileData] = useState<{
+    username: string | null
+    profilePictureUrl: string | null
+  } | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
 
-  const isOwnProfile = walletAddress?.toLowerCase() === address.toLowerCase()
+  const isOwnProfile = walletAddress?.toLowerCase() === address?.toLowerCase()
 
   useEffect(() => {
+    if (!address) return
     const fetchData = async () => {
       setLoading(true)
       setError(null)
 
       try {
         // Fetch all data in parallel
-        const [balanceRes, positionsRes, closedRes, tradesRes] = await Promise.all([
+        const [balanceRes, positionsRes, closedRes, tradesRes, profileRes] = await Promise.all([
           fetch(`/api/user/balance?address=${address}`),
           fetch(`/api/user/positions?address=${address}`),
           fetch(`/api/user/closed-positions?address=${address}&limit=100`),
           fetch(`/api/user/trades?address=${address}&limit=500`),
+          fetch(`/api/profile/${address}`),
         ])
 
         if (balanceRes.ok) {
@@ -118,6 +123,14 @@ export default function ProfilePage({
           const tradesData = await tradesRes.json()
           setTrades(tradesData.trades || [])
         }
+
+        if (profileRes.ok) {
+          const profileData = await profileRes.json()
+          setProfileData({
+            username: profileData.username || null,
+            profilePictureUrl: profileData.profilePictureUrl || null,
+          })
+        }
       } catch (err) {
         console.error('Error fetching profile data:', err)
         setError('Failed to load profile data. Please try again.')
@@ -128,6 +141,23 @@ export default function ProfilePage({
 
     fetchData()
   }, [address])
+
+  // Handle profile update
+
+  const handleProfileUpdate = async () => {
+    try {
+      const response = await fetch(`/api/profile/${address}`)
+      if (response.ok) {
+        const data = await response.json()
+        setProfileData({
+          username: data.username || null,
+          profilePictureUrl: data.profilePictureUrl || null,
+        })
+      }
+    } catch (err) {
+      console.error('Error refreshing profile data:', err)
+    }
+  }
 
   // Calculate comprehensive stats from real data
   const profileStats = useMemo((): ProfileStats => {
@@ -236,6 +266,19 @@ export default function ProfilePage({
     )
   }
 
+  if (!address) {
+    return (
+      <div className="bg-dark-bg text-white flex-1">
+        <div className="px-4 sm:px-6 py-6 sm:py-8">
+          <h1 className="text-2xl sm:text-3xl font-bold mb-6">Profile</h1>
+          <div className="text-center py-12">
+            <p className="text-gray-400">Invalid address</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-dark-bg text-white flex-1">
       <div className="px-4 sm:px-6 py-6 sm:py-8">
@@ -244,62 +287,82 @@ export default function ProfilePage({
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-2xl sm:text-3xl font-bold">Profile</h1>
+                {/* Profile Picture */}
+                {profileData?.profilePictureUrl ? (
+                  <img
+                    src={profileData.profilePictureUrl}
+                    alt={profileData.username || formatAddress(address)}
+                    className="w-12 h-12 rounded-full object-cover border border-gray-700/50"
+                    onError={(e) => {
+                      e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(profileData.username || address.slice(0, 2))}&background=transparent&color=fff&size=128`
+                    }}
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded-full bg-gold-primary/20 flex items-center justify-center border border-gray-700/50">
+                    <span className="text-gold-primary font-semibold text-lg">
+                      {(profileData?.username || address).charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold">
+                    {profileData?.username || formatAddress(address)}
+                  </h1>
+                  {profileData?.username && (
+                    <p className="text-sm text-gray-400 font-mono">{formatAddress(address)}</p>
+                  )}
+                </div>
                 {isOwnProfile && (
                   <span className="px-2 py-1 bg-gold-primary/20 text-gold-primary text-xs font-medium rounded">
                     Your Profile
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <div className="flex items-center gap-2 bg-gray-900/50 border border-gray-800 rounded-lg px-4 py-2">
-                  <span className="text-gray-400 text-sm">Wallet:</span>
-                  <span className="text-white font-mono text-sm">{formatAddress(address)}</span>
-                  <button
-                    onClick={handleCopyAddress}
-                    className="text-gray-400 hover:text-white transition-colors ml-2"
-                    title={copiedAddress ? 'Copied!' : 'Copy full address'}
-                    aria-label="Copy address"
-                  >
-                    {copiedAddress ? (
-                      <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                    )}
-                  </button>
+              {!profileData?.username && (
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 bg-dark-bg/40 border border-gray-700/50 rounded-lg px-4 py-2">
+                    <span className="text-gray-400 text-sm">Wallet:</span>
+                    <span className="text-white font-mono text-sm">{formatAddress(address)}</span>
+                    <button
+                      onClick={handleCopyAddress}
+                      className="text-gray-400 hover:text-white transition-colors ml-2"
+                      title={copiedAddress ? 'Copied!' : 'Copy full address'}
+                      aria-label="Copy address"
+                    >
+                      {copiedAddress ? (
+                        <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
                 </div>
-                <a
-                  href={`https://polygonscan.com/address/${address}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-gold-primary hover:text-gold-hover text-sm font-medium transition-colors flex items-center gap-1"
-                >
-                  View on PolygonScan
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                </a>
-              </div>
+              )}
+              <a
+                href={`https://polygonscan.com/address/${address}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gold-primary hover:text-gold-hover text-sm font-medium transition-colors flex items-center gap-1"
+              >
+                View on PolygonScan
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
             </div>
             <div className="flex items-center gap-3">
               {isOwnProfile && (
                 <>
-                  <Link
-                    href="/analytics"
-                    className="px-4 py-2 bg-gray-900 border border-gray-800 text-white rounded text-sm font-medium hover:bg-gray-800 transition-colors"
+                  <button
+                    onClick={() => setShowEditModal(true)}
+                    className="px-4 py-2 bg-dark-bg/40 border border-gray-700/50 text-white rounded text-sm font-medium hover:bg-dark-bg/60 transition-colors"
                   >
-                    View Analytics
-                  </Link>
-                  <Link
-                    href="/history"
-                    className="px-4 py-2 bg-gray-900 border border-gray-800 text-white rounded text-sm font-medium hover:bg-gray-800 transition-colors"
-                  >
-                    Trade History
-                  </Link>
+                    Edit Profile
+                  </button>
                   <button
                     onClick={openPlanModal}
                     className="px-4 py-2 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white rounded text-sm font-medium transition-all duration-200 transform hover:scale-105"
@@ -321,7 +384,7 @@ export default function ProfilePage({
 
         {/* Portfolio Overview */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+          <div className="bg-dark-bg/40 rounded-lg p-4 border border-gray-700/50">
             <div className="text-xs text-gray-400 mb-1">Portfolio Value</div>
             <div className="text-white font-bold text-2xl">
               ${profileStats.portfolioValue.toFixed(2)}
@@ -329,7 +392,7 @@ export default function ProfilePage({
             <div className="text-xs text-gray-500 mt-1">Total value</div>
           </div>
 
-          <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+          <div className="bg-dark-bg/40 rounded-lg p-4 border border-gray-700/50">
             <div className="text-xs text-gray-400 mb-1">Cash Balance</div>
             <div className="text-white font-bold text-2xl">
               ${profileStats.cashBalance.toFixed(2)}
@@ -337,7 +400,7 @@ export default function ProfilePage({
             <div className="text-xs text-gray-500 mt-1">USDC available</div>
           </div>
 
-          <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+          <div className="bg-dark-bg/40 rounded-lg p-4 border border-gray-700/50">
             <div className="text-xs text-gray-400 mb-1">Positions Value</div>
             <div className="text-white font-bold text-2xl">
               ${profileStats.positionsValue.toFixed(2)}
@@ -345,7 +408,7 @@ export default function ProfilePage({
             <div className="text-xs text-gray-500 mt-1">{profileStats.activePositions} active</div>
           </div>
 
-          <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+          <div className="bg-dark-bg/40 rounded-lg p-4 border border-gray-700/50">
             <div className="text-xs text-gray-400 mb-1">Total Realized PnL</div>
             <div className={`font-bold text-2xl ${profileStats.totalPnL >= 0 ? 'text-green-400' : 'text-red-400'}`}>
               {profileStats.totalPnL >= 0 ? '+' : ''}${profileStats.totalPnL.toFixed(2)}
@@ -355,12 +418,12 @@ export default function ProfilePage({
 
         {/* Trading Statistics */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+          <div className="bg-dark-bg/40 rounded-lg p-4 border border-gray-700/50">
             <div className="text-xs text-gray-400 mb-1">Total Trades</div>
             <div className="text-white font-bold text-2xl">{profileStats.totalTrades}</div>
           </div>
 
-          <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+          <div className="bg-dark-bg/40 rounded-lg p-4 border border-gray-700/50">
             <div className="text-xs text-gray-400 mb-1">Win Rate</div>
             <div className={`font-bold text-2xl ${profileStats.winRate >= 50 ? 'text-green-400' : 'text-red-400'}`}>
               {profileStats.winRate}%
@@ -370,14 +433,14 @@ export default function ProfilePage({
             </div>
           </div>
 
-          <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+          <div className="bg-dark-bg/40 rounded-lg p-4 border border-gray-700/50">
             <div className="text-xs text-gray-400 mb-1">Total Volume</div>
             <div className="text-white font-bold text-2xl">
               ${profileStats.totalVolume.toFixed(2)}
             </div>
           </div>
 
-          <div className="bg-gray-900/50 rounded-lg p-4 border border-gray-800">
+          <div className="bg-dark-bg/40 rounded-lg p-4 border border-gray-700/50">
             <div className="text-xs text-gray-400 mb-1">Closed Positions</div>
             <div className="text-white font-bold text-2xl">{profileStats.closedPositions}</div>
           </div>
@@ -385,7 +448,7 @@ export default function ProfilePage({
 
         {/* Performance Metrics */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
+          <div className="bg-dark-bg/40 rounded-lg p-6 border border-gray-700/50">
             <h2 className="text-lg font-semibold text-white mb-4">Trading Activity</h2>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
@@ -411,7 +474,7 @@ export default function ProfilePage({
             </div>
           </div>
 
-          <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
+          <div className="bg-dark-bg/40 rounded-lg p-6 border border-gray-700/50">
             <h2 className="text-lg font-semibold text-white mb-4">Performance Metrics</h2>
             <div className="space-y-3">
               <div className="flex justify-between items-center">
@@ -444,13 +507,13 @@ export default function ProfilePage({
 
         {/* Active Positions */}
         {positions.length > 0 && (
-          <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800 mb-8">
+          <div className="bg-dark-bg/40 rounded-lg p-6 border border-gray-700/50 mb-8">
             <h2 className="text-lg font-semibold text-white mb-4">
               Active Positions ({positions.length})
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="text-gray-400 border-b border-gray-800">
+                <thead className="text-gray-400 border-b border-gray-700/50">
                   <tr>
                     <th className="text-left py-3 px-4 font-medium">Market</th>
                     <th className="text-left py-3 px-4 font-medium">Outcome</th>
@@ -467,7 +530,7 @@ export default function ProfilePage({
                     const pnlColor = pnl >= 0 ? 'text-green-400' : 'text-red-400'
 
                     return (
-                      <tr key={`${position.conditionId}-${index}`} className="border-b border-gray-800">
+                      <tr key={`${position.conditionId}-${index}`} className="border-b border-gray-700/50">
                         <td className="py-3 px-4">
                           <div className="max-w-xs truncate text-white" title={position.title}>
                             {position.title || 'Unknown Market'}
@@ -508,11 +571,17 @@ export default function ProfilePage({
             )}
           </div>
         )}
-
-
+        {isOwnProfile && (
+          <EditProfileModal
+            isOpen={showEditModal}
+            onClose={() => setShowEditModal(false)}
+            walletAddress={address}
+            currentUsername={profileData?.username || null}
+            currentProfilePictureUrl={profileData?.profilePictureUrl || null}
+            onUpdate={handleProfileUpdate}
+          />
+        )}
       </div>
-
-      {/* Plan Selection Modal - handled by Header via context */}
     </div>
   )
 }

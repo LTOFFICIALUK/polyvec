@@ -274,7 +274,7 @@ const TradingViewChart = () => {
         ref={toolbarRef}
         onMouseDown={handleMouseDown}
         style={toolbarPos ? { left: toolbarPos.x, top: toolbarPos.y, bottom: 'auto' } : {}}
-        className="absolute bottom-12 left-3 z-20 flex items-center gap-1 bg-black/80 backdrop-blur-sm p-1 rounded-lg border border-gray-800 cursor-grab active:cursor-grabbing select-none"
+        className="absolute bottom-12 left-3 z-20 flex items-center gap-1 bg-dark-bg backdrop-blur-sm p-1 rounded-lg border border-gray-700/50 cursor-grab active:cursor-grabbing select-none"
       >
         <div className="px-1 text-gray-500 hover:text-gray-300 cursor-grab active:cursor-grabbing" title="Drag to move">
           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
@@ -291,7 +291,7 @@ const TradingViewChart = () => {
             className={`px-2 py-1 text-xs font-medium rounded transition-colors ${
               chartInterval === tf
                 ? 'bg-gold-primary text-white'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                : 'text-gray-400 hover:text-white hover:bg-dark-bg/60'
             }`}
           >
             {tf}

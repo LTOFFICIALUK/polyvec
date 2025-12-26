@@ -7,8 +7,9 @@ export default function AuthenticationPage() {
     <DocsPage
       breadcrumb="API Reference"
       title="Authentication"
-      description="Learn how to authenticate with the PolyTrade and Polymarket APIs using wallet signatures and API credentials."
+      description="Learn how PolyVec authenticates with Polymarket APIs using custodial wallet signatures and API credentials."
       tableOfContents={[
+        { name: 'Overview', href: '#overview' },
         { name: 'Auth Flow', href: '#auth-flow' },
         { name: 'API Credentials', href: '#credentials' },
         { name: 'HMAC Signing', href: '#hmac' },
@@ -17,26 +18,40 @@ export default function AuthenticationPage() {
       prevPage={{ name: 'API Overview', href: '/docs/developers/overview' }}
       nextPage={{ name: 'Market Data', href: '/docs/developers/api/market-data' }}
     >
-      <DocsSection id="auth-flow" title="Authentication Flow">
+      <DocsSection id="overview" title="Overview">
         <DocsParagraph>
-          PolyTrade uses a two-step authentication process:
-        </DocsParagraph>
-
-        <DocsSubheading>1. Wallet Connection</DocsSubheading>
-        <DocsParagraph>
-          Connect your Web3 wallet (MetaMask/Phantom) to the application. 
-          This establishes your identity via your wallet address.
-        </DocsParagraph>
-
-        <DocsSubheading>2. Polymarket API Key</DocsSubheading>
-        <DocsParagraph>
-          Sign a message with your wallet to generate Polymarket API credentials. 
-          These credentials authenticate all trading requests.
+          This page describes how PolyVec&apos;s backend authenticates with Polymarket APIs. 
+          End users don&apos;t interact with this directly — they use email/password authentication 
+          and PolyVec handles API authentication automatically.
         </DocsParagraph>
 
         <DocsNote type="info">
-          Signing the authentication message is free — it doesn&apos;t create a blockchain transaction, 
-          only proves wallet ownership.
+          <strong>For End Users:</strong> You don&apos;t need to worry about API authentication. 
+          When you create an account, PolyVec automatically sets up everything needed to trade. 
+          See <a href="/docs/learn/get-started/how-to-sign-up" className="text-blue-400 underline">How to Sign-Up</a> for user authentication.
+        </DocsNote>
+      </DocsSection>
+
+      <DocsSection id="auth-flow" title="Authentication Flow">
+        <DocsParagraph>
+          PolyVec uses custodial wallets to authenticate with Polymarket APIs:
+        </DocsParagraph>
+
+        <DocsSubheading>1. Custodial Wallet Creation</DocsSubheading>
+        <DocsParagraph>
+          When a user creates an account, PolyVec automatically generates a custodial wallet 
+          and stores the encrypted private key securely.
+        </DocsParagraph>
+
+        <DocsSubheading>2. Polymarket API Credentials</DocsSubheading>
+        <DocsParagraph>
+          PolyVec uses the custodial wallet to sign a message and generate Polymarket API credentials. 
+          These credentials are stored encrypted and used to authenticate all trading requests on behalf of the user.
+        </DocsParagraph>
+
+        <DocsNote type="info">
+          This process happens automatically during account creation. Users never interact with 
+          wallet signatures or API credentials directly.
         </DocsNote>
       </DocsSection>
 

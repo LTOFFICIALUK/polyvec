@@ -38,7 +38,7 @@ export interface EncryptedWalletData {
  */
 const deriveUserKey = (masterSecret: string, walletAddress: string, salt: Buffer): Buffer => {
   // Use PBKDF2 with user-specific data to derive unique key
-  const info = `polytrade:custodial-wallet:${walletAddress.toLowerCase()}`
+  const info = `polyvec:custodial-wallet:${walletAddress.toLowerCase()}`
   
   return crypto.pbkdf2Sync(
     masterSecret,

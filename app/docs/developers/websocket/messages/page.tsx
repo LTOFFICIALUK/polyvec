@@ -7,7 +7,7 @@ export default function WebSocketMessagesPage() {
     <DocsPage
       breadcrumb="WebSocket"
       title="Message Types"
-      description="Reference for all WebSocket message types sent and received by the PolyTrade server."
+      description="Reference for all WebSocket message types sent and received by the PolyVec server."
       tableOfContents={[
         { name: 'Server Messages', href: '#server-messages' },
         { name: 'Client Messages', href: '#client-messages' },

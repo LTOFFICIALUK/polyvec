@@ -4,26 +4,26 @@
 # To start: docker-compose up -d
 # To stop: docker-compose down
 # To view logs: docker-compose logs -f timescaledb
-# To access database: docker-compose exec timescaledb psql -U polytrade -d polytrade
+# To access database: docker-compose exec timescaledb psql -U polyvec -d polyvec
 
 version: '3.8'
 
 services:
   timescaledb:
     image: timescale/timescaledb:latest-pg16
-    container_name: polytrade-timescaledb
+    container_name: polyvec-timescaledb
     ports:
       - "5432:5432"  # PostgreSQL port
     environment:
-      POSTGRES_USER: polytrade
-      POSTGRES_PASSWORD: polytrade_dev_password  # Change this in production!
-      POSTGRES_DB: polytrade
+      POSTGRES_USER: polyvec
+      POSTGRES_PASSWORD: polyvec_dev_password  # Change this in production!
+      POSTGRES_DB: polyvec
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       # Persist data between container restarts
       - timescaledb_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U polytrade"]
+      test: ["CMD-SHELL", "pg_isready -U polyvec"]
       interval: 10s
       timeout: 5s
       retries: 5

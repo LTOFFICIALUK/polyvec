@@ -7,91 +7,105 @@ export default function HowToSignUpPage() {
     <DocsPage
       breadcrumb="Get Started"
       title="How to Sign-Up"
-      description="Get started with PolyTrade in minutes by connecting your Web3 wallet. No email registration required — your wallet is your identity."
+      description="Create your PolyVec account with email and password. A custodial wallet is automatically created for you — no Web3 wallet needed."
       tableOfContents={[
         { name: 'Prerequisites', href: '#prerequisites' },
-        { name: 'Connect Wallet', href: '#connect-wallet' },
-        { name: 'Polymarket Auth', href: '#polymarket-auth' },
+        { name: 'Create Account', href: '#create-account' },
+        { name: 'Custodial Wallet', href: '#custodial-wallet' },
         { name: 'Troubleshooting', href: '#troubleshooting' },
       ]}
-      prevPage={{ name: 'What is PolyTrade?', href: '/docs/learn/get-started/what-is-polytrade' }}
+      prevPage={{ name: 'What is PolyVec?', href: '/docs/learn/get-started/what-is-polyvec' }}
       nextPage={{ name: 'How to Deposit', href: '/docs/learn/get-started/how-to-deposit' }}
     >
       <DocsSection id="prerequisites" title="Prerequisites">
         <DocsParagraph>
-          Before you can start trading on PolyTrade, you&apos;ll need:
+          Before you can start trading on PolyVec, you&apos;ll need:
         </DocsParagraph>
 
-        <DocsSubheading>A Web3 Wallet</DocsSubheading>
+        <DocsSubheading>Email Address</DocsSubheading>
         <DocsParagraph>
-          Install MetaMask or Phantom browser extension. These wallets store your cryptocurrency 
-          and allow you to sign transactions securely.
+          A valid email address for account creation and login. This is your primary account identifier.
         </DocsParagraph>
 
-        <DocsSubheading>Polygon Network</DocsSubheading>
+        <DocsSubheading>Password</DocsSubheading>
         <DocsParagraph>
-          PolyTrade operates on the Polygon network for fast, low-cost transactions. 
-          Your wallet should be configured to connect to Polygon.
-        </DocsParagraph>
-
-        <DocsSubheading>USDC.e Balance</DocsSubheading>
-        <DocsParagraph>
-          You&apos;ll need USDC.e (Bridged USDC on Polygon) to trade. You can bridge USDC.e from other networks 
-          or purchase directly through supported exchanges.
-        </DocsParagraph>
-      </DocsSection>
-
-      <DocsSection id="connect-wallet" title="Connect Your Wallet">
-        <DocsParagraph>
-          Click the profile icon in the top right corner of the PolyTrade interface. 
-          If you&apos;re not connected, you&apos;ll see a &quot;Connect Wallet&quot; prompt.
+          A secure password (minimum 8 characters). Choose a strong password to protect your account.
         </DocsParagraph>
 
         <DocsNote type="info">
-          <strong>Supported Wallets:</strong> MetaMask and Phantom are currently supported. 
-          More wallet integrations coming soon.
+          <strong>No Web3 Wallet Required:</strong> PolyVec uses custodial wallets, so you don&apos;t need 
+          MetaMask, Phantom, or any other Web3 wallet. A wallet is automatically created for you.
         </DocsNote>
-
-        <DocsParagraph>
-          <strong>Step 1:</strong> Click &quot;Connect Wallet&quot; button<br />
-          <strong>Step 2:</strong> Select your wallet provider (MetaMask or Phantom)<br />
-          <strong>Step 3:</strong> Approve the connection in your wallet popup<br />
-          <strong>Step 4:</strong> You&apos;re connected! Your wallet address will appear in the header.
-        </DocsParagraph>
       </DocsSection>
 
-      <DocsSection id="polymarket-auth" title="Polymarket Authentication">
+      <DocsSection id="create-account" title="Create Your Account">
         <DocsParagraph>
-          After connecting your wallet, you&apos;ll need to authenticate with Polymarket to enable trading. 
-          This creates API credentials that allow PolyTrade to place orders on your behalf.
+          Creating an account on PolyVec is simple and takes less than a minute:
+        </DocsParagraph>
+
+        <DocsParagraph>
+          <strong>Step 1:</strong> Navigate to the sign-up page (or click &quot;Sign Up&quot; in the header)<br />
+          <strong>Step 2:</strong> Enter your email address<br />
+          <strong>Step 3:</strong> Choose a secure password (minimum 8 characters)<br />
+          <strong>Step 4:</strong> Click &quot;Create Account&quot;<br />
+          <strong>Step 5:</strong> You&apos;re automatically logged in and ready to trade!
+        </DocsParagraph>
+
+        <DocsNote type="info">
+          <strong>Automatic Setup:</strong> When you create an account, PolyVec automatically:
+          <br />• Creates your custodial wallet
+          <br />• Sets up your trading account
+          <br />• Prepares you to start trading immediately
+        </DocsNote>
+      </DocsSection>
+
+      <DocsSection id="custodial-wallet" title="Your Custodial Wallet">
+        <DocsParagraph>
+          When you sign up, PolyVec automatically creates a custodial wallet for you. This means:
+        </DocsParagraph>
+
+        <DocsSubheading>What is a Custodial Wallet?</DocsSubheading>
+        <DocsParagraph>
+          A custodial wallet is a wallet where PolyVec holds and manages your private keys on your behalf. 
+          This allows you to trade without managing blockchain complexity or signing transactions.
+        </DocsParagraph>
+
+        <DocsSubheading>Benefits</DocsSubheading>
+        <DocsParagraph>
+          • <strong>No wallet extensions needed</strong> — trade directly from your browser<br />
+          • <strong>Fast trading</strong> — no transaction confirmations required<br />
+          • <strong>Simple deposits</strong> — send USDC.e directly to your wallet address<br />
+          • <strong>Automatic management</strong> — we handle all blockchain interactions
         </DocsParagraph>
 
         <DocsNote type="warning">
-          <strong>Important:</strong> You&apos;ll sign a message with your wallet — this does NOT cost any gas 
-          and does NOT give PolyTrade access to your funds. It only creates trading credentials.
+          <strong>Important:</strong> Funds in custodial wallets are not insured. Please read our 
+          <a href="/docs/policies/custodial-wallet-disclosure" className="text-blue-400 underline">Custodial Wallet Disclosure</a> for details.
         </DocsNote>
 
         <DocsParagraph>
-          Click the purple &quot;Connect to Polymarket&quot; button that appears after wallet connection. 
-          Follow the prompts to sign the authentication message.
+          Your wallet address will be displayed in your account settings. You can use this address 
+          to deposit USDC.e from any exchange or wallet that supports Polygon.
         </DocsParagraph>
       </DocsSection>
 
       <DocsSection id="troubleshooting" title="Troubleshooting">
-        <DocsSubheading>Wallet not detected?</DocsSubheading>
+        <DocsSubheading>Email already exists?</DocsSubheading>
         <DocsParagraph>
-          Make sure your wallet extension is installed and unlocked. Try refreshing the page.
+          If you see an error that your email is already registered, try logging in instead. 
+          If you forgot your password, contact support.
         </DocsParagraph>
 
-        <DocsSubheading>Wrong network?</DocsSubheading>
+        <DocsSubheading>Password too weak?</DocsSubheading>
         <DocsParagraph>
-          Switch to Polygon network in your wallet settings. MetaMask will prompt you to add 
-          Polygon if it&apos;s not already configured.
+          Your password must be at least 8 characters long. Use a combination of letters, numbers, 
+          and symbols for better security.
         </DocsParagraph>
 
-        <DocsSubheading>Connection failed?</DocsSubheading>
+        <DocsSubheading>Account creation failed?</DocsSubheading>
         <DocsParagraph>
-          Clear your browser cache, disable other wallet extensions temporarily, and try again.
+          If account creation fails, check your internet connection and try again. If the problem 
+          persists, contact support with your email address.
         </DocsParagraph>
       </DocsSection>
     </DocsPage>

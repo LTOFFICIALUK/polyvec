@@ -1,5 +1,5 @@
 #!/bin/bash
-# PolyTrade Complete Startup Script
+# PolyVec Complete Startup Script
 # Run: bash scripts/startup.sh
 # This script starts all services from scratch
 
@@ -12,10 +12,10 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-PROJECT_ROOT="/Users/lukecarter/Downloads/PolyTrade-main"
+PROJECT_ROOT="/Users/lukecarter/Downloads/PolyVec-main"
 cd "$PROJECT_ROOT"
 
-echo -e "${BLUE}🚀 PolyTrade Startup Script${NC}"
+echo -e "${BLUE}🚀 PolyVec Startup Script${NC}"
 echo "=========================================="
 echo ""
 echo -e "${YELLOW}Note:${NC} If Docker Desktop is not running, this script will attempt to start it."
@@ -108,7 +108,7 @@ echo -e "${YELLOW}Step 2: Starting TimescaleDB...${NC}"
 docker-compose up -d timescaledb
 echo "⏳ Waiting for database to be ready..."
 for i in {1..30}; do
-    if docker-compose exec -T timescaledb pg_isready -U polytrade &> /dev/null; then
+    if docker-compose exec -T timescaledb pg_isready -U polyvec &> /dev/null; then
         echo -e "${GREEN}✅ Database is ready${NC}"
         break
     fi
@@ -121,9 +121,9 @@ for i in {1..30}; do
 done
 
 # Verify tables exist
-if ! docker-compose exec -T timescaledb psql -U polytrade -d polytrade -c "\dt" | grep -q price_history; then
+if ! docker-compose exec -T timescaledb psql -U polyvec -d polyvec -c "\dt" | grep -q price_history; then
     echo "📊 Running migrations..."
-    docker-compose exec -T timescaledb psql -U polytrade -d polytrade < database/migrations/001_create_price_history.sql
+    docker-compose exec -T timescaledb psql -U polyvec -d polyvec < database/migrations/001_create_price_history.sql
 fi
 echo ""
 
@@ -132,7 +132,7 @@ echo -e "${YELLOW}Step 3: Verifying environment...${NC}"
 if [ ! -f .env.local ]; then
     echo "📝 Creating .env.local..."
     cat > .env.local << 'EOF'
-DATABASE_URL=postgresql://polytrade:polytrade_dev_password@localhost:5432/polytrade
+DATABASE_URL=postgresql://polyvec:polyvec_dev_password@localhost:5432/polyvec
 NEXT_PUBLIC_WEBSOCKET_SERVER_URL=ws://localhost:8081
 WEBSOCKET_SERVER_HTTP_URL=http://localhost:8081
 EOF
@@ -221,7 +221,7 @@ echo ""
 # Step 8: Verify Data Collection
 echo -e "${YELLOW}Step 8: Verifying data collection...${NC}"
 sleep 3
-RECORD_COUNT=$(docker-compose exec -T timescaledb psql -U polytrade -d polytrade -t -c "SELECT COUNT(*) FROM price_history;" 2>/dev/null | tr -d ' ' || echo "0")
+RECORD_COUNT=$(docker-compose exec -T timescaledb psql -U polyvec -d polyvec -t -c "SELECT COUNT(*) FROM price_history;" 2>/dev/null | tr -d ' ' || echo "0")
 if [ "$RECORD_COUNT" -gt "0" ]; then
     echo -e "${GREEN}✅ Database has $RECORD_COUNT price records${NC}"
 else

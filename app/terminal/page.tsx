@@ -4,10 +4,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
 import PolyLineChart from '@/components/PolyLineChart'
 import TradingViewChart from '@/components/TradingViewChart'
-import TradingPanel from '@/components/TradingPanel'
-import DraggableTradingPanel from '@/components/DraggableTradingPanel'
 import ChartControls from '@/components/ChartControls'
-import OrderBook, { OrderBookHandle } from '@/components/OrderBook'
+import TerminalRightPanel from '@/components/TerminalRightPanel'
 import AnimatedPrice from '@/components/AnimatedPrice'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { TradingProvider, useTradingContext } from '@/contexts/TradingContext'
@@ -782,92 +780,28 @@ function TerminalContent() {
 
     window.addEventListener('orderPlaced', handleOrderPlaced)
     return () => window.removeEventListener('orderPlaced', handleOrderPlaced)
-  }, [walletAddress, fetchOrders, fetchPositions]) // Include walletAddress to ensure effect runs when wallet changes
+  }, [walletAddress, fetchOrders, fetchPositions, refreshCustodialWallet]) // Include walletAddress to ensure effect runs when wallet changes
 
   return (
     <div className="bg-dark-bg text-white h-[calc(100vh-73px)] overflow-hidden relative">
-      {/* Full Screen Chart */}
+      {/* Main Layout: Charts on Left, Right Panel on Right */}
       <div className="absolute inset-0 flex flex-col">
-            <ChartControls />
-            <div className="flex-1 min-h-0 relative">
-          {/* Default: Side-by-Side View (Poly Orderbook + TradingView) */}
-          <div className="w-full h-full flex">
-            {/* Left: Poly Orderbook Chart */}
-            <div className="flex-1 border-r border-gray-700/50">
-              <PolyLineChart />
-            </div>
-            {/* Right: TradingView Chart */}
-            <div className="flex-1">
-              <TradingViewChart />
-            </div>
-          </div>
-
-          {/* Side-by-Side Toggle Button - Commented out, side-by-side is now default */}
-          {/*
-          <div className="absolute top-4 right-4 z-10">
-            <button
-              onClick={() => setShowSideBySide(!showSideBySide)}
-              className={`px-3 py-2 rounded transition-all duration-200 flex items-center gap-1.5 ${
-                showSideBySide
-                  ? 'bg-gold-primary text-white shadow-lg shadow-gold-primary/20'
-                  : 'bg-gray-900/90 hover:bg-gray-800 text-gray-400 hover:text-white border border-gray-700/50 backdrop-blur-sm'
-              }`}
-              title={showSideBySide ? 'Show single chart' : 'Show charts side by side'}
-            >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M3 6h8v16H3V6z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M3 10h8M3 14h6"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 6h8v16h-8V6z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M13 10h8M13 14h6"
-                />
-              </svg>
-            </button>
-          </div>
-          */}
-          
-          {/* Fallback to single chart view - Commented out, side-by-side is now default */}
-          {/*
-          {showSideBySide ? (
-            <div className="w-full h-full flex">
-              <div className="flex-1 border-r border-gray-700/50">
-                <PolyLineChart />
-        </div>
+        <ChartControls />
+        <div className="flex-1 min-h-0 flex">
+          {/* Left: Charts + Bottom Tabs */}
+          <div className="flex-1 flex flex-col border-r border-gray-700/50 min-w-0">
+            {/* Charts */}
+            <div className="flex-1 min-h-0 flex">
               <div className="flex-1">
+                <PolyLineChart />
+              </div>
+              <div className="flex-1 border-l border-gray-700/50">
                 <TradingViewChart />
               </div>
             </div>
-          ) : (
-            showTradingView ? <TradingViewChart /> : <PolyLineChart />
-          )}
-          */}
-      </div>
 
-        {/* Bottom Section - Tabs and Orderbook */}
-        <div className="h-64 border-t border-gray-700/50 flex">
+            {/* Bottom Section - Positions/Orders/History Tabs */}
+            <div className="h-64 border-t border-gray-700/50 flex-shrink-0 flex">
           {/* Left: Position/Orders/History Tabs */}
           <div className="flex-1 flex flex-col">
             <div className="flex border-b border-gray-700/50 flex-shrink-0 justify-between">
@@ -1423,19 +1357,14 @@ function TerminalContent() {
             </div>
           )}
         </div>
-      </div>
-          
-          {/* Right: Orderbook */}
-          <div className="w-80 border-l border-gray-700/50 h-full overflow-hidden">
-            <OrderBook />
+        </div>
+            </div>
           </div>
+          
+          {/* Right: Trade Interface + Market Insights + OrderBook */}
+          <TerminalRightPanel />
         </div>
       </div>
-      
-      {/* Draggable Floating Trading Panel */}
-      <DraggableTradingPanel>
-        <TradingPanel />
-      </DraggableTradingPanel>
     </div>
   )
 }

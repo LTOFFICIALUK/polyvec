@@ -1,6 +1,7 @@
 'use server'
 
 import { NextResponse } from 'next/server'
+import { ethers } from 'ethers'
 
 const POLYMARKET_CLOB_API = 'https://clob.polymarket.com'
 
@@ -20,18 +21,22 @@ export async function POST(req: Request) {
       )
     }
 
-    // Normalize address to lowercase for consistency with API usage
-    const normalizedAddress = address.toLowerCase()
+    // Use checksummed address (EIP-55) to match what was signed
+    // Polymarket expects the address in headers to match the signed address exactly
+    const checksummedAddress = ethers.getAddress(address)
     
     const headers = {
       'Content-Type': 'application/json',
-      'POLY_ADDRESS': normalizedAddress,
+      'POLY_ADDRESS': checksummedAddress,
       'POLY_SIGNATURE': signature,
       'POLY_TIMESTAMP': timestamp,
       'POLY_NONCE': nonce?.toString() || '0',
     }
 
-    console.log('Attempting to create/derive API key for:', address)
+    console.log('[API Key] Attempting to create/derive API key for:', checksummedAddress)
+    console.log('[API Key] Signature length:', signature.length)
+    console.log('[API Key] Timestamp:', timestamp)
+    console.log('[API Key] Nonce:', nonce)
 
     // First try to derive an existing API key
     const deriveResponse = await fetch(`${POLYMARKET_CLOB_API}/auth/derive-api-key`, {
@@ -81,16 +86,33 @@ export async function POST(req: Request) {
 
     if (!createResponse.ok) {
       const errorText = await createResponse.text()
-      console.error('Polymarket API error:', createResponse.status, errorText)
+      console.error('[API Key] Polymarket API error:', createResponse.status, errorText)
+      console.error('[API Key] Request headers sent:', {
+        POLY_ADDRESS: checksummedAddress,
+        POLY_SIGNATURE: signature.substring(0, 20) + '...',
+        POLY_TIMESTAMP: timestamp,
+        POLY_NONCE: nonce?.toString() || '0',
+      })
       
       // Check if the user needs to sign up on Polymarket first
-      if (errorText.includes('Could not create api key')) {
+      if (errorText.includes('Could not create api key') || errorText.includes('Account not found')) {
         return NextResponse.json(
           { 
             error: 'Account not found. Please sign up on polymarket.com first, then try again.',
             details: errorText 
           },
           { status: 400 }
+        )
+      }
+      
+      // 401 usually means invalid signature or address mismatch
+      if (createResponse.status === 401) {
+        return NextResponse.json(
+          { 
+            error: 'Authentication failed. The signature may be invalid or the wallet address may not be registered on Polymarket.',
+            details: errorText 
+          },
+          { status: 401 }
         )
       }
       

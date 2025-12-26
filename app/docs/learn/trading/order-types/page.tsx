@@ -7,7 +7,7 @@ export default function OrderTypesPage() {
     <DocsPage
       breadcrumb="Trading"
       title="Order Types"
-      description="Master the different order types available on PolyTrade. Learn when to use market orders vs limit orders for optimal execution."
+      description="Master the different order types available on PolyVec. Learn when to use market orders vs limit orders for optimal execution."
       tableOfContents={[
         { name: 'Market Orders', href: '#market-orders' },
         { name: 'Limit Orders', href: '#limit-orders' },
@@ -113,8 +113,8 @@ export default function OrderTypesPage() {
         </DocsParagraph>
 
         <DocsNote type="info">
-          Each order placement and cancellation requires a blockchain transaction. 
-          Batch your order management when possible.
+          With custodial wallets, orders execute instantly without blockchain confirmations. 
+          PolyVec handles all blockchain transactions on your behalf in the background.
         </DocsNote>
       </DocsSection>
     </DocsPage>

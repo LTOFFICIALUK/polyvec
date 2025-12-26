@@ -1,6 +1,7 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { useAuth } from './AuthContext'
 
 export interface PolymarketApiCredentials {
   apiKey: string
@@ -21,88 +22,67 @@ interface WalletContextType {
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined)
 
-const POLYMARKET_CREDS_KEY_PREFIX = 'polymarket_api_credentials_'
-
-// Helper function to get the storage key for a specific address
-const getCredsKey = (address: string): string => {
-  return `${POLYMARKET_CREDS_KEY_PREFIX}${address.toLowerCase()}`
-}
-
 export const WalletProvider = ({ children }: { children: ReactNode }) => {
+  const { user, custodialWallet } = useAuth()
   const [isConnected, setIsConnected] = useState(false)
   const [walletAddress, setWalletAddress] = useState<string | null>(null)
   const [polymarketCredentials, setPolymarketCredentialsState] = useState<PolymarketApiCredentials | null>(null)
 
-  // Load wallet and Polymarket credentials from localStorage on mount
+  // Use custodial wallet address when user is authenticated
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('walletAddress')
-      if (stored) {
-        setWalletAddress(stored)
-        setIsConnected(true)
+    if (user && custodialWallet?.walletAddress) {
+      const address = custodialWallet.walletAddress.toLowerCase()
+      setWalletAddress(address)
+      setIsConnected(true)
+    } else {
+      setWalletAddress(null)
+      setIsConnected(false)
+      setPolymarketCredentialsState(null)
+    }
+  }, [user, custodialWallet?.walletAddress])
 
-        // Load credentials for this specific address
-        const credsKey = getCredsKey(stored)
-        const storedCreds = localStorage.getItem(credsKey)
-      if (storedCreds) {
+  // Automatically load Polymarket credentials from database when user is authenticated
+  useEffect(() => {
+    if (user && custodialWallet?.walletAddress) {
+      const loadCredentials = async () => {
         try {
-          const creds = JSON.parse(storedCreds)
-          setPolymarketCredentialsState(creds)
-        } catch (error) {
-          console.error('Failed to parse stored Polymarket credentials:', error)
-            localStorage.removeItem(credsKey)
+          const response = await fetch('/api/user/polymarket-credentials')
+          if (response.ok) {
+            const data = await response.json()
+            if (data.credentials) {
+              setPolymarketCredentialsState(data.credentials)
+            } else {
+              setPolymarketCredentialsState(null)
+            }
           }
+        } catch (error) {
+          console.error('[WalletContext] Failed to load Polymarket credentials:', error)
         }
       }
+      loadCredentials()
+    } else {
+      setPolymarketCredentialsState(null)
     }
-  }, [])
+  }, [user, custodialWallet?.walletAddress])
 
   const connectWallet = (address: string) => {
+    // This is kept for compatibility but custodial wallet is used automatically
     const normalizedAddress = address.toLowerCase()
     setWalletAddress(normalizedAddress)
     setIsConnected(true)
-    // Store in localStorage for persistence
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('walletAddress', normalizedAddress)
-      
-      // Load credentials for this specific address
-      const credsKey = getCredsKey(normalizedAddress)
-      const storedCreds = localStorage.getItem(credsKey)
-      if (storedCreds) {
-        try {
-          const creds = JSON.parse(storedCreds)
-          setPolymarketCredentialsState(creds)
-        } catch (error) {
-          console.error('Failed to parse stored Polymarket credentials:', error)
-          localStorage.removeItem(credsKey)
-          setPolymarketCredentialsState(null)
-        }
-      } else {
-        // Clear credentials if this address doesn't have any
-        setPolymarketCredentialsState(null)
-      }
-    }
   }
 
   const disconnectWallet = () => {
+    // This is kept for compatibility but custodial wallet is managed by AuthContext
     setWalletAddress(null)
     setIsConnected(false)
     setPolymarketCredentialsState(null)
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('walletAddress')
-    }
   }
 
-  const setPolymarketCredentials = (creds: PolymarketApiCredentials | null) => {
+  const setPolymarketCredentials = async (creds: PolymarketApiCredentials | null) => {
     setPolymarketCredentialsState(creds)
-    if (typeof window !== 'undefined' && walletAddress) {
-      const credsKey = getCredsKey(walletAddress)
-      if (creds) {
-        localStorage.setItem(credsKey, JSON.stringify(creds))
-      } else {
-        localStorage.removeItem(credsKey)
-      }
-    }
+    // Credentials are stored in database, not localStorage
+    // If manually setting credentials (e.g., from auth modal), they're already in the database
   }
 
   return (

@@ -60,7 +60,7 @@ const getMasterSecret = (): string => {
  * Derive user-specific encryption key
  */
 const deriveUserKey = (masterSecret: string, walletAddress: string, salt: Buffer): Buffer => {
-  const info = `polytrade:custodial-wallet:${walletAddress.toLowerCase()}`
+  const info = `polyvec:custodial-wallet:${walletAddress.toLowerCase()}`
   
   return crypto.pbkdf2Sync(
     masterSecret,

@@ -27,7 +27,7 @@ const POLYGON_CHAIN_ID = 137
 const MAX_TIMESTAMP_DRIFT = 300 // 5 minutes in seconds
 
 const AUTH_DOMAIN = {
-  name: 'PolyTradeAuth',
+  name: 'PolyVecAuth',
   version: '1',
   chainId: POLYGON_CHAIN_ID,
 }
@@ -46,7 +46,7 @@ const AUTH_TYPES = {
   ],
 }
 
-const AUTH_MESSAGE = 'Authorize trading key storage for PolyTrade'
+const AUTH_MESSAGE = 'Authorize trading key storage for PolyVec'
 
 // ============================================
 // Verification
@@ -106,7 +106,7 @@ export const verifySignature = (
     // Recover the signer address from the signature
     try {
       const recoveredAddress = ethers.verifyMessage(
-        `Authorize trading key storage for PolyTrade\nTimestamp: ${timestamp}\nNonce: ${nonce}`,
+        `Authorize trading key storage for PolyVec\nTimestamp: ${timestamp}\nNonce: ${nonce}`,
         signature
       )
 

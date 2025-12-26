@@ -35,7 +35,7 @@ interface MarketPosition {
 
 const TradingPanel = () => {
   const { selectedPair, selectedTimeframe, activeTokenId, setActiveTokenId, marketOffset } = useTradingContext()
-  const { polymarketCredentials, isPolymarketAuthenticated } = useWallet()
+  const { polymarketCredentials, isPolymarketAuthenticated, setPolymarketCredentials } = useWallet()
   const { custodialWallet, refreshCustodialWallet } = useAuth()
   const { showToast } = useToast()
   
@@ -929,7 +929,7 @@ const TradingPanel = () => {
 
   // Market trading view
     return (
-    <div className="flex flex-col bg-dark-bg overflow-y-auto" style={{ maxHeight: 'calc(85vh - 45px)' }}>
+    <div className="flex flex-col bg-dark-bg overflow-y-auto">
       {/* Order Type Toggle */}
       <div className="border-b border-gray-700/50 p-3 flex-shrink-0">
         {renderOrderTypeToggle()}
@@ -1406,14 +1406,19 @@ const TradingPanel = () => {
           disabled={
             isMarketEnded || 
             isPlacingOrder || 
-            !isPolymarketAuthenticated || 
-            (isBuy && allowanceStatus?.needsAnyApproval && allowanceStatus?.hasAnyBalance) ||
-            (!isBuy && availableShares <= 0) ||
-            (!isBuy && ctfApprovalStatus?.needsApproval)
+            (!isPolymarketAuthenticated ? false : (isBuy && allowanceStatus?.needsAnyApproval && allowanceStatus?.hasAnyBalance) || (!isBuy && availableShares <= 0) || (!isBuy && ctfApprovalStatus?.needsApproval))
           }
-          onClick={handlePlaceOrder}
+          onClick={() => {
+            if (!isPolymarketAuthenticated) {
+              setShowAuthModal(true)
+            } else {
+              handlePlaceOrder()
+            }
+          }}
           className={`w-full py-3 rounded-lg font-bold text-sm transition-all duration-200 border ${
-            isMarketEnded || isPlacingOrder || !isPolymarketAuthenticated || (isBuy && allowanceStatus?.needsAnyApproval && allowanceStatus?.hasAnyBalance) || (!isBuy && availableShares <= 0) || (!isBuy && ctfApprovalStatus?.needsApproval)
+            !isPolymarketAuthenticated
+              ? 'bg-gold-primary/10 border-gold-primary text-gold-primary hover:bg-gold-primary/20 cursor-pointer'
+              : isMarketEnded || isPlacingOrder || (isBuy && allowanceStatus?.needsAnyApproval && allowanceStatus?.hasAnyBalance) || (!isBuy && availableShares <= 0) || (!isBuy && ctfApprovalStatus?.needsApproval)
               ? 'bg-dark-bg/50 border-gray-700 text-gray-500 cursor-not-allowed'
               : isTradingUp
               ? 'bg-green-500/10 border-green-500 text-green-400 hover:bg-green-500/20'
@@ -1717,9 +1722,21 @@ const TradingPanel = () => {
       <PolymarketAuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
-        onSuccess={() => {
+        onSuccess={async () => {
           setShowAuthModal(false)
           showToast('Authentication successful! You can now place orders.', 'success')
+          // Reload credentials from database
+          try {
+            const response = await fetch('/api/user/polymarket-credentials')
+            if (response.ok) {
+              const data = await response.json()
+              if (data.credentials) {
+                setPolymarketCredentials(data.credentials)
+              }
+            }
+          } catch (error) {
+            console.error('[TradingPanel] Failed to reload credentials:', error)
+          }
         }}
       />
     </div>

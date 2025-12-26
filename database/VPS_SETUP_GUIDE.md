@@ -85,9 +85,9 @@ sudo systemctl status postgresql
 sudo -u postgres psql
 
 # Inside PostgreSQL prompt, run:
-CREATE DATABASE polytrade;
-CREATE USER polytrade WITH PASSWORD 'CHANGE_THIS_TO_SECURE_PASSWORD';
-GRANT ALL PRIVILEGES ON DATABASE polytrade TO polytrade;
+CREATE DATABASE polyvec;
+CREATE USER polyvec WITH PASSWORD 'CHANGE_THIS_TO_SECURE_PASSWORD';
+GRANT ALL PRIVILEGES ON DATABASE polyvec TO polyvec;
 \q
 ```
 
@@ -99,7 +99,7 @@ GRANT ALL PRIVILEGES ON DATABASE polytrade TO polytrade;
 
 ```bash
 # Connect to database
-sudo -u postgres psql -d polytrade
+sudo -u postgres psql -d polyvec
 
 # Inside PostgreSQL prompt, run:
 CREATE EXTENSION IF NOT EXISTS timescaledb;
@@ -112,10 +112,10 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 
 ```bash
 # Navigate to project directory (where you cloned the repo)
-cd /path/to/PolyTrade-main
+cd /path/to/PolyVec-main
 
 # Run migration
-psql -U polytrade -d polytrade -f database/migrations/001_create_price_history.sql
+psql -U polyvec -d polyvec -f database/migrations/001_create_price_history.sql
 ```
 
 **If prompted for password**: Enter the password you set in Step 4.
@@ -149,7 +149,7 @@ nano .env.local
 
 **Add**:
 ```env
-DATABASE_URL=postgresql://polytrade:YOUR_PASSWORD_HERE@localhost:5432/polytrade
+DATABASE_URL=postgresql://polyvec:YOUR_PASSWORD_HERE@localhost:5432/polyvec
 NEXT_PUBLIC_WEBSOCKET_SERVER_URL=ws://localhost:8080
 WEBSOCKET_SERVER_HTTP_URL=http://localhost:8081
 ```
@@ -162,13 +162,13 @@ WEBSOCKET_SERVER_HTTP_URL=http://localhost:8081
 
 ```bash
 # Test connection
-psql -U polytrade -d polytrade -c "SELECT version();"
+psql -U polyvec -d polyvec -c "SELECT version();"
 
 # Check if TimescaleDB extension is enabled
-psql -U polytrade -d polytrade -c "SELECT * FROM pg_extension WHERE extname = 'timescaledb';"
+psql -U polyvec -d polyvec -c "SELECT * FROM pg_extension WHERE extname = 'timescaledb';"
 
 # Check if price_history table exists
-psql -U polytrade -d polytrade -c "\dt price_history"
+psql -U polyvec -d polyvec -c "\dt price_history"
 ```
 
 **Expected**: Should see PostgreSQL version, TimescaleDB extension, and price_history table.
@@ -182,16 +182,16 @@ If you have existing data on your local machine:
 ### On Local Machine:
 ```bash
 # Export database
-docker-compose exec timescaledb pg_dump -U polytrade polytrade > backup.sql
+docker-compose exec timescaledb pg_dump -U polyvec polyvec > backup.sql
 
 # Transfer to VPS
-scp backup.sql user@your-vps-ip:/path/to/PolyTrade-main/
+scp backup.sql user@your-vps-ip:/path/to/PolyVec-main/
 ```
 
 ### On VPS:
 ```bash
 # Import database
-psql -U polytrade -d polytrade < backup.sql
+psql -U polyvec -d polyvec < backup.sql
 ```
 
 ---
@@ -200,7 +200,7 @@ psql -U polytrade -d polytrade < backup.sql
 
 ### "Extension timescaledb does not exist"
 ```bash
-sudo -u postgres psql -d polytrade -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+sudo -u postgres psql -d polyvec -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
 ```
 
 ### "Password authentication failed"
@@ -212,7 +212,7 @@ sudo -u postgres psql -d polytrade -c "CREATE EXTENSION IF NOT EXISTS timescaled
 - Check PostgreSQL is listening: `sudo netstat -tlnp | grep 5432`
 
 ### "Permission denied"
-- Make sure user has privileges: `sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE polytrade TO polytrade;"`
+- Make sure user has privileges: `sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE polyvec TO polyvec;"`
 
 ---
 
@@ -232,13 +232,13 @@ sudo systemctl restart postgresql
 sudo tail -f /var/log/postgresql/postgresql-16-main.log
 
 # Connect to database
-psql -U polytrade -d polytrade
+psql -U polyvec -d polyvec
 
 # Backup database
-pg_dump -U polytrade polytrade > backup.sql
+pg_dump -U polyvec polyvec > backup.sql
 
 # Restore database
-psql -U polytrade polytrade < backup.sql
+psql -U polyvec polyvec < backup.sql
 ```
 
 ---

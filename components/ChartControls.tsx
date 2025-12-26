@@ -251,7 +251,6 @@ const ChartControls = () => {
     // Auto-switch to TradingView for future markets (no Poly Orderbook data yet)
     if (offset > 0 && !showTradingView) {
       setShowTradingView(true)
-      showToast('Switched to TradingView — Poly Orderbook not available for future markets', 'info')
     }
   }
 
@@ -315,7 +314,7 @@ const ChartControls = () => {
 
             {/* Market Window Dropdown */}
             {showMarketDropdown && (
-              <div className="absolute top-full left-0 mt-1 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-50 min-w-[180px] py-1">
+              <div className="absolute top-full left-0 mt-1 bg-dark-bg border border-gray-700/50 rounded-lg shadow-xl z-50 min-w-[180px] py-1">
                 <div className="px-3 py-1.5 text-[10px] uppercase text-gray-500 font-semibold tracking-wider border-b border-gray-700/50">
                   Select Market Window
                 </div>
@@ -328,7 +327,7 @@ const ChartControls = () => {
                     <button
                       key={offset}
                       onClick={() => handleMarketSelect(offset)}
-                      className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-gray-800 transition-colors ${
+                      className={`w-full px-3 py-2 text-left text-sm flex items-center justify-between hover:bg-dark-bg/60 transition-colors ${
                         isSelected ? 'bg-gold-primary/20 text-gold-hover' : 'text-gray-300'
                       }`}
                     >

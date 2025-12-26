@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
         await sendPaymentConfirmationEmail(userEmail, {
           amount: 4900, // $49.00 in cents
           currency: 'USD',
-          planName: 'PolyTrade Pro',
+          planName: 'PolyVec Pro',
         })
         result = { success: true, message: 'Payment confirmation email sent', email: userEmail }
         break
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
         await sendPaymentFailedEmail(userEmail, {
           amount: 4900,
           currency: 'USD',
-          planName: 'PolyTrade Pro',
+          planName: 'PolyVec Pro',
           attemptNumber: 1,
           maxAttempts: 3,
         })
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
 
       case 'subscription-cancelled':
         await sendSubscriptionCancelledEmail(userEmail, {
-          planName: 'PolyTrade Pro',
+          planName: 'PolyVec Pro',
           cancellationDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'long',
@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
 
       case 'renewal-reminder':
         await sendRenewalReminderEmail(userEmail, {
-          planName: 'PolyTrade Pro',
+          planName: 'PolyVec Pro',
           renewalDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'long',

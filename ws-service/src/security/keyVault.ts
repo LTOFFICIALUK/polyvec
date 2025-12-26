@@ -40,7 +40,7 @@ export interface EncryptedData {
  */
 const deriveUserKey = (masterSecret: string, userAddress: string, salt: Buffer): Buffer => {
   // Use PBKDF2 with user-specific data to derive unique key
-  const info = `polytrade:trading-key:${userAddress.toLowerCase()}`
+  const info = `polyvec:trading-key:${userAddress.toLowerCase()}`
   
   return crypto.pbkdf2Sync(
     masterSecret,

@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: 'usd',
             product_data: {
-              name: 'PolyTrade Pro',
+              name: 'PolyVec Pro',
               description: 'Automated Trading Strategies - Trade 24/7 with TradingView signals',
             },
             unit_amount: 4900, // $49.00 in cents

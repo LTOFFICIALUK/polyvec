@@ -86,13 +86,22 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="border-t border-gray-700/50 pt-8 flex flex-col sm:flex-row justify-between items-center">
+        <div className="border-t border-gray-700/50 pt-8">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
           <p className="text-gray-400 text-sm">
             © {new Date().getFullYear()} PolyVec. All rights reserved.
           </p>
+            
+            {/* Payment Methods */}
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500 text-xs">Payments powered by</span>
+              <span className="text-gray-300 text-xs font-semibold">Stripe</span>
+            </div>
+            
           <p className="text-gray-500 text-xs mt-2 sm:mt-0">
             Designed for Polymarket crypto traders
           </p>
+          </div>
         </div>
       </div>
     </footer>

@@ -7,7 +7,7 @@ export default function RunningLocallyPage() {
     <DocsPage
       breadcrumb="Configuration"
       title="Running Locally"
-      description="Complete guide to running all PolyTrade services locally for development."
+      description="Complete guide to running all PolyVec services locally for development."
       tableOfContents={[
         { name: 'Quick Start', href: '#quick-start' },
         { name: 'Manual Start', href: '#manual' },
@@ -52,7 +52,7 @@ npm run build
 HTTP_PORT=8081 npm run start
 
 # Terminal 3: Next.js Frontend
-cd /path/to/PolyTrade-main
+cd /path/to/PolyVec-main
 npm install
 npm run dev`}
         />

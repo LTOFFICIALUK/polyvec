@@ -7,7 +7,7 @@ export default function TerminalPage() {
     <DocsPage
       breadcrumb="Trading"
       title="Terminal Overview"
-      description="The PolyTrade terminal is your command center for prediction market trading. Learn about each component and how to use them effectively."
+      description="The PolyVec terminal is your command center for prediction market trading. Learn about each component and how to use them effectively."
       tableOfContents={[
         { name: 'Layout Overview', href: '#layout' },
         { name: 'Chart Panel', href: '#chart' },

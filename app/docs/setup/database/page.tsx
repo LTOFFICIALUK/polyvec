@@ -19,13 +19,13 @@ export default function DatabaseSetupPage() {
     >
       <DocsSection id="start" title="Start TimescaleDB">
         <DocsParagraph>
-          PolyTrade uses TimescaleDB (PostgreSQL with time-series extensions) running in Docker:
+          PolyVec uses TimescaleDB (PostgreSQL with time-series extensions) running in Docker:
         </DocsParagraph>
 
         <DocsCodeBlock
           language="bash"
           code={`# Navigate to project root
-cd /path/to/PolyTrade-main
+cd /path/to/PolyVec-main
 
 # Start TimescaleDB container
 docker-compose up -d timescaledb
@@ -48,10 +48,10 @@ docker-compose ps timescaledb`}
         <DocsCodeBlock
           language="bash"
           code={`# Run migrations
-docker-compose exec -T timescaledb psql -U polytrade -d polytrade < database/migrations/001_create_price_history.sql
+docker-compose exec -T timescaledb psql -U polyvec -d polyvec < database/migrations/001_create_price_history.sql
 
 # Optional: Run optimization migrations
-docker-compose exec -T timescaledb psql -U polytrade -d polytrade < database/migrations/002_optimize_storage.sql`}
+docker-compose exec -T timescaledb psql -U polyvec -d polyvec < database/migrations/002_optimize_storage.sql`}
         />
 
         <DocsSubheading>Migration Files</DocsSubheading>
@@ -69,11 +69,11 @@ docker-compose exec -T timescaledb psql -U polytrade -d polytrade < database/mig
         <DocsCodeBlock
           language="bash"
           code={`# Check database is accepting connections
-docker-compose exec timescaledb pg_isready -U polytrade
+docker-compose exec timescaledb pg_isready -U polyvec
 # Expected: timescaledb:5432 - accepting connections
 
 # List tables
-docker-compose exec timescaledb psql -U polytrade -d polytrade -c "\\dt"
+docker-compose exec timescaledb psql -U polyvec -d polyvec -c "\\dt"
 # Expected: price_history table listed`}
         />
       </DocsSection>
@@ -100,7 +100,7 @@ docker-compose exec timescaledb psql -U polytrade -d polytrade -c "\\dt"
         <DocsParagraph>
           Docker volumes should preserve data. Check volume mounting:
         </DocsParagraph>
-        <DocsCodeBlock language="bash" code="docker volume ls | grep polytrade" />
+        <DocsCodeBlock language="bash" code="docker volume ls | grep polyvec" />
       </DocsSection>
     </DocsPage>
   )

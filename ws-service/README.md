@@ -1,6 +1,6 @@
-# PolyTrade WebSocket Service
+# PolyVec WebSocket Service
 
-Real-time data bus between Polymarket and the PolyTrade frontend/strategy engine.
+Real-time data bus between Polymarket and the PolyVec frontend/strategy engine.
 
 ## Architecture
 

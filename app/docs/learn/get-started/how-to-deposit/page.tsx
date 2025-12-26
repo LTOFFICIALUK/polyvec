@@ -7,7 +7,7 @@ export default function HowToDepositPage() {
     <DocsPage
       breadcrumb="Get Started"
       title="How to Deposit"
-      description="Fund your PolyTrade account with USDC.e to start trading prediction markets. Learn about deposit methods and gas requirements."
+      description="Fund your custodial wallet with USDC.e to start trading prediction markets. Learn about deposit methods and how to send funds to your wallet address."
       tableOfContents={[
         { name: 'Deposit Methods', href: '#deposit-methods' },
         { name: 'Approve USDC.e', href: '#approve-usdc' },
@@ -19,83 +19,108 @@ export default function HowToDepositPage() {
     >
       <DocsSection id="deposit-methods" title="Deposit Methods">
         <DocsParagraph>
-          PolyTrade uses USDC.e (Bridged USDC) on Polygon for all trading. Regular USDC will not work. 
-          You can deposit funds in several ways:
+          PolyVec uses USDC.e (Bridged USDC) on Polygon for all trading. You deposit funds directly 
+          to your custodial wallet address. Here&apos;s how:
         </DocsParagraph>
 
         <DocsNote type="warning">
-          <strong>Important:</strong> You must use USDC.e (contract: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174), 
-          not native USDC. Regular USDC will not work for trading.
+          <strong>Important:</strong> You must use USDC.e (contract: 0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174) 
+          on Polygon, not native USDC. Regular USDC will not work for trading.
         </DocsNote>
 
-        <DocsSubheading>Direct Deposit</DocsSubheading>
+        <DocsSubheading>Find Your Wallet Address</DocsSubheading>
         <DocsParagraph>
-          If you already have USDC.e on Polygon, click the &quot;Deposit&quot; button in the header. 
-          Enter the amount you want to deposit and approve the transaction.
+          Your custodial wallet address is displayed in your account settings. Copy this address — 
+          you&apos;ll send USDC.e to this address.
+        </DocsParagraph>
+
+        <DocsSubheading>From Another Wallet</DocsSubheading>
+        <DocsParagraph>
+          If you have USDC.e in MetaMask, Phantom, or another wallet:
+          <br />• Copy your PolyVec custodial wallet address
+          <br />• Send USDC.e from your wallet to this address
+          <br />• Make sure you&apos;re on the Polygon network
+          <br />• Your balance will update automatically within a few minutes
+        </DocsParagraph>
+
+        <DocsSubheading>From an Exchange</DocsSubheading>
+        <DocsParagraph>
+          Send USDC.e directly from exchanges that support Polygon withdrawals (Coinbase, Kraken, etc.):
+          <br />• Copy your PolyVec custodial wallet address
+          <br />• Withdraw USDC.e from the exchange to this address
+          <br />• Select Polygon network when withdrawing
+          <br />• Your balance will appear after blockchain confirmation
         </DocsParagraph>
 
         <DocsSubheading>Bridge from Ethereum</DocsSubheading>
         <DocsParagraph>
-          Use the official Polygon Bridge or a cross-chain service like Hop Protocol to 
-          move USDC from Ethereum mainnet to Polygon as USDC.e.
-        </DocsParagraph>
-
-        <DocsSubheading>Exchange Transfer</DocsSubheading>
-        <DocsParagraph>
-          Send USDC.e directly from exchanges that support Polygon withdrawals (Coinbase, Kraken, etc.). 
-          Make sure to select the Polygon network when withdrawing.
+          If you have USDC on Ethereum mainnet, use the official Polygon Bridge or a cross-chain 
+          service like Hop Protocol to bridge USDC to Polygon as USDC.e, then send to your custodial wallet.
         </DocsParagraph>
       </DocsSection>
 
-      <DocsSection id="approve-usdc" title="Approve USDC.e Spending">
+      <DocsSection id="approve-usdc" title="No Approvals Needed">
         <DocsParagraph>
-          Before your first trade, you&apos;ll need to approve the Polymarket contract to spend your USDC.e. 
-          This is a one-time approval per wallet.
+          With custodial wallets, you don&apos;t need to approve USDC.e spending. PolyVec manages 
+          all blockchain interactions on your behalf, including approvals and transactions.
         </DocsParagraph>
 
         <DocsNote type="info">
-          <strong>What is approval?</strong> ERC-20 tokens like USDC.e require you to &quot;approve&quot; contracts 
-          before they can transfer tokens on your behalf. This is a security feature.
+          <strong>How it works:</strong> When you place a trade, PolyVec automatically handles:
+          <br />• USDC.e approvals (if needed)
+          <br />• Transaction signing
+          <br />• Order placement on Polymarket
+          <br />• Balance updates
         </DocsNote>
 
         <DocsParagraph>
-          When you make your first deposit or trade, PolyTrade will prompt you to approve USDC.e spending. 
-          You can choose to approve an unlimited amount (recommended) or a specific amount.
+          This means faster trading — no waiting for wallet confirmations or approvals!
         </DocsParagraph>
       </DocsSection>
 
       <DocsSection id="gas-requirements" title="Gas Requirements">
         <DocsParagraph>
-          Polygon transactions require a small amount of POL for gas fees. Make sure you have 
-          at least 0.1 POL in your wallet for transactions.
+          When you send USDC.e to your custodial wallet, you&apos;ll pay gas fees from the wallet 
+          you&apos;re sending from (MetaMask, exchange, etc.). PolyVec covers all gas fees for trading 
+          transactions on your behalf.
         </DocsParagraph>
 
-        <DocsSubheading>Where to get POL?</DocsSubheading>
+        <DocsSubheading>Deposit Gas Fees</DocsSubheading>
         <DocsParagraph>
-          You can bridge POL from Ethereum, purchase on exchanges, or use a faucet for small amounts. 
-          Gas fees on Polygon are typically less than $0.01 per transaction.
+          You only pay gas when sending USDC.e to your custodial wallet. This is a one-time fee 
+          per deposit. Gas fees on Polygon are typically less than $0.01.
         </DocsParagraph>
 
-        <DocsNote type="tip">
-          Keep 1-2 POL in your wallet to ensure you always have enough for gas fees, even during network congestion.
-        </DocsNote>
+        <DocsSubheading>Trading Gas Fees</DocsSubheading>
+        <DocsParagraph>
+          PolyVec covers all gas fees for your trades. You don&apos;t need to hold POL or pay 
+          transaction fees when placing orders.
+        </DocsParagraph>
       </DocsSection>
 
       <DocsSection id="verification" title="Verify Your Deposit">
         <DocsParagraph>
-          After depositing, your balance will update in the header within a few seconds. 
-          You can verify your deposit by checking:
+          After sending USDC.e to your custodial wallet address, your balance will update automatically 
+          once the transaction is confirmed on the blockchain (usually within 1-2 minutes).
         </DocsParagraph>
 
-        <DocsSubheading>Portfolio Balance</DocsSubheading>
+        <DocsSubheading>Balance Updates</DocsSubheading>
         <DocsParagraph>
-          The &quot;Portfolio&quot; amount in the header shows your total value including open positions.
+          Your balance is automatically synced from the blockchain. You can see:
+          <br />• <strong>Cash Balance:</strong> Available USDC.e for new trades
+          <br />• <strong>Portfolio Value:</strong> Total value including open positions
         </DocsParagraph>
 
-        <DocsSubheading>Cash Balance</DocsSubheading>
+        <DocsSubheading>Transaction Status</DocsSubheading>
         <DocsParagraph>
-          The &quot;Cash&quot; amount shows your available USDC.e for new trades.
+          You can verify your deposit by checking the transaction on PolygonScan using your 
+          custodial wallet address. The transaction should show USDC.e being received.
         </DocsParagraph>
+
+        <DocsNote type="tip">
+          If your balance doesn&apos;t update after a few minutes, try refreshing the page. 
+          The system syncs balances every 30 seconds.
+        </DocsNote>
       </DocsSection>
     </DocsPage>
   )

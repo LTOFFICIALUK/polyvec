@@ -46,10 +46,10 @@ Currently recording every 1 second. Options:
 
 ```bash
 # Run optimization migration
-docker-compose exec timescaledb psql -U polytrade -d polytrade -f database/migrations/002_optimize_storage.sql
+docker-compose exec timescaledb psql -U polyvec -d polyvec -f database/migrations/002_optimize_storage.sql
 
 # Or manually:
-docker-compose exec timescaledb psql -U polytrade -d polytrade
+docker-compose exec timescaledb psql -U polyvec -d polyvec
 # Then paste SQL from 002_optimize_storage.sql
 ```
 
@@ -57,7 +57,7 @@ docker-compose exec timescaledb psql -U polytrade -d polytrade
 
 ```sql
 -- Check current database size
-SELECT pg_size_pretty(pg_database_size('polytrade'));
+SELECT pg_size_pretty(pg_database_size('polyvec'));
 
 -- Check table size
 SELECT pg_size_pretty(pg_total_relation_size('price_history'));

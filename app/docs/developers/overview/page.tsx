@@ -7,7 +7,7 @@ export default function DevelopersOverviewPage() {
     <DocsPage
       breadcrumb="API Reference"
       title="API Overview"
-      description="PolyTrade provides a comprehensive API for accessing market data, managing orders, and receiving real-time updates via WebSocket. All endpoints return JSON responses."
+      description="PolyVec provides a comprehensive API for accessing market data, managing orders, and receiving real-time updates via WebSocket. All endpoints return JSON responses."
       tableOfContents={[
         { name: 'Base URLs', href: '#base-urls' },
         { name: 'Response Format', href: '#response-format' },
@@ -24,7 +24,7 @@ export default function DevelopersOverviewPage() {
 
       <DocsSection id="base-urls" title="Base URLs">
         <DocsParagraph>
-          PolyTrade uses multiple endpoints for different services:
+          PolyVec uses multiple endpoints for different services:
         </DocsParagraph>
 
         <DocsSubheading>Next.js API (Port 3000)</DocsSubheading>

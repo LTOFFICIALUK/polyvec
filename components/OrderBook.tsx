@@ -545,13 +545,6 @@ const OrderBook = forwardRef<OrderBookHandle>((props, ref) => {
 
   return (
     <div className="w-full h-full flex flex-col bg-dark-bg overflow-hidden">
-      {/* Header */}
-      <div className="px-4 py-2 border-b border-gray-700/50 flex items-center justify-between flex-shrink-0">
-        <span className="text-xs font-medium text-gray-400 tracking-wider uppercase" style={{ fontFamily: 'monospace' }}>
-          ORDERBOOK
-        </span>
-      </div>
-      
       {/* Column Headers */}
       <div className="flex border-b border-gray-700/50 flex-shrink-0">
         <div className="flex-1 px-4 py-2 text-xs text-gray-400 font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>

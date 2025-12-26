@@ -11,7 +11,7 @@ const secret = new TextEncoder().encode(
 )
 
 const POLYGON_CHAIN_ID = 137
-const AUTH_MESSAGE = 'Sign this message to authenticate with Polymarket'
+const AUTH_MESSAGE = 'This message attests that I control the given wallet'
 
 /**
  * POST /api/polymarket/auth/sign-message
@@ -104,9 +104,17 @@ export async function POST(request: NextRequest) {
 
     // Sign the message
     const signature = await wallet.signTypedData(domain, types, value)
+    
+    const checksummedAddress = ethers.getAddress(walletAddress)
+    
+    console.log('[Sign Message] Signed message for:', checksummedAddress)
+    console.log('[Sign Message] Signature:', signature.substring(0, 20) + '...')
+    console.log('[Sign Message] Timestamp:', timestamp)
+    console.log('[Sign Message] Domain:', domain)
+    console.log('[Sign Message] Value:', value)
 
     return NextResponse.json({
-      address: ethers.getAddress(walletAddress),
+      address: checksummedAddress,
       signature,
       timestamp,
       nonce,

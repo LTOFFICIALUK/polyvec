@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createUser, getUserByEmail } from '@/lib/auth'
+import { createUser, getUserByEmail, addToEmailList } from '@/lib/auth'
 import { runMigrations } from '@/lib/db'
 import { generateCustodialWallet, storeCustodialWallet } from '@/lib/wallet-generator'
+import { authenticateWithPolymarket } from '@/lib/polymarket-auth-helper'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,6 +61,30 @@ export async function POST(request: NextRequest) {
         { error: 'Account created but failed to initialize wallet. Please contact support.' },
         { status: 500 }
       )
+    }
+
+    // Automatically subscribe to email list (non-blocking - don't fail signup if this fails)
+    try {
+      await addToEmailList(user.email, 'signup')
+      console.log('[Signup] Successfully subscribed user to email list:', user.id)
+    } catch (error: any) {
+      console.error('[Signup] Error subscribing to email list (non-critical):', error)
+      // Don't fail signup if email list subscription fails
+    }
+
+    // Automatically authenticate with Polymarket (non-blocking - don't fail signup if this fails)
+    try {
+      const authResult = await authenticateWithPolymarket(user.id, wallet.address)
+      if (authResult.success) {
+        console.log('[Signup] Successfully authenticated with Polymarket for user:', user.id)
+      } else {
+        console.log('[Signup] Polymarket authentication deferred:', authResult.error)
+        // This is okay - the wallet might need to be used on Polymarket first
+        // Credentials will be created automatically when the user tries to trade
+      }
+    } catch (error: any) {
+      console.error('[Signup] Error during Polymarket authentication (non-critical):', error)
+      // Don't fail signup if Polymarket auth fails - it can be done later
     }
 
     return NextResponse.json(

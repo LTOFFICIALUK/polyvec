@@ -1,0 +1,81 @@
+#!/bin/bash
+
+# Script to set up renewal reminder cron job on VPS
+# This will send reminder emails 3-7 days before subscription renewal
+
+VPS_URL="https://polyvec.com"  # Change to your production URL
+CRON_SECRET=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
+
+echo "========================================="
+echo "Renewal Reminder Cron Job Setup"
+echo "========================================="
+echo ""
+echo "This script will help you set up a cron job on your VPS"
+echo "to send renewal reminder emails automatically."
+echo ""
+echo "Generated CRON_SECRET: ${CRON_SECRET}"
+echo ""
+echo "⚠️  IMPORTANT: Add this to your Vercel environment variables:"
+echo "   CRON_SECRET=${CRON_SECRET}"
+echo ""
+echo "Press Enter to continue..."
+read
+
+echo ""
+echo "Step 1: Add CRON_SECRET to Vercel"
+echo "-----------------------------------"
+echo "1. Go to Vercel Dashboard → Your Project → Settings → Environment Variables"
+echo "2. Add: CRON_SECRET=${CRON_SECRET}"
+echo "3. Select all environments (Production, Preview, Development)"
+echo "4. Click Save"
+echo ""
+echo "Press Enter after adding to Vercel..."
+read
+
+echo ""
+echo "Step 2: Set up cron job on VPS"
+echo "-----------------------------------"
+echo "SSH into your VPS and run:"
+echo ""
+echo "crontab -e"
+echo ""
+echo "Add this line (runs daily at 9 AM UTC):"
+echo ""
+echo "0 9 * * * curl -X POST https://polyvec.com/api/cron/send-renewal-reminders -H \"Authorization: Bearer ${CRON_SECRET}\" > /dev/null 2>&1"
+echo ""
+echo "Or to run at a different time, use:"
+echo "  Minute Hour Day Month DayOfWeek"
+echo ""
+echo "Examples:"
+echo "  0 9 * * *     - 9 AM UTC daily"
+echo "  0 2 * * *     - 2 AM UTC daily"
+echo "  0 9 * * 1     - 9 AM UTC every Monday"
+echo ""
+echo "Press Enter to continue..."
+read
+
+echo ""
+echo "Step 3: Test the cron endpoint"
+echo "-----------------------------------"
+echo "Test the endpoint manually:"
+echo ""
+echo "curl -X POST ${VPS_URL}/api/cron/send-renewal-reminders \\"
+echo "  -H \"Authorization: Bearer ${CRON_SECRET}\""
+echo ""
+echo "You should see a JSON response with the number of emails sent."
+echo ""
+echo "========================================="
+echo "Setup Complete!"
+echo "========================================="
+echo ""
+echo "The cron job will:"
+echo "  - Run daily at the time you specified"
+echo "  - Find subscriptions renewing in 3-7 days"
+echo "  - Send renewal reminder emails"
+echo "  - Skip subscriptions that already received a reminder today"
+echo ""
+echo "To view cron logs on VPS:"
+echo "  tail -f /var/log/cron"
+echo "  or check your cron job's output file if you redirect it"
+echo ""
+

@@ -59,7 +59,7 @@ export default function ProfilePage() {
         
         <div className="max-w-lg mx-auto">
           {/* Not Connected Message */}
-          <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800 mb-6 text-center">
+          <div className="bg-dark-bg/40 rounded-lg p-6 border border-gray-700/50 mb-6 text-center">
             <div className="text-5xl mb-4">🔗</div>
             <h2 className="text-lg font-semibold text-white mb-2">
               Connect Your Wallet
@@ -74,7 +74,7 @@ export default function ProfilePage() {
           </div>
 
           {/* Manual Address Entry */}
-          <div className="bg-gray-900/50 rounded-lg p-6 border border-gray-800">
+          <div className="bg-dark-bg/40 rounded-lg p-6 border border-gray-700/50">
             <h3 className="text-lg font-semibold text-white mb-4">
               View Any Profile
             </h3>
@@ -92,7 +92,7 @@ export default function ProfilePage() {
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="0x..."
-                  className="w-full bg-dark-bg border border-gray-800 text-white px-4 py-3 rounded focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent font-mono text-sm placeholder-gray-600"
+                  className="w-full bg-dark-bg border border-gray-700/50 text-white px-4 py-3 rounded focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent font-mono text-sm placeholder-gray-600"
                   autoComplete="off"
                   spellCheck="false"
                 />

@@ -7,7 +7,7 @@ export default function EnvironmentSetupPage() {
     <DocsPage
       breadcrumb="Configuration"
       title="Environment Setup"
-      description="Configure your development environment with the required environment variables and settings for PolyTrade."
+      description="Configure your development environment with the required environment variables and settings for PolyVec."
       tableOfContents={[
         { name: 'Prerequisites', href: '#prerequisites' },
         { name: 'Environment Variables', href: '#env-vars' },
@@ -49,14 +49,14 @@ export default function EnvironmentSetupPage() {
 
       <DocsSection id="env-vars" title="Environment Variables">
         <DocsParagraph>
-          PolyTrade requires several environment variables to function properly:
+          PolyVec requires several environment variables to function properly:
         </DocsParagraph>
 
         <DocsSubheading>DATABASE_URL</DocsSubheading>
         <DocsParagraph>
           Connection string for TimescaleDB.
         </DocsParagraph>
-        <DocsCodeBlock language="text" code="postgresql://polytrade:polytrade_dev_password@localhost:5432/polytrade" />
+        <DocsCodeBlock language="text" code="postgresql://polyvec:polyvec_dev_password@localhost:5432/polyvec" />
 
         <DocsSubheading>NEXT_PUBLIC_WEBSOCKET_SERVER_URL</DocsSubheading>
         <DocsParagraph>
@@ -79,7 +79,7 @@ export default function EnvironmentSetupPage() {
         <DocsCodeBlock
           language="bash"
           code={`cat > .env.local << 'EOF'
-DATABASE_URL=postgresql://polytrade:polytrade_dev_password@localhost:5432/polytrade
+DATABASE_URL=postgresql://polyvec:polyvec_dev_password@localhost:5432/polyvec
 NEXT_PUBLIC_WEBSOCKET_SERVER_URL=ws://localhost:8081
 WEBSOCKET_SERVER_HTTP_URL=http://localhost:8081
 EOF`}

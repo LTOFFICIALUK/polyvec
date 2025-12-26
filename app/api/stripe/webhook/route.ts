@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
             await sendPaymentConfirmationEmail(userEmail, {
               amount,
               currency: session.currency?.toUpperCase() || 'USD',
-              planName: planTier === 'pro' ? 'PolyTrade Pro' : 'PolyTrade Free',
+              planName: planTier === 'pro' ? 'PolyVec Pro' : 'PolyVec Free',
             })
           } catch (emailError: any) {
             console.error('[Stripe Webhook] Failed to send emails:', emailError.message)
@@ -313,7 +313,7 @@ export async function POST(request: NextRequest) {
                 : undefined
               
               await sendSubscriptionCancelledEmail(userEmail, {
-                planName: 'PolyTrade Pro',
+                planName: 'PolyVec Pro',
                 cancellationDate,
               })
             }
@@ -454,7 +454,7 @@ export async function POST(request: NextRequest) {
             await sendPaymentFailedEmail(userEmail, {
               amount: invoice.amount_due || 0,
               currency: invoice.currency?.toUpperCase() || 'USD',
-              planName: 'PolyTrade Pro',
+              planName: 'PolyVec Pro',
               attemptNumber: failedCount + 1,
               maxAttempts: 3,
             })

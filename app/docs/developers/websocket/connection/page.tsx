@@ -7,7 +7,7 @@ export default function WebSocketConnectionPage() {
     <DocsPage
       breadcrumb="WebSocket"
       title="WebSocket Connection"
-      description="Connect to the PolyTrade WebSocket server for real-time price updates, orderbook changes, and trade notifications."
+      description="Connect to the PolyVec WebSocket server for real-time price updates, orderbook changes, and trade notifications."
       tableOfContents={[
         { name: 'Connection', href: '#connection' },
         { name: 'Health Check', href: '#health' },
@@ -27,7 +27,7 @@ export default function WebSocketConnectionPage() {
           code={`const ws = new WebSocket('ws://localhost:8081/ws')
 
 ws.onopen = () => {
-  console.log('Connected to PolyTrade WebSocket')
+  console.log('Connected to PolyVec WebSocket')
 }
 
 ws.onerror = (error) => {

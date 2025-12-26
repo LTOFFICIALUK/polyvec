@@ -30,7 +30,7 @@ This will:
 ```bash
 # Copy example (if it exists) or create manually
 cat > .env.local << EOF
-DATABASE_URL=postgresql://polytrade:polytrade_dev_password@localhost:5432/polytrade
+DATABASE_URL=postgresql://polyvec:polyvec_dev_password@localhost:5432/polyvec
 NEXT_PUBLIC_WEBSOCKET_SERVER_URL=ws://localhost:8080
 WEBSOCKET_SERVER_HTTP_URL=http://localhost:8081
 EOF
@@ -39,7 +39,7 @@ EOF
 ### Step 4: Verify It Works
 ```bash
 # Test connection
-docker-compose exec timescaledb psql -U polytrade -d polytrade -c "SELECT version();"
+docker-compose exec timescaledb psql -U polyvec -d polyvec -c "SELECT version();"
 ```
 
 You should see PostgreSQL version info.
@@ -94,20 +94,20 @@ If you're just starting and don't have important data:
 2. **Create database**:
    ```bash
    sudo -u postgres psql
-   CREATE DATABASE polytrade;
-   CREATE USER polytrade WITH PASSWORD 'secure_password';
-   GRANT ALL PRIVILEGES ON DATABASE polytrade TO polytrade;
+   CREATE DATABASE polyvec;
+   CREATE USER polyvec WITH PASSWORD 'secure_password';
+   GRANT ALL PRIVILEGES ON DATABASE polyvec TO polyvec;
    \q
    ```
 
 3. **Run migrations**:
    ```bash
-   psql -U polytrade -d polytrade -f database/migrations/001_create_price_history.sql
+   psql -U polyvec -d polyvec -f database/migrations/001_create_price_history.sql
    ```
 
 4. **Update `.env.local` on VPS**:
    ```env
-   DATABASE_URL=postgresql://polytrade:secure_password@localhost:5432/polytrade
+   DATABASE_URL=postgresql://polyvec:secure_password@localhost:5432/polyvec
    ```
 
 ### Option 2: Migrate Existing Data
@@ -116,7 +116,7 @@ If you have data to keep:
 
 1. **Export from local**:
    ```bash
-   docker-compose exec timescaledb pg_dump -U polytrade polytrade > backup.sql
+   docker-compose exec timescaledb pg_dump -U polyvec polyvec > backup.sql
    ```
 
 2. **Transfer to VPS**:
@@ -126,7 +126,7 @@ If you have data to keep:
 
 3. **Import on VPS**:
    ```bash
-   psql -U polytrade -d polytrade < backup.sql
+   psql -U polyvec -d polyvec < backup.sql
    ```
 
 ---
@@ -151,10 +151,10 @@ If you have data to keep:
 **A:** 
 ```bash
 # Local
-docker-compose exec timescaledb pg_dump -U polytrade polytrade > backup.sql
+docker-compose exec timescaledb pg_dump -U polyvec polyvec > backup.sql
 
 # VPS
-pg_dump -U polytrade polytrade > backup.sql
+pg_dump -U polyvec polyvec > backup.sql
 ```
 
 ### Q: How is this different from Supabase?
@@ -183,8 +183,8 @@ Once database is running:
 
 **"Password authentication failed"**
 - Check `.env.local` has correct password
-- Default: `polytrade_dev_password`
+- Default: `polyvec_dev_password`
 
 **"Extension timescaledb does not exist"**
-- Run: `docker-compose exec timescaledb psql -U polytrade -d polytrade -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"`
+- Run: `docker-compose exec timescaledb psql -U polyvec -d polyvec -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"`
 

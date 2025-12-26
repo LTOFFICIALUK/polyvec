@@ -1,4 +1,4 @@
-# How to Start PolyTrade Servers
+# How to Start PolyVec Servers
 
 Simple step-by-step guide. Copy and paste each command exactly as shown.
 
@@ -43,7 +43,7 @@ Open a **new Terminal window** (keep the old one open or close it).
 Copy and paste these commands one at a time:
 
 ```bash
-cd /Users/lukecarter/Downloads/PolyTrade-main/ws-service
+cd /Users/lukecarter/Downloads/PolyVec-main/ws-service
 ```
 
 ```bash
@@ -65,7 +65,7 @@ Open **another new Terminal window**.
 Copy and paste these commands one at a time:
 
 ```bash
-cd /Users/lukecarter/Downloads/PolyTrade-main
+cd /Users/lukecarter/Downloads/PolyVec-main
 ```
 
 ```bash
@@ -88,7 +88,7 @@ Open your web browser and go to:
 http://localhost:3000
 ```
 
-You should see the PolyTrade homepage.
+You should see the PolyVec homepage.
 
 ---
 
@@ -148,13 +148,13 @@ Should show HTML (lots of text).
 
 **Terminal 1 - WebSocket Service:**
    ```bash
-   cd /Users/lukecarter/Downloads/PolyTrade-main/ws-service
+   cd /Users/lukecarter/Downloads/PolyVec-main/ws-service
    HTTP_PORT=8081 npm run dev
    ```
 
 **Terminal 2 - Next.js Frontend:**
    ```bash
-   cd /Users/lukecarter/Downloads/PolyTrade-main
+   cd /Users/lukecarter/Downloads/PolyVec-main
    npm run dev
    ```
 

@@ -1,4 +1,4 @@
-# PolyTrade
+# PolyVec
 
 ## 🚀 Quick Start
 

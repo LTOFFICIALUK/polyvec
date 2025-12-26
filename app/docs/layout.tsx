@@ -7,7 +7,7 @@ import Image from 'next/image'
 // Navigation structure matching Polymarket's docs
 const navigation = [
   {
-    title: 'PolyTrade',
+    title: 'PolyVec',
     type: 'links',
     items: [
       { name: 'Discord Community', href: '#', icon: 'discord' },
@@ -19,7 +19,7 @@ const navigation = [
     type: 'section',
     basePath: '/docs/learn/get-started',
     items: [
-      { name: 'What is PolyTrade?', href: '/docs/learn/get-started/what-is-polytrade' },
+      { name: 'What is PolyVec?', href: '/docs/learn/get-started/what-is-polyvec' },
       { name: 'How to Sign-Up', href: '/docs/learn/get-started/how-to-sign-up' },
       { name: 'How to Deposit', href: '/docs/learn/get-started/how-to-deposit' },
       { name: 'Making Your First Trade', href: '/docs/learn/get-started/first-trade' },
@@ -67,6 +67,17 @@ const navigation = [
       { name: 'Running Locally', href: '/docs/setup/running-locally' },
     ],
   },
+  {
+    title: 'Policies',
+    type: 'section',
+    basePath: '/docs/policies',
+    items: [
+      { name: 'Terms of Service', href: '/docs/policies/terms-of-service' },
+      { name: 'Privacy Policy', href: '/docs/policies/privacy-policy' },
+      { name: 'Risk Disclosure', href: '/docs/policies/risk-disclosure' },
+      { name: 'Custodial Wallet Disclosure', href: '/docs/policies/custodial-wallet-disclosure' },
+    ],
+  },
 ]
 
 export default function DocsLayout({
@@ -77,7 +88,7 @@ export default function DocsLayout({
   const router = useRouter()
   const pathname = usePathname()
   const [expandedSections, setExpandedSections] = useState<string[]>([
-    'Get Started', 'Trading', 'API Reference', 'WebSocket', 'Configuration'
+    'Get Started', 'Trading', 'API Reference', 'WebSocket', 'Configuration', 'Policies'
   ])
 
   const toggleSection = (title: string) => {
@@ -104,7 +115,7 @@ export default function DocsLayout({
             >
               <Image
                 src="/logo.png"
-                alt="PolyTrade"
+                alt="PolyVec"
                 width={96}
                 height={32}
                 className="h-6 w-auto"
@@ -115,7 +126,7 @@ export default function DocsLayout({
             {/* Nav Tabs */}
             <nav className="flex items-center gap-6">
               <button 
-                onClick={() => router.push('/docs/learn/get-started/what-is-polytrade')}
+                onClick={() => router.push('/docs/learn/get-started/what-is-polyvec')}
                 className={`text-sm font-medium pb-1 transition-colors ${
                   isLearnSection 
                     ? 'text-white border-b-2 border-gold-primary' 
