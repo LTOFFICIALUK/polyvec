@@ -38,40 +38,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchCustodialWallet = useCallback(async (syncFromBlockchain = false) => {
     try {
-      const [walletResponse, balanceResponse] = await Promise.all([
-        fetch('/api/user/wallet').catch(err => {
-          console.error('[Auth] Wallet fetch error:', err)
-          return { ok: false, json: async () => ({ error: err.message }) }
-        }),
-        fetch(`/api/user/balances${syncFromBlockchain ? '?sync=true' : ''}`).catch(err => {
-          console.error('[Auth] Balances fetch error:', err)
-          return { ok: false, json: async () => ({ usdc_balance: '0', pol_balance: '0' }) }
-        }),
+      const [walletResponse, balanceResponse] = await Promise.allSettled([
+        fetch('/api/user/wallet'),
+        fetch(`/api/user/balances${syncFromBlockchain ? '?sync=true' : ''}`),
       ])
 
-      // Handle wallet response - 404 is okay (wallet not created yet), but 500 means error
+      // Handle wallet response
       let walletAddress: string | null = null
-      if (walletResponse.ok) {
-        const walletData = await walletResponse.json()
+      if (walletResponse.status === 'fulfilled' && walletResponse.value.ok) {
+        const walletData = await walletResponse.value.json()
         walletAddress = walletData.wallet_address || null
-      } else if (walletResponse.status === 404) {
+      } else if (walletResponse.status === 'fulfilled' && walletResponse.value.status === 404) {
         // Wallet not found - this is okay, user might not have one yet
         walletAddress = null
       } else {
-        // Other error (500, etc.) - log but don't fail completely
-        console.warn('[Auth] Wallet fetch failed with status:', walletResponse.status)
+        // Error or rejection - log but don't fail completely
+        if (walletResponse.status === 'rejected') {
+          console.warn('[Auth] Wallet fetch rejected:', walletResponse.reason)
+        } else if (walletResponse.value) {
+          console.warn('[Auth] Wallet fetch failed with status:', walletResponse.value.status)
+        }
       }
 
       // Handle balance response - always try to get balances, default to 0 if fails
       let usdcBalance = '0'
       let polBalance = '0'
-      if (balanceResponse.ok) {
-        const balanceData = await balanceResponse.json()
+      if (balanceResponse.status === 'fulfilled' && balanceResponse.value.ok) {
+        const balanceData = await balanceResponse.value.json()
         usdcBalance = balanceData.usdc_balance || '0'
         polBalance = balanceData.pol_balance || '0'
       } else {
         // Balance fetch failed - use defaults
-        console.warn('[Auth] Balance fetch failed with status:', balanceResponse.status)
+        if (balanceResponse.status === 'rejected') {
+          console.warn('[Auth] Balance fetch rejected:', balanceResponse.reason)
+        } else if (balanceResponse.value) {
+          console.warn('[Auth] Balance fetch failed with status:', balanceResponse.value.status)
+        }
       }
       
       // Only set custodial wallet if we have an address, otherwise set to null
