@@ -2,21 +2,53 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 import { useWallet } from '@/contexts/WalletContext'
 
 export default function ProfilePage() {
   const router = useRouter()
+  const { user, custodialWallet, isLoading: authLoading } = useAuth()
   const { walletAddress, isConnected } = useWallet()
   const [address, setAddress] = useState('')
   const [isRedirecting, setIsRedirecting] = useState(false)
 
-  // Auto-redirect connected users to their profile
+  // Auto-redirect authenticated users to their profile immediately
+  // Check custodialWallet first (from AuthContext) as it's the source of truth
   useEffect(() => {
+    // If user is authenticated and has a custodial wallet, redirect immediately
+    if (user && custodialWallet?.walletAddress) {
+      setIsRedirecting(true)
+      router.push(`/profile/${custodialWallet.walletAddress}`)
+      return
+    }
+    
+    // Fallback to WalletContext if custodialWallet not loaded yet
     if (isConnected && walletAddress) {
       setIsRedirecting(true)
       router.push(`/profile/${walletAddress}`)
     }
-  }, [isConnected, walletAddress, router])
+  }, [user, custodialWallet?.walletAddress, isConnected, walletAddress, router])
+
+  // Show loading state while checking auth or redirecting
+  // Don't show "Connect Your Wallet" UI until we know for sure the user doesn't have a wallet
+  if (authLoading || isRedirecting || (user && !custodialWallet && !walletAddress)) {
+    return (
+      <div className="bg-dark-bg text-white flex-1">
+        <div className="px-4 sm:px-6 py-6 sm:py-8">
+          <h1 className="text-2xl sm:text-3xl font-bold mb-6">Profile</h1>
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <svg className="w-12 h-12 animate-spin text-gold-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <p className="text-gray-400">{isRedirecting ? 'Redirecting to your profile...' : 'Loading...'}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -32,25 +64,6 @@ export default function ProfilePage() {
     }
   }
 
-  // Show loading state while redirecting
-  if (isRedirecting) {
-    return (
-      <div className="bg-dark-bg text-white flex-1">
-        <div className="px-4 sm:px-6 py-6 sm:py-8">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-6">Profile</h1>
-          <div className="flex items-center justify-center py-12">
-            <div className="text-center">
-              <svg className="w-12 h-12 animate-spin text-gold-primary mx-auto mb-4" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              <p className="text-gray-400">Redirecting to your profile...</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="bg-dark-bg text-white flex-1">
