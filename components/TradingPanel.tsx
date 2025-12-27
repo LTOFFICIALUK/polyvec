@@ -23,6 +23,7 @@ import {
   syncConditionalTokenAllowance,
   ConditionalTokenApprovalStatus,
 } from '@/lib/usdc-approval'
+import { calculatePlatformFee, calculateTotalWithFee } from '@/lib/trade-fees'
 
 // Position interface for tracking user's shares
 interface MarketPosition {
@@ -742,9 +743,13 @@ const TradingPanel = (props: TradingPanelProps = {}) => {
         : priceDecimal * 100
       const displayDollarAmount = (shares * displayPriceCents) / 100
       
-      // Show order summary
+      // Calculate fee (only for BUY orders - SELL orders don't need USDC for fee)
+      const fee = isBuy ? calculatePlatformFee(displayDollarAmount) : 0
+      const totalWithFee = isBuy ? calculateTotalWithFee(displayDollarAmount) : displayDollarAmount
+      
+      // Show order summary with fee info
       const orderSummary = isBuy
-        ? `Placing BUY order: ${shares} shares @ ${displayPriceCents.toFixed(0)}¢ = $${displayDollarAmount.toFixed(2)} USDC.e`
+        ? `Placing BUY order: ${shares} shares @ ${displayPriceCents.toFixed(0)}¢ = $${displayDollarAmount.toFixed(2)} + $${fee.toFixed(2)} fee = $${totalWithFee.toFixed(2)} total`
         : `Placing SELL order: ${shares} shares @ ${displayPriceCents.toFixed(0)}¢`
       showToast(orderSummary, 'info', 3000)
 
@@ -782,6 +787,7 @@ const TradingPanel = (props: TradingPanelProps = {}) => {
           credentials: polymarketCredentials,
           signedOrder: signedOrder,
           orderType: orderType,
+          tradeAmount: isBuy ? displayDollarAmount : undefined, // Only pass for BUY orders
         }),
       })
 
@@ -794,7 +800,14 @@ const TradingPanel = (props: TradingPanelProps = {}) => {
         let errorMessage = result.error || 'Failed to place order'
         
         // Check for specific error codes first
-        if (result.errorCode === 'API_KEY_OWNER_MISMATCH') {
+        if (result.errorCode === 'INSUFFICIENT_BALANCE_FOR_FEES') {
+          // Show detailed fee error message
+          errorMessage = result.error || 'Insufficient balance for trade and fees'
+          if (result.details) {
+            const { tradeAmount, fee, totalNeeded, currentBalance, shortfall } = result.details
+            errorMessage = `Insufficient balance for trade and fees. You need $${totalNeeded.toFixed(2)} ($${tradeAmount.toFixed(2)} for trade + $${fee.toFixed(2)} fee), but you only have $${currentBalance.toFixed(2)}. Please deposit $${shortfall.toFixed(2)} more.`
+          }
+        } else if (result.errorCode === 'API_KEY_OWNER_MISMATCH') {
           // Show modal to re-authenticate - don't show error toast, just modal
           setShowAuthModal(true)
           showToast('Please reauthenticate', 'warning')
@@ -868,6 +881,40 @@ const TradingPanel = (props: TradingPanelProps = {}) => {
       }
       
       showToast(successMessage, 'success', 5000)
+      
+      // Collect platform fee after successful order (only for BUY orders)
+      if (isBuy && displayDollarAmount > 0) {
+        try {
+          const feeResponse = await fetch('/api/trade/collect-fee', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              tradeAmount: displayDollarAmount,
+              orderId: result.orderId,
+              tokenId: tokenId,
+              side: isBuy ? 'BUY' : 'SELL',
+              shares: shares,
+              price: priceDecimal,
+            }),
+          })
+
+          const feeResult = await feeResponse.json()
+          
+          if (feeResponse.ok && feeResult.success) {
+            console.log('[Trading] Fee collected successfully:', feeResult.txHash)
+            // Fee collected successfully - no need to show toast, it's automatic
+          } else {
+            // Fee collection failed, but trade succeeded - log it
+            console.warn('[Trading] Fee collection failed (non-blocking):', feeResult.error)
+            // Don't show error to user - trade already succeeded
+          }
+        } catch (feeError: any) {
+          // Fee collection error - non-blocking, trade already succeeded
+          console.error('[Trading] Fee collection error (non-blocking):', feeError)
+        }
+      }
       
       // Instant refresh: Update balances and positions immediately
       await Promise.all([

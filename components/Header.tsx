@@ -29,6 +29,7 @@ const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement | null>(null)
   const [balances, setBalances] = useState<BalanceData>({ portfolioValue: 0, cashBalance: 0 })
+  const [isAdmin, setIsAdmin] = useState(false)
 
   const isLandingPage = pathname === '/'
 
@@ -88,6 +89,31 @@ const Header = () => {
   // Use custodial wallet balances from AuthContext (auto-refreshes every 5 seconds)
   const custodialUsdcBalance = custodialWallet ? parseFloat(custodialWallet.usdcBalance) : 0
   const custodialPolBalance = custodialWallet ? parseFloat(custodialWallet.polBalance) : 0
+
+  // Check admin status when user is authenticated
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (!user) {
+        setIsAdmin(false)
+        return
+      }
+
+      try {
+        const response = await fetch('/api/admin/auth')
+        if (response.ok) {
+          const data = await response.json()
+          setIsAdmin(data.isAdmin === true)
+        } else {
+          setIsAdmin(false)
+        }
+      } catch (error) {
+        console.error('[Header] Error checking admin status:', error)
+        setIsAdmin(false)
+      }
+    }
+
+    checkAdminStatus()
+  }, [user])
 
   // Fetch balances on mount and when auth changes
   useEffect(() => {
@@ -329,7 +355,8 @@ const Header = () => {
               <div className="flex items-center space-x-4">
                 <button
                   onClick={handleAuthClick}
-                  className="px-6 py-2.5 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white text-sm font-semibold rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none uppercase tracking-wider"
+                  className="px-4 py-2 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white text-sm font-medium rounded transition-all duration-200 transform hover:scale-105 focus:outline-none uppercase tracking-wide"
+                  style={{ fontFamily: 'monospace' }}
                 >
                   {isAuthenticated ? 'GO TO TERMINAL' : 'Login / Register'}
                 </button>
@@ -554,6 +581,21 @@ const Header = () => {
                     >
                       Docs
                     </button>
+                    {isAdmin && (
+                      <>
+                        <div className="h-px bg-gray-800" />
+                        <button
+                          onClick={() => {
+                            setIsProfileMenuVisible(false)
+                            router.push('/admin')
+                          }}
+                          className="block w-full px-4 py-2.5 text-left text-sm text-gold-primary hover:bg-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold-primary transition-colors uppercase tracking-wide font-semibold"
+                          style={{ fontFamily: 'monospace' }}
+                        >
+                          Admin
+                        </button>
+                      </>
+                    )}
                     <div className="h-px bg-gray-800" />
                     <button
                       onClick={handleLogoutClick}

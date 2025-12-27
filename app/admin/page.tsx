@@ -8,6 +8,8 @@ import UsersTab from './components/UsersTab'
 import AnalyticsTab from './components/AnalyticsTab'
 import EmailsTab from './components/EmailsTab'
 import CampaignsTab from './components/CampaignsTab'
+import FeesTab from './components/FeesTab'
+import AdminUsersTab from './components/AdminUsersTab'
 
 interface DashboardStats {
   totalUsers: number
@@ -22,17 +24,26 @@ interface DashboardStats {
 }
 
 export default function AdminDashboard() {
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const router = useRouter()
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'analytics' | 'emails' | 'campaigns'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'analytics' | 'emails' | 'campaigns' | 'fees' | 'admins'>('overview')
   const [dataLoaded, setDataLoaded] = useState(false)
 
+  // Redirect to home if not authenticated
   useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/')
+    }
+  }, [user, authLoading, router])
+
+  useEffect(() => {
+    if (user && !authLoading) {
     checkAdminAccess()
-  }, [user])
+    }
+  }, [user, authLoading])
 
   useEffect(() => {
     if (isAdmin) {
@@ -50,12 +61,12 @@ export default function AdminDashboard() {
         setIsAdmin(true)
       } else {
         setIsAdmin(false)
-        router.push('/')
+        router.replace('/')
       }
     } catch (error) {
       console.error('[Admin] Error checking access:', error)
       setIsAdmin(false)
-      router.push('/')
+      router.replace('/')
     } finally {
       setLoading(false)
     }
@@ -105,16 +116,28 @@ export default function AdminDashboard() {
     }
   }
 
-  if (loading) {
+  // Show loading while checking auth or admin status
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-dark-bg flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold-primary"></div>
+          <p className="mt-4 text-gray-400">Loading...</p>
+        </div>
       </div>
     )
   }
 
-  if (!isAdmin) {
-    return null // Will redirect
+  // Don't render if not authenticated or not admin (redirect is happening)
+  if (!user || !isAdmin) {
+    return (
+      <div className="min-h-screen bg-dark-bg flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold-primary"></div>
+          <p className="mt-4 text-gray-400">Redirecting...</p>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -142,8 +165,10 @@ export default function AdminDashboard() {
               { id: 'overview', label: 'Overview' },
               { id: 'users', label: 'Users' },
               { id: 'analytics', label: 'Analytics' },
+              { id: 'fees', label: 'Fees' },
               { id: 'emails', label: 'Emails' },
               { id: 'campaigns', label: 'Campaigns' },
+              { id: 'admins', label: 'Admin Users' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -166,8 +191,10 @@ export default function AdminDashboard() {
         {activeTab === 'overview' && <OverviewTab stats={stats} />}
         {activeTab === 'users' && <UsersTab preloaded={dataLoaded} />}
         {activeTab === 'analytics' && <AnalyticsTab preloaded={dataLoaded} />}
+        {activeTab === 'fees' && <FeesTab preloaded={dataLoaded} />}
         {activeTab === 'emails' && <EmailsTab preloaded={dataLoaded} />}
         {activeTab === 'campaigns' && <CampaignsTab preloaded={dataLoaded} />}
+        {activeTab === 'admins' && <AdminUsersTab />}
       </div>
     </div>
   )

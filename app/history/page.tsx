@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useWallet } from '@/contexts/WalletContext'
+import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 
 interface PolymarketTrade {
@@ -67,6 +69,8 @@ interface DisplayTrade {
 }
 
 export default function HistoryPage() {
+  const router = useRouter()
+  const { user, isLoading: authLoading } = useAuth()
   const { walletAddress, isConnected } = useWallet()
   const [trades, setTrades] = useState<DisplayTrade[]>([])
   const [closedPositions, setClosedPositions] = useState<ClosedPosition[]>([])
@@ -236,6 +240,13 @@ export default function HistoryPage() {
     }
   }, [walletAddress])
 
+  // Redirect to home if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/')
+    }
+  }, [user, authLoading, router])
+
   useEffect(() => {
     if (isConnected && walletAddress) {
       fetchTrades(0)
@@ -246,6 +257,27 @@ export default function HistoryPage() {
       setLoading(false)
     }
   }, [isConnected, walletAddress, fetchTrades, fetchClosedPositions])
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="bg-dark-bg text-white flex-1">
+        <div className="px-4 sm:px-6 py-6 sm:py-8">
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold-primary"></div>
+              <p className="mt-4 text-gray-400">Loading...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render if not authenticated (redirect is happening)
+  if (!user) {
+    return null
+  }
 
   const handleLoadMore = () => {
     fetchTrades(offset + limit)

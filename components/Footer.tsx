@@ -37,7 +37,7 @@ const Footer = () => {
   return (
     <footer className="bg-dark-bg border-t border-gray-700/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-16 mb-8">
           {/* Email List Signup */}
           <div>
             <h3 className="text-lg font-semibold text-white mb-4">Stay Updated</h3>
@@ -56,7 +56,8 @@ const Footer = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="px-6 py-2 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white font-semibold rounded-lg transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:border-gold-primary/50 text-sm uppercase tracking-wider"
+                className="px-6 py-3 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white text-sm font-medium rounded transition-all duration-200 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:border-gold-primary/50 uppercase tracking-wide"
+                style={{ fontFamily: 'monospace' }}
               >
                 {isLoading ? '...' : 'Subscribe'}
               </button>
@@ -84,6 +85,28 @@ const Footer = () => {
               </li>
             </ul>
           </div>
+
+          {/* Connect */}
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4">Connect</h3>
+            <p className="text-gray-400 mb-4 text-sm">
+              Follow us for updates and trading insights.
+            </p>
+            <div className="flex items-center gap-3">
+              <a
+                href="https://x.com/polyvec"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-gray-400 hover:text-gold-primary transition-colors text-sm group"
+                aria-label="Follow us on X"
+              >
+                <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                </svg>
+                <span>Follow on X</span>
+              </a>
+            </div>
+          </div>
         </div>
 
         <div className="border-t border-gray-700/50 pt-8">
@@ -98,7 +121,7 @@ const Footer = () => {
               <span className="text-gray-300 text-xs font-semibold">Stripe</span>
             </div>
             
-          <p className="text-gray-500 text-xs mt-2 sm:mt-0">
+            <p className="text-gray-500 text-xs">
             Designed for Polymarket crypto traders
           </p>
           </div>

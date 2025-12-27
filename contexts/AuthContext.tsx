@@ -100,8 +100,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }
 
   const checkAuth = async () => {
+    // Set a timeout to ensure isLoading is always set to false
+    const timeoutId = setTimeout(() => {
+      setIsLoading(false)
+    }, 10000) // 10 second timeout
+
     try {
-      const response = await fetch('/api/auth/me')
+      // Create an AbortController for the fetch request
+      const controller = new AbortController()
+      const fetchTimeoutId = setTimeout(() => controller.abort(), 8000) // 8 second fetch timeout
+
+      const response = await fetch('/api/auth/me', {
+        signal: controller.signal,
+      })
+
+      clearTimeout(fetchTimeoutId)
+
       if (response.ok) {
         const data = await response.json()
         setUser(data.user)
@@ -111,11 +125,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null)
         setCustodialWallet(null)
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Handle abort errors gracefully
+      if (error.name === 'AbortError') {
+        console.warn('[Auth] Check auth request timed out')
+      } else {
       console.error('[Auth] Check auth error:', error)
+      }
       setUser(null)
       setCustodialWallet(null)
     } finally {
+      clearTimeout(timeoutId)
       setIsLoading(false)
     }
   }

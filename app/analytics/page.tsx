@@ -2,7 +2,9 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import type { KeyboardEvent } from 'react'
+import { useRouter } from 'next/navigation'
 import { useWallet } from '@/contexts/WalletContext'
+import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 
 interface PolymarketTrade {
@@ -222,6 +224,8 @@ const CustomDropdown = ({ value, onChange, options, placeholder, className = '',
 }
 
 export default function AnalyticsPage() {
+  const router = useRouter()
+  const { user, isLoading: authLoading } = useAuth()
   const { walletAddress, isConnected } = useWallet()
   const [activeTab, setActiveTab] = useState<'overview' | 'trades' | 'performance' | 'markets'>('overview')
   const [expandedTrade, setExpandedTrade] = useState<string | null>(null)
@@ -386,6 +390,13 @@ export default function AnalyticsPage() {
     }
   }, [walletAddress, transformTrade])
 
+  // Redirect to home if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/')
+    }
+  }, [user, authLoading, router])
+
   useEffect(() => {
     if (isConnected && walletAddress) {
       fetchData()
@@ -395,6 +406,27 @@ export default function AnalyticsPage() {
       setLoading(false)
     }
   }, [isConnected, walletAddress, fetchData])
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="bg-dark-bg text-white flex-1">
+        <div className="px-4 sm:px-6 py-6 sm:py-8">
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold-primary"></div>
+              <p className="mt-4 text-gray-400">Loading...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render if not authenticated (redirect is happening)
+  if (!user) {
+    return null
+  }
 
   // Calculate analytics from real data
   const analyticsData = useMemo((): AnalyticsData => {

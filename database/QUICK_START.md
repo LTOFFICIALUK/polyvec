@@ -33,6 +33,7 @@ cat > .env.local << EOF
 DATABASE_URL=postgresql://polyvec:polyvec_dev_password@localhost:5432/polyvec
 NEXT_PUBLIC_WEBSOCKET_SERVER_URL=ws://localhost:8080
 WEBSOCKET_SERVER_HTTP_URL=http://localhost:8081
+PLATFORM_FEE_WALLET_ADDRESS=0x97e656303F2e61cc87c9C94557e41c65c5c30691
 EOF
 ```
 

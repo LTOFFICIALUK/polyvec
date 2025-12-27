@@ -1,7 +1,26 @@
 'use server'
 
 import { NextResponse } from 'next/server'
+import { jwtVerify } from 'jose'
+import { ethers } from 'ethers'
 import { makeAuthenticatedRequest, PolymarketApiCredentials } from '@/lib/polymarket-api-auth'
+import { calculatePlatformFee, calculateTotalWithFee, getPlatformFeeWallet, isPlatformFeeConfigured } from '@/lib/trade-fees'
+import { getDbPool } from '@/lib/db'
+import { decryptPrivateKey } from '@/lib/wallet-vault'
+
+const secret = new TextEncoder().encode(
+  process.env.JWT_SECRET || 'your-secret-key-change-in-production'
+)
+
+const POLYGON_RPC_URL = process.env.POLYGON_RPC_URL || 'https://polygon-rpc.com'
+const USDC_E_ADDRESS = '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174' // USDC.e (Bridged)
+const USDC_DECIMALS = 6
+
+// ERC20 ABI for balance and transfer
+const ERC20_ABI = [
+  'function transfer(address to, uint256 amount) external returns (bool)',
+  'function balanceOf(address account) external view returns (uint256)',
+]
 
 /**
  * POST /api/trade/place-order
@@ -20,6 +39,7 @@ export async function POST(req: Request) {
       credentials,
       signedOrder, // SignedOrder object from createSignedOrder()
       orderType = 'GTC', // 'GTC', 'GTD', 'FOK', or 'FAK'
+      tradeAmount, // Dollar amount of the trade (for fee calculation)
     } = body
 
     // Basic validation
@@ -86,6 +106,46 @@ export async function POST(req: Request) {
       ownerAddress: ownerAddress,
       addressesMatch: walletAddressLower === makerAddressLower,
     })
+
+    // ============================================
+    // Pre-trade Balance Check (Trade + Fee)
+    // ============================================
+    if (isPlatformFeeConfigured() && tradeAmount && tradeAmount > 0) {
+      const fee = calculatePlatformFee(tradeAmount)
+      const totalNeeded = calculateTotalWithFee(tradeAmount)
+
+      // Get user's current USDC.e balance
+      const provider = new ethers.JsonRpcProvider(POLYGON_RPC_URL)
+      const usdcContract = new ethers.Contract(USDC_E_ADDRESS, ERC20_ABI, provider)
+      const balance = await usdcContract.balanceOf(walletAddress)
+      const balanceNum = Number(ethers.formatUnits(balance, USDC_DECIMALS))
+
+      console.log('[Place Order] Balance check:', {
+        tradeAmount,
+        fee,
+        totalNeeded,
+        currentBalance: balanceNum,
+        hasEnough: balanceNum >= totalNeeded,
+      })
+
+      if (balanceNum < totalNeeded) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Insufficient balance for trade and fees. You need $${totalNeeded.toFixed(2)} ($${tradeAmount.toFixed(2)} for trade + $${fee.toFixed(2)} fee), but you only have $${balanceNum.toFixed(2)}.`,
+            errorCode: 'INSUFFICIENT_BALANCE_FOR_FEES',
+            details: {
+              tradeAmount,
+              fee,
+              totalNeeded,
+              currentBalance: balanceNum,
+              shortfall: totalNeeded - balanceNum,
+            },
+          },
+          { status: 400 }
+        )
+      }
+    }
     
     const orderPayload = {
       order: {
@@ -209,10 +269,46 @@ export async function POST(req: Request) {
       orderId: responseData.orderID || responseData.id,
     })
 
+    // ============================================
+    // Post-trade Fee Collection
+    // ============================================
+    // Note: Fee collection is handled asynchronously after trade success
+    // We don't block the response if fee collection fails
+    let feeTransferResult: { success: boolean; error?: string; txHash?: string } | null = null
+    
+    if (isPlatformFeeConfigured() && tradeAmount && tradeAmount > 0) {
+      try {
+        const fee = calculatePlatformFee(tradeAmount)
+        
+        // Collect fee asynchronously (don't await - let it happen in background)
+        // The frontend can call the collect-fee endpoint separately if needed
+        console.log('[Place Order] Fee to be collected:', {
+          tradeAmount,
+          fee,
+          orderId: responseData.orderID || responseData.id,
+        })
+        
+        // Fee will be collected by the frontend calling /api/trade/collect-fee
+        // This ensures the trade response is not delayed
+        feeTransferResult = {
+          success: true,
+          error: 'Fee collection will be handled by frontend',
+        }
+      } catch (feeError: any) {
+        // Don't fail the trade if fee collection fails
+        console.error('[Place Order] Fee collection error (non-blocking):', feeError)
+        feeTransferResult = {
+          success: false,
+          error: feeError.message || 'Fee collection failed',
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
       orderId: responseData.orderID || responseData.id,
       data: responseData,
+      feeTransfer: feeTransferResult,
     })
   } catch (error: any) {
     console.error('[Place Order] Error:', error)

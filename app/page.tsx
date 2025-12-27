@@ -122,13 +122,15 @@ const LandingPageContent = () => {
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
             <button
               onClick={handleGetStarted}
-              className="px-8 py-4 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white font-semibold text-lg rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-dark-bg uppercase tracking-wider"
+              className="px-8 py-4 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white text-base font-medium rounded transition-all duration-200 transform hover:scale-105 focus:outline-none uppercase tracking-wide"
+              style={{ fontFamily: 'monospace' }}
             >
               Get Started
             </button>
             <Link
               href="/terminal"
-              className="px-8 py-4 bg-transparent border-2 border-gold-primary/50 hover:border-gold-primary text-gold-primary hover:text-gold-hover font-semibold text-lg rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-dark-bg uppercase tracking-wider"
+              className="px-8 py-4 bg-transparent border-2 border-gold-primary/50 hover:border-gold-primary text-gold-primary hover:text-gold-hover text-base font-medium rounded transition-all duration-200 transform hover:scale-105 focus:outline-none uppercase tracking-wide"
+              style={{ fontFamily: 'monospace' }}
             >
               View Demo
             </Link>
@@ -241,7 +243,8 @@ const LandingPageContent = () => {
 
                               <button
                 onClick={handleGetStarted}
-                className="w-full px-6 py-4 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white font-semibold rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-gray-900 uppercase tracking-wider"
+                className="w-full px-6 py-3 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white text-sm font-medium rounded transition-all duration-200 transform hover:scale-105 focus:outline-none uppercase tracking-wide"
+                style={{ fontFamily: 'monospace' }}
               >
                 Get Started
                               </button>
@@ -372,7 +375,8 @@ const LandingPageContent = () => {
           </p>
           <button
             onClick={handleGetStarted}
-            className="px-10 py-5 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white font-bold text-lg rounded-lg transition-all duration-200 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-gold-primary focus:ring-offset-2 focus:ring-offset-dark-bg uppercase tracking-wider"
+            className="px-8 py-4 bg-gold-primary border-2 border-gold-primary/50 hover:border-gold-primary text-white text-base font-medium rounded transition-all duration-200 transform hover:scale-105 focus:outline-none uppercase tracking-wide"
+            style={{ fontFamily: 'monospace' }}
           >
             Get Started Now
           </button>

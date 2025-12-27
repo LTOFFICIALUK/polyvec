@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
 
 interface ProtectedRouteProps {
@@ -11,13 +11,18 @@ interface ProtectedRouteProps {
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { user, isLoading } = useAuth()
   const router = useRouter()
+  const pathname = usePathname()
+  const [hasRedirected, setHasRedirected] = useState(false)
 
   useEffect(() => {
-    if (!isLoading && !user) {
-      router.push('/?login=true')
+    // If we're not on the home page and auth check is complete and user is not logged in, redirect immediately
+    if (!isLoading && !user && !hasRedirected && pathname !== '/') {
+      setHasRedirected(true)
+      router.replace('/')
     }
-  }, [user, isLoading, router])
+  }, [user, isLoading, router, pathname, hasRedirected])
 
+  // Show loading state while checking authentication
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-dark-bg">
@@ -29,8 +34,16 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     )
   }
 
+  // If not logged in, show nothing (redirect is happening)
   if (!user) {
-    return null
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-dark-bg">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold-primary"></div>
+          <p className="mt-4 text-gray-400">Redirecting...</p>
+        </div>
+      </div>
+    )
   }
 
   return <>{children}</>

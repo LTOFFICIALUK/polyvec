@@ -637,12 +637,38 @@ type TradingMode = 'select' | 'live' | 'paper'
 
 export default function StrategiesPage() {
   const router = useRouter()
-  const { user } = useAuth()
+  const { user, isLoading: authLoading } = useAuth()
   const [mode, setMode] = useState<TradingMode>('select')
   const [showPlanModal, setShowPlanModal] = useState(false)
   
+  // Redirect to home if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/')
+    }
+  }, [user, authLoading, router])
+  
   // Check if user has pro plan
   const hasProPlan = user?.plan_tier === 'pro'
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="bg-dark-bg text-white flex-1 min-h-screen">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gold-primary"></div>
+            <p className="mt-4 text-gray-400">Loading...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Don't render if not authenticated (redirect is happening)
+  if (!user) {
+    return null
+  }
   
   // If user doesn't have pro plan, show upgrade message
   if (!hasProPlan) {

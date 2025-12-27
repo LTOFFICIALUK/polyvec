@@ -299,6 +299,9 @@ const ChartControls = (props: ChartControlsProps = {}) => {
             {/* Divider - Mobile: visible, Desktop: hidden */}
             <div className="h-4 w-px bg-gray-700 md:hidden flex-shrink-0" />
 
+            {/* Divider - Desktop: visible, Mobile: hidden */}
+            <div className="h-6 w-px bg-gray-800 hidden md:block flex-shrink-0" />
+
             {/* Timeframes */}
             <div className="flex items-center gap-1 flex-shrink-0 relative" ref={dropdownRef}>
             {timeframes.map((tf) => (
