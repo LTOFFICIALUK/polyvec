@@ -1283,18 +1283,26 @@ const httpServer = http.createServer(async (req, res) => {
 
         // ========== OFFSET MARKET LOOKUP (past/future markets) ==========
         // If offset != 0, fetch the market for that specific time window
-        // This is separate from the existing current market logic to avoid breaking it
+        // Use the same logic as ensureMarketMetadataForPair (current market) to ensure consistency
         if (offset !== 0 && pairUpper && timeframeNormalized) {
           const timeframeMinutes = timeframeNormalized === '15m' ? 15 : 60
           
-          // Calculate the target time window based on offset
-          // Add 24 hours because Polymarket labels markets 24h ahead
-          const baseWindowStart = getEventWindowStart(timeframeMinutes) + (24 * 60 * 60 * 1000)
+          // Calculate the actual target window start (same logic as current market)
+          const baseWindowStart = getEventWindowStart(timeframeMinutes)
           const targetWindowStart = baseWindowStart + (offset * timeframeMinutes * 60 * 1000)
-          const targetTimestampSeconds = Math.floor(targetWindowStart / 1000)
           
-          // Generate slug for the target window
-          const slug = generateSlug(pairUpper, timeframeNormalized, targetTimestampSeconds)
+          let slug: string | null = null
+          
+          // For 15m markets: use same logic as ensureMarketMetadataForPair (add 24h for slug generation)
+          if (timeframeNormalized === '15m') {
+            const windowStartMs = targetWindowStart + (24 * 60 * 60 * 1000)
+            const eventStartSeconds = Math.floor(windowStartMs / 1000)
+            slug = generateSlug(pairUpper, timeframeNormalized, eventStartSeconds)
+          } else {
+            // For 1h markets: use same logic as ensureMarketMetadataForPair (no 24h offset for slug)
+            const eventStartSeconds = Math.floor(targetWindowStart / 1000)
+            slug = generateSlug(pairUpper, timeframeNormalized, eventStartSeconds)
+          }
           
           if (slug) {
             console.log(`[Server] Offset market lookup: pair=${pairUpper}, timeframe=${timeframeNormalized}, offset=${offset}, slug=${slug}`)
@@ -1303,10 +1311,9 @@ const httpServer = http.createServer(async (req, res) => {
               const marketMetadata = await fetchMarketBySlug(slug)
               
               if (marketMetadata) {
-                // Use eventStartTime from API if available (actual event time), otherwise use calculated time
-                // Note: we subtract 24h from targetWindowStart because we added 24h when generating the slug
-                const calculatedStart = targetWindowStart - (24 * 60 * 60 * 1000)
-                const eventStart = marketMetadata.eventStartTime || calculatedStart
+                // Use eventStartTime from API if available (actual event time), otherwise use targetWindowStart
+                // This matches the logic used in ensureMarketMetadataForPair
+                const eventStart = marketMetadata.eventStartTime || targetWindowStart
                 const eventEnd = marketMetadata.eventEndTime || (eventStart + (timeframeMinutes * 60 * 1000))
                 const now = Date.now()
                 

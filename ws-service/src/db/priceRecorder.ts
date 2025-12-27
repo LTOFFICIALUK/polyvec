@@ -420,17 +420,17 @@ const flushBuffer = async (marketId: string, buffer: MarketBuffer): Promise<void
       ])
     } else {
       // Insert new record
-      await pool.query(`
-        INSERT INTO price_events (market_id, event_start, event_end, yes_token_id, no_token_id, prices, updated_at)
-        VALUES ($1, to_timestamp($2/1000.0), to_timestamp($3/1000.0), $4, $5, $6, NOW())
-      `, [
-        marketId,
-        buffer.eventStart,
-        buffer.eventEnd,
-        buffer.yesTokenId,
-        buffer.noTokenId,
-        JSON.stringify(buffer.prices),
-      ])
+    await pool.query(`
+      INSERT INTO price_events (market_id, event_start, event_end, yes_token_id, no_token_id, prices, updated_at)
+      VALUES ($1, to_timestamp($2/1000.0), to_timestamp($3/1000.0), $4, $5, $6, NOW())
+    `, [
+      marketId,
+      buffer.eventStart,
+      buffer.eventEnd,
+      buffer.yesTokenId,
+      buffer.noTokenId,
+      JSON.stringify(buffer.prices),
+    ])
     }
     
     buffer.lastFlush = Date.now()

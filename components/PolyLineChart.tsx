@@ -502,7 +502,7 @@ const PolyLineChart = () => {
                 const up = point.upPrice || 0
                 const down = point.downPrice || 0
                 return {
-                  time: point.time,
+                time: point.time,
                   upPrice: up <= 1 ? up * 100 : up,
                   downPrice: down <= 1 ? down * 100 : down,
                 }
@@ -591,7 +591,7 @@ const PolyLineChart = () => {
           // Use setTimeout to ensure state update completes before starting live updates
           // This prevents updateChart from seeing empty prev state
           setTimeout(() => {
-            updateChart()
+    updateChart()
           }, 100)
         } else {
           console.warn(`[PolyLineChart] No historical data returned for market ${market.marketId}`)
@@ -897,7 +897,7 @@ const PolyLineChart = () => {
         <div className="flex items-center justify-between text-xs sm:text-sm flex-shrink-0">
           <div>
             <div className="flex items-center gap-3">
-              <p className="text-gray-400 uppercase tracking-widest">POLY ORDERBOOK</p>
+            <p className="text-gray-400 uppercase tracking-widest">POLY ORDERBOOK</p>
               {market?.polymarketUrl && (
                 <a
                   href={market.polymarketUrl}
