@@ -77,6 +77,51 @@ const runMigrations = async (pool: Pool): Promise<void> => {
       )
     `)
     
+    // Migrate PRIMARY KEY from (market_id, event_start) to just (market_id) if needed
+    // This allows proper merging when event_start changes (prevents data loss)
+    try {
+      // Check if table has composite primary key
+      const pkCheck = await pool.query(`
+        SELECT COUNT(*) as pk_count
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu 
+          ON tc.constraint_name = kcu.constraint_name
+        WHERE tc.table_name = 'price_events' 
+        AND tc.constraint_type = 'PRIMARY KEY'
+        GROUP BY tc.constraint_name
+        HAVING COUNT(kcu.column_name) > 1
+      `)
+      
+      if (pkCheck.rows.length > 0 && pkCheck.rows[0].pk_count > 1) {
+        console.log('[PriceRecorder] Migrating PRIMARY KEY from (market_id, event_start) to (market_id)...')
+        
+        // Handle duplicates by keeping the row with the earliest event_start for each market_id
+        await pool.query(`
+          DELETE FROM price_events p1
+          WHERE EXISTS (
+            SELECT 1 FROM price_events p2
+            WHERE p2.market_id = p1.market_id
+            AND p2.event_start < p1.event_start
+          )
+        `)
+        
+        // Drop old primary key constraint
+        await pool.query(`
+          ALTER TABLE price_events DROP CONSTRAINT IF EXISTS price_events_pkey
+        `)
+        
+        // Add new primary key (just market_id)
+        await pool.query(`
+          ALTER TABLE price_events ADD CONSTRAINT price_events_pkey PRIMARY KEY (market_id)
+        `)
+        
+        console.log('[PriceRecorder] ✅ PRIMARY KEY migration completed')
+      }
+    } catch (error: any) {
+      // If migration fails, table might already have correct structure or doesn't exist yet
+      console.log('[PriceRecorder] Primary key migration (non-fatal):', error.message)
+    }
+    
     // Create index for fast lookups
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_price_events_market_time 
@@ -242,8 +287,8 @@ export const recordMarketPrices = async (
   // Get or create buffer
   let buffer = marketBuffers.get(marketId)
   
-  if (!buffer || (eventStart && buffer.eventStart !== eventStart)) {
-    // Create new buffer
+  if (!buffer) {
+    // Create new buffer - use provided eventStart or current time as fallback
     buffer = {
       eventStart: eventStart || now,
       eventEnd: eventEnd || now + 3600000,
@@ -253,7 +298,12 @@ export const recordMarketPrices = async (
       lastFlush: now,
     }
     marketBuffers.set(marketId, buffer)
-    console.log(`[PriceRecorder] NEW buffer for marketId: ${marketId.substring(0, 30)}... (total buffers: ${marketBuffers.size})`)
+    console.log(`[PriceRecorder] NEW buffer for marketId: ${marketId.substring(0, 30)}... eventStart=${eventStart ? new Date(eventStart).toISOString() : 'NOW'} (total buffers: ${marketBuffers.size})`)
+  } else if (eventStart && buffer.eventStart !== eventStart) {
+    // Event start time changed - update the buffer's eventStart (don't lose existing prices)
+    // This can happen when market metadata is corrected
+    console.log(`[PriceRecorder] Updating eventStart for market ${marketId.substring(0, 30)}... from ${new Date(buffer.eventStart).toISOString()} to ${new Date(eventStart).toISOString()}`)
+    buffer.eventStart = eventStart
   }
   
   // Now buffer is guaranteed to exist
@@ -307,22 +357,81 @@ const flushBuffer = async (marketId: string, buffer: MarketBuffer): Promise<void
   if (!pool || buffer.prices.length === 0) return
   
   try {
-    // Upsert the market event with all its prices
-    await pool.query(`
-      INSERT INTO price_events (market_id, event_start, event_end, yes_token_id, no_token_id, prices, updated_at)
-      VALUES ($1, to_timestamp($2/1000.0), to_timestamp($3/1000.0), $4, $5, $6, NOW())
-      ON CONFLICT (market_id, event_start) 
-      DO UPDATE SET 
-        prices = $6,
-        updated_at = NOW()
-    `, [
-      marketId,
-      buffer.eventStart,
-      buffer.eventEnd,
-      buffer.yesTokenId,
-      buffer.noTokenId,
-      JSON.stringify(buffer.prices),
-    ])
+    // First check if record exists to decide whether to merge or insert
+    const existingResult = await pool.query(
+      'SELECT prices FROM price_events WHERE market_id = $1',
+      [marketId]
+    )
+    
+    if (existingResult.rows.length > 0) {
+      // Merge prices arrays - combine existing and new, remove duplicates by timestamp
+      const existingPrices = existingResult.rows[0].prices as PricePoint[]
+      const newPrices = buffer.prices
+      
+      // Create a map to deduplicate by timestamp (keep the most recent)
+      const priceMap = new Map<number, PricePoint>()
+      
+      // Add existing prices first
+      for (const p of existingPrices) {
+        priceMap.set(p.t, p)
+      }
+      
+      // Add/update with new prices (newer data takes precedence for same timestamp)
+      for (const p of newPrices) {
+        const existing = priceMap.get(p.t)
+        if (!existing || p.yb > 0 || p.ya > 0 || p.nb > 0 || p.na > 0) {
+          // Update if new price has non-zero values
+          if (existing) {
+            // Merge non-zero values
+            priceMap.set(p.t, {
+              t: p.t,
+              yb: p.yb > 0 ? p.yb : existing.yb,
+              ya: p.ya > 0 ? p.ya : existing.ya,
+              nb: p.nb > 0 ? p.nb : existing.nb,
+              na: p.na > 0 ? p.na : existing.na,
+            })
+          } else {
+            priceMap.set(p.t, p)
+          }
+        }
+      }
+      
+      // Convert back to array and sort by timestamp
+      const mergedPrices = Array.from(priceMap.values()).sort((a, b) => a.t - b.t)
+      
+      // Update with merged prices
+      await pool.query(`
+        UPDATE price_events 
+        SET 
+          event_start = GREATEST(event_start, to_timestamp($2/1000.0)),
+          event_end = LEAST(event_end, to_timestamp($3/1000.0)),
+          yes_token_id = COALESCE(NULLIF($4, ''), yes_token_id),
+          no_token_id = COALESCE(NULLIF($5, ''), no_token_id),
+          prices = $6,
+          updated_at = NOW()
+        WHERE market_id = $1
+      `, [
+        marketId,
+        buffer.eventStart,
+        buffer.eventEnd,
+        buffer.yesTokenId,
+        buffer.noTokenId,
+        JSON.stringify(mergedPrices),
+      ])
+    } else {
+      // Insert new record
+      await pool.query(`
+        INSERT INTO price_events (market_id, event_start, event_end, yes_token_id, no_token_id, prices, updated_at)
+        VALUES ($1, to_timestamp($2/1000.0), to_timestamp($3/1000.0), $4, $5, $6, NOW())
+      `, [
+        marketId,
+        buffer.eventStart,
+        buffer.eventEnd,
+        buffer.yesTokenId,
+        buffer.noTokenId,
+        JSON.stringify(buffer.prices),
+      ])
+    }
     
     buffer.lastFlush = Date.now()
     
