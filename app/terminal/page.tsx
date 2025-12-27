@@ -14,8 +14,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { usePlanModal } from '@/contexts/PlanModalContext'
 import useCurrentMarket from '@/hooks/useCurrentMarket'
-import { redeemPosition, closePosition } from '@/lib/redeem-positions'
-import { getBrowserProvider, ensurePolygonNetwork } from '@/lib/polymarket-auth'
 import { createSignedOrder, OrderSide, OrderType } from '@/lib/polymarket-order-signing'
 
 interface Position {
@@ -430,71 +428,52 @@ function TerminalContent() {
     }
   }, [isClaimingPosition, showToast, fetchPositions])
 
-  // Handle closing a position from an ended market
-  // This calls redeemPositions on the CTF contract with all outcomes [1, 2]
-  // Works for both winners and losers - burns tokens and returns collateral
+  // Handle closing a losing position using custodial wallet
   const handleClosePosition = useCallback(async (position: Position) => {
     if (!position.conditionId || isClaimingPosition) return
+    if (!user || !custodialWallet) {
+      showToast('Please log in to close positions', 'error')
+      return
+    }
     
     setIsClaimingPosition(position.conditionId)
+    showToast('Preparing to close position...', 'info')
     
     try {
-      const provider = getBrowserProvider()
-      if (!provider) {
-        throw new Error('No wallet provider found. Please connect your wallet.')
+      const response = await fetch('/api/user/close-position', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conditionId: position.conditionId,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to close position')
       }
       
-      // Request accounts to ensure wallet is connected and unlocked
-      try {
-        await provider.send('eth_requestAccounts', [])
-      } catch (accountError: any) {
-        if (accountError.code === 4001) {
-          throw new Error('Please connect your wallet to continue')
-        }
-        // Continue anyway, wallet might already be connected
-      }
+      showToast(`✓ Position closed! TX: ${result.txHash.slice(0, 10)}...`, 'success')
       
-      // Ensure we're on Polygon network
-      await ensurePolygonNetwork(provider)
-      
-      showToast('Please confirm the transaction in your wallet...', 'info')
-      
-      // Use closePosition which redeems all outcomes [1, 2]
-      // This burns conditional tokens and returns USDC.e collateral
-      // Winners get full value, losers get $0 but position is cleared
-      const txHash = await closePosition(
-        provider,
-        position.conditionId
-      )
-      
-      showToast(`✓ Position closed! TX: ${txHash.slice(0, 10)}...`, 'success')
-      
-      // Refresh positions after close
+      // Refresh positions and balances after close
       setTimeout(() => {
         fetchPositions()
+        refreshCustodialWallet(true)
       }, 2000)
     } catch (error: any) {
       console.error('[Close] Error:', error)
-      if (error.message?.includes('rejected') || error.code === 4001 || error.message?.includes('ACTION_REJECTED')) {
-        showToast('Close cancelled', 'warning')
-      } else if (error.message?.includes('not yet resolved') || error.message?.includes('condition not resolved')) {
+      if (error.message?.includes('not yet resolved') || error.message?.includes('condition not resolved')) {
         showToast('Market not yet resolved on-chain. Please wait for the oracle to settle the market.', 'error', 8000)
-      } else if (error.message?.includes('connect your wallet')) {
-        showToast(error.message, 'error')
-      } else if (error.message?.includes('network')) {
-        showToast('Please switch to Polygon network', 'error')
-      } else if (error.code === 'CALL_EXCEPTION' || error.message?.includes('CALL_EXCEPTION') || error.message?.includes('missing revert data')) {
-        // Contract call would revert - usually means market not resolved yet or no tokens
-        showToast('Cannot close position. The market may not be resolved yet or you have no tokens to redeem.', 'error', 8000)
-      } else if (error.message?.includes('estimateGas')) {
-        showToast('Transaction would fail. The market may not be resolved yet.', 'error', 8000)
       } else {
         showToast(`Failed to close: ${error.message || 'Unknown error'}`, 'error')
       }
     } finally {
       setIsClaimingPosition(null)
     }
-  }, [isClaimingPosition, showToast, fetchPositions])
+  }, [isClaimingPosition, user, custodialWallet, showToast, fetchPositions, refreshCustodialWallet])
 
   // State for cancelling orders
   const [isCancellingOrder, setIsCancellingOrder] = useState<string | null>(null)

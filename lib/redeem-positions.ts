@@ -109,14 +109,14 @@ export async function canRedeem(
  * - Returns USDC.e collateral (full value for winners, $0 for losers)
  * - Clears the position from your portfolio
  * 
- * @param provider - Ethers BrowserProvider with signer
+ * @param provider - Ethers BrowserProvider with signer (or object with getSigner method)
  * @param conditionId - The market's condition ID
  * @param outcomeIndex - The outcome index (0 for Yes/Up, 1 for No/Down)
  * @param redeemAll - If true, redeem all outcomes [1, 2] (default: false, only redeem specific outcome)
  * @returns Transaction hash
  */
 export async function redeemPosition(
-  provider: ethers.BrowserProvider,
+  provider: ethers.BrowserProvider | { getSigner: () => Promise<ethers.Signer> },
   conditionId: string,
   outcomeIndex: number,
   redeemAll: boolean = false
@@ -171,18 +171,22 @@ export async function redeemPosition(
  * - Winners: Receive USDC.e collateral
  * - Losers: Receive $0 but position is cleared from portfolio
  * 
- * @param provider - Ethers BrowserProvider with signer
+ * @param provider - Ethers BrowserProvider with signer (or object with getSigner method)
  * @param conditionId - The market's condition ID
  * @returns Transaction hash
  */
 export async function closePosition(
-  provider: ethers.BrowserProvider,
+  provider: ethers.BrowserProvider | { getSigner: () => Promise<ethers.Signer> },
   conditionId: string
 ): Promise<string> {
   console.log('[Close] Closing position for condition:', conditionId.slice(0, 10) + '...')
   
   // First check if the market is resolved on-chain
-  const resolved = await isMarketResolved(provider, conditionId)
+  // For JsonRpcProvider wrapper, use the provider property if available
+  const readProvider = 'provider' in provider && provider.provider
+    ? provider.provider as ethers.Provider
+    : (await provider.getSigner()).provider as ethers.Provider
+  const resolved = await isMarketResolved(readProvider, conditionId)
   if (!resolved) {
     console.log('[Close] Market not resolved yet:', conditionId.slice(0, 10) + '...')
     throw new Error('Market not yet resolved on-chain. Please wait for the oracle to settle the market.')
