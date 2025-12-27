@@ -335,7 +335,7 @@ export default function AnalyticsPage() {
     if (process.env.NODE_ENV === 'development' && !timestampValue) {
       console.warn('[transformTrade] Missing timestamp for trade:', trade.id, 'Available fields:', Object.keys(trade))
     }
-    
+
     return {
       id: trade.id,
       timestamp: formatTimestamp(timestampValue),

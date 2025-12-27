@@ -33,7 +33,12 @@ interface MarketPosition {
 }
 
 
-const TradingPanel = () => {
+interface TradingPanelProps {
+  initialAction?: 'buy' | 'sell'
+}
+
+const TradingPanel = (props: TradingPanelProps = {}) => {
+  const { initialAction } = props
   const { selectedPair, selectedTimeframe, activeTokenId, setActiveTokenId, marketOffset } = useTradingContext()
   const { polymarketCredentials, isPolymarketAuthenticated, setPolymarketCredentials } = useWallet()
   const { custodialWallet, refreshCustodialWallet } = useAuth()
@@ -44,7 +49,7 @@ const TradingPanel = () => {
   // Removed orderType - only market trading now
   const [executionType, setExecutionType] = useState<'market' | 'limit'>('market')
   const [amount, setAmount] = useState('')
-  const [isBuy, setIsBuy] = useState(true)
+  const [isBuy, setIsBuy] = useState(initialAction === undefined ? true : initialAction === 'buy')
   // Single shared state for UP/DOWN selection - applies to both Buy and Sell
   const [selectedOutcome, setSelectedOutcome] = useState<'up' | 'down'>('up')
   const [isPlacingOrder, setIsPlacingOrder] = useState(false)
@@ -187,6 +192,13 @@ const TradingPanel = () => {
       document.body.classList.remove('dragging-panel')
     }
   }, [isDragging, dragOffset, popupPosition])
+
+  // Handle initial action prop changes
+  useEffect(() => {
+    if (initialAction !== undefined) {
+      setIsBuy(initialAction === 'buy')
+    }
+  }, [initialAction])
 
   const handleBuy = () => {
     // Only switch to Buy mode, don't change UP/DOWN selection
@@ -844,15 +856,15 @@ const TradingPanel = () => {
         const sideText = isBuy ? 'You bought' : 'You sold'
         sideTextForEvent = isBuy ? 'bought' : 'sold'
         const outcomeText = selectedOutcome === 'up' ? 'UP' : 'DOWN'
-        
-        // Format the message similar to screenshot: "You bought X shares at Y¢ per share | $Z total"
+      
+      // Format the message similar to screenshot: "You bought X shares at Y¢ per share | $Z total"
         successMessage = `${sideText} ${shares.toLocaleString('en-US', { 
-          minimumFractionDigits: 2, 
-          maximumFractionDigits: 2 
-        })} ${outcomeText} shares at ${priceInCents.toFixed(0)}¢ per share\n$${dollarAmount.toLocaleString('en-US', { 
-          minimumFractionDigits: 2, 
-          maximumFractionDigits: 2 
-        })} total`
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+      })} ${outcomeText} shares at ${priceInCents.toFixed(0)}¢ per share\n$${dollarAmount.toLocaleString('en-US', { 
+        minimumFractionDigits: 2, 
+        maximumFractionDigits: 2 
+      })} total`
       }
       
       showToast(successMessage, 'success', 5000)

@@ -6,6 +6,7 @@ import PolyLineChart from '@/components/PolyLineChart'
 import TradingViewChart from '@/components/TradingViewChart'
 import ChartControls from '@/components/ChartControls'
 import TerminalRightPanel from '@/components/TerminalRightPanel'
+import TradingPanel from '@/components/TradingPanel'
 import AnimatedPrice from '@/components/AnimatedPrice'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import { TradingProvider, useTradingContext } from '@/contexts/TradingContext'
@@ -99,6 +100,9 @@ function TerminalContent() {
   const [isClaimingPosition, setIsClaimingPosition] = useState<string | null>(null)
   const [showSideBySide, setShowSideBySide] = useState(true) // Default to side-by-side view
   const [hideEnded, setHideEnded] = useState(false) // Toggle to hide ended/closed markets
+  const [mobileChartView, setMobileChartView] = useState<'poly' | 'tradingview'>('poly') // Mobile chart toggle
+  const [showMobileTradingPanel, setShowMobileTradingPanel] = useState(false) // Mobile trading panel slide-up
+  const [mobileTradingAction, setMobileTradingAction] = useState<'buy' | 'sell'>('buy') // Which action triggered the panel
   
   // Get current market for live price matching
   const { market: currentMarket } = useCurrentMarket({
@@ -859,32 +863,38 @@ function TerminalContent() {
   }, [walletAddress, fetchOrders, fetchPositions, refreshCustodialWallet]) // Include walletAddress to ensure effect runs when wallet changes
 
   return (
-    <div className="bg-dark-bg text-white h-[calc(100vh-73px)] overflow-hidden relative">
+    <div className="bg-dark-bg text-white h-[calc(100vh-73px)] md:h-[calc(100vh-73px)] overflow-hidden relative">
       {/* Main Layout: Charts on Left, Right Panel on Right */}
-      <div className="absolute inset-0 flex flex-col">
-        <ChartControls />
-        <div className="flex-1 min-h-0 flex">
+      {/* Mobile: Account for bottom bar (Buy/Sell buttons ~72px), Desktop: Full height */}
+      {/* Mobile: Account for bottom bar (72px), Desktop: Full height */}
+      <div className="absolute top-0 left-0 right-0 bottom-[72px] md:bottom-0 flex flex-col overflow-hidden">
+        <ChartControls mobileChartView={mobileChartView} setMobileChartView={setMobileChartView} />
+        {/* Mobile: Stack vertically, Desktop: Side by side */}
+        {/* Mobile: flex-1 takes remaining space after ChartControls, Desktop: normal */}
+        <div className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
           {/* Left: Charts + Bottom Tabs */}
-          <div className="flex-1 flex flex-col border-r border-gray-700/50 min-w-0">
-            {/* Charts */}
-            <div className="flex-1 min-h-0 flex">
-              <div className="flex-1">
+          <div className="flex-1 flex flex-col border-r-0 lg:border-r border-gray-700/50 min-w-0 overflow-hidden">
+            {/* Charts - Mobile: Single chart with toggle, Desktop: Side by side */}
+            <div className="flex-1 min-h-0 flex flex-col md:flex-row relative overflow-hidden">
+              {/* Mobile: Show one chart at a time, Desktop: Show both side by side */}
+              <div className={`flex-1 min-h-0 ${mobileChartView === 'poly' ? 'block md:block' : 'hidden md:block'}`}>
                 <PolyLineChart />
               </div>
-              <div className="flex-1 border-l border-gray-700/50">
+              <div className={`flex-1 min-h-0 border-t md:border-t-0 md:border-l border-gray-700/50 ${mobileChartView === 'tradingview' ? 'block md:block' : 'hidden md:block'}`}>
                 <TradingViewChart />
               </div>
             </div>
 
             {/* Bottom Section - Positions/Orders/History Tabs */}
-            <div className="h-64 border-t border-gray-700/50 flex-shrink-0 flex">
+            {/* Mobile: Flexible height that adapts to available space, Desktop: Fixed height */}
+            <div className="flex-shrink-0 border-t border-gray-700/50 flex flex-col overflow-hidden" style={{ height: 'clamp(140px, 25vh, 200px)' }}>
           {/* Left: Position/Orders/History Tabs */}
-          <div className="flex-1 flex flex-col">
-            <div className="flex border-b border-gray-700/50 flex-shrink-0 justify-between">
-              <div className="flex">
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <div className="flex border-b border-gray-700/50 flex-shrink-0 justify-between items-center flex-wrap">
+              <div className="flex flex-1 min-w-0">
           <button
             onClick={() => setActiveTab('position')}
-                  className={`px-4 py-3 text-xs font-medium transition-colors relative h-[49px] uppercase tracking-wider ${
+                  className={`px-3 md:px-4 py-2.5 md:py-3 text-xs font-medium transition-colors relative h-[44px] md:h-[49px] uppercase tracking-wider flex-1 ${
               activeTab === 'position'
                 ? 'text-white'
                 : 'text-gray-400 hover:text-white'
@@ -898,7 +908,7 @@ function TerminalContent() {
           </button>
           <button
             onClick={() => setActiveTab('orders')}
-                  className={`px-4 py-3 text-xs font-medium transition-colors relative h-[49px] uppercase tracking-wider ${
+                  className={`px-3 md:px-4 py-2.5 md:py-3 text-xs font-medium transition-colors relative h-[44px] md:h-[49px] uppercase tracking-wider flex-1 ${
               activeTab === 'orders'
                 ? 'text-white'
                 : 'text-gray-400 hover:text-white'
@@ -912,7 +922,7 @@ function TerminalContent() {
           </button>
           <button
             onClick={() => setActiveTab('history')}
-                  className={`px-4 py-3 text-xs font-medium transition-colors relative h-[49px] uppercase tracking-wider ${
+                  className={`px-3 md:px-4 py-2.5 md:py-3 text-xs font-medium transition-colors relative h-[44px] md:h-[49px] uppercase tracking-wider flex-1 ${
               activeTab === 'history'
                 ? 'text-white'
                 : 'text-gray-400 hover:text-white'
@@ -925,8 +935,8 @@ function TerminalContent() {
             )}
           </button>
               </div>
-              {/* Hide Ended Toggle */}
-              <div className="flex items-center px-4">
+              {/* Hide Ended Toggle - Hide on very small screens */}
+              <div className="flex items-center px-2 md:px-4">
                 <button
                   onClick={() => setHideEnded(!hideEnded)}
                   className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded transition-all ${
@@ -954,26 +964,26 @@ function TerminalContent() {
                 </button>
               </div>
         </div>
-        <div className="overflow-y-auto h-[calc(100%-49px)]">
+        <div className="overflow-y-auto flex-1 min-h-0">
           {activeTab === 'position' && (
-            <div className="w-full">
-              <table className="w-full text-sm">
+            <div className="w-full overflow-x-auto overflow-y-auto flex-1 min-h-0">
+              <table className="w-full text-sm min-w-[600px]">
                 <thead className="text-gray-400 border-b border-gray-700/50">
                   <tr>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Market</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Outcome</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Size</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Avg Price</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Current</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Value</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>PnL</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Action</th>
+                    <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Market</th>
+                    <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Outcome</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Size</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Avg Price</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Current</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Value</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>PnL</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!walletAddress ? (
                     <tr>
-                      <td colSpan={8} className="py-8 px-4 text-center text-gray-500 text-sm">
+                      <td colSpan={8} className="py-6 md:py-8 px-4 text-center text-gray-500 text-sm">
                         Connect wallet to view positions
                       </td>
                     </tr>
@@ -1019,7 +1029,7 @@ function TerminalContent() {
                     if (filteredPositions.length === 0) {
                       return (
                         <tr>
-                          <td colSpan={8} className="py-8 px-4 text-center text-gray-500 text-sm">
+                          <td colSpan={8} className="py-6 md:py-8 px-4 text-center text-gray-500 text-sm">
                             {isLoading ? 'Loading positions...' : hideEnded ? 'No active positions (ended markets hidden)' : 'No open positions'}
                         </td>
                         </tr>
@@ -1146,7 +1156,7 @@ function TerminalContent() {
                       
                       return (
                         <tr key={idx} className={`border-b border-gray-700/30 hover:bg-gray-900/20 ${isResolved ? 'opacity-60' : ''}`}>
-                          <td className="py-3 px-4 max-w-xs truncate" title={position.market}>
+                          <td className="py-2 md:py-3 px-2 md:px-4 max-w-xs truncate" title={position.market}>
                             {position.slug ? (
                               <a
                                 href={`https://polymarket.com/event/${position.slug}`}
@@ -1160,7 +1170,7 @@ function TerminalContent() {
                               <span className="text-white">{position.market}</span>
                             )}
                           </td>
-                          <td className={`py-3 px-4 ${outcomeColor} font-medium`}>
+                          <td className={`py-2 md:py-3 px-2 md:px-4 ${outcomeColor} font-medium`}>
                             {(() => {
                               const outcomeLower = (position.outcome || '').toLowerCase()
                               if (outcomeLower.includes('yes') || outcomeLower.includes('up')) {
@@ -1171,9 +1181,9 @@ function TerminalContent() {
                               return (position.outcome || '').toUpperCase()
                             })()}
                           </td>
-                        <td className="py-3 px-4 text-right text-white">{position.size.toFixed(2)}</td>
-                          <td className="py-3 px-4 text-right text-white">{(position.avgPrice * 100).toFixed(1)}¢</td>
-                          <td className={`py-3 px-4 text-right ${isResolved ? (isWinner ? 'text-green-400' : 'text-red-400') : (currentPrice > position.avgPrice ? 'text-green-400' : currentPrice < position.avgPrice ? 'text-red-400' : 'text-white')}`}>
+                        <td className="py-2 md:py-3 px-2 md:px-4 text-right text-white">{position.size.toFixed(2)}</td>
+                          <td className="py-2 md:py-3 px-2 md:px-4 text-right text-white">{(position.avgPrice * 100).toFixed(1)}¢</td>
+                          <td className={`py-2 md:py-3 px-2 md:px-4 text-right ${isResolved ? (isWinner ? 'text-green-400' : 'text-red-400') : (currentPrice > position.avgPrice ? 'text-green-400' : currentPrice < position.avgPrice ? 'text-red-400' : 'text-white')}`}>
                             {isResolved ? (
                               <span className={isWinner ? 'text-green-400 font-medium' : 'text-red-400 font-medium'}>
                                 {isWinner ? 'WIN' : 'LOSS'}
@@ -1188,7 +1198,7 @@ function TerminalContent() {
                               </>
                             )}
                         </td>
-                          <td className="py-3 px-4 text-right text-white">
+                          <td className="py-2 md:py-3 px-2 md:px-4 text-right text-white">
                             {isResolved ? (
                               <span className={isWinner ? 'text-green-400' : 'text-red-400'}>
                                 ${currentValue.toFixed(2)}
@@ -1197,10 +1207,10 @@ function TerminalContent() {
                               `$${currentValue.toFixed(2)}`
                             )}
                         </td>
-                          <td className={`py-3 px-4 text-right ${calculatedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          <td className={`py-2 md:py-3 px-2 md:px-4 text-right ${calculatedPnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                             {calculatedPnl >= 0 ? '+' : ''}${calculatedPnl.toFixed(2)}
                           </td>
-                          <td className="py-3 px-4 text-right">
+                          <td className="py-2 md:py-3 px-2 md:px-4 text-right">
                             {isResolved ? (
                               // For ended markets, show Claim for winners, Close for losers
                               <button
@@ -1246,23 +1256,23 @@ function TerminalContent() {
             </div>
           )}
           {activeTab === 'orders' && (
-            <div className="w-full">
-              <table className="w-full text-sm">
+            <div className="w-full overflow-x-auto overflow-y-auto flex-1 min-h-0">
+              <table className="w-full text-sm min-w-[600px]">
                 <thead className="text-gray-400 border-b border-gray-700/50">
                   <tr>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Market</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Type</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Side</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Size</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Price</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Status</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Actions</th>
+                    <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Market</th>
+                    <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Type</th>
+                    <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Side</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Size</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Price</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Status</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!walletAddress ? (
                     <tr>
-                      <td colSpan={7} className="py-8 px-4 text-center text-gray-500 text-sm">
+                      <td colSpan={7} className="py-6 md:py-8 px-4 text-center text-gray-500 text-sm">
                         Connect wallet to view orders
                       </td>
                     </tr>
@@ -1309,7 +1319,7 @@ function TerminalContent() {
                     if (activeOrders.length === 0) {
                       return (
                         <tr>
-                          <td colSpan={7} className="py-8 px-4 text-center text-gray-500 text-sm">
+                          <td colSpan={7} className="py-6 md:py-8 px-4 text-center text-gray-500 text-sm">
                             {isLoading ? 'Loading orders...' : hideEnded ? 'No active orders (ended markets hidden)' : 'No open orders'}
                           </td>
                         </tr>
@@ -1355,7 +1365,7 @@ function TerminalContent() {
                       
                       return (
                         <tr key={order.id || idx} className={`border-b border-gray-800 hover:bg-gray-900/30 ${isOrderEnded ? 'opacity-60' : ''}`}>
-                          <td className="py-3 px-4 max-w-xs truncate" title={order.market}>
+                          <td className="py-2 md:py-3 px-2 md:px-4 max-w-xs truncate" title={order.market}>
                             {order.slug ? (
                               <a
                                 href={`https://polymarket.com/event/${order.slug}`}
@@ -1369,14 +1379,14 @@ function TerminalContent() {
                               <span className="text-white">{order.market}</span>
                             )}
                           </td>
-                        <td className="py-3 px-4 text-gray-400">{order.type}</td>
-                        <td className="py-3 px-4">
+                        <td className="py-2 md:py-3 px-2 md:px-4 text-gray-400">{order.type}</td>
+                        <td className="py-2 md:py-3 px-2 md:px-4">
                           <span className={order.side === 'BUY' ? 'text-green-400' : 'text-red-400'}>
                             {order.side} {order.outcome}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-right text-white">{order.size.toFixed(2)}</td>
-                        <td className="py-3 px-4 text-right text-white">
+                        <td className="py-2 md:py-3 px-2 md:px-4 text-right text-white">{order.size.toFixed(2)}</td>
+                        <td className="py-2 md:py-3 px-2 md:px-4 text-right text-white">
                             {isOrderEnded ? (
                               <span className="text-gray-500">-</span>
                             ) : (
@@ -1389,7 +1399,7 @@ function TerminalContent() {
                               </>
                             )}
                         </td>
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-2 md:py-3 px-2 md:px-4 text-right">
                           <span className={`text-xs px-2 py-0.5 rounded ${
                               isOrderEnded 
                                 ? 'bg-gray-700 text-gray-400' 
@@ -1400,7 +1410,7 @@ function TerminalContent() {
                               {isOrderEnded ? 'ENDED' : (order.status || 'unknown').toUpperCase()}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-right">
+                        <td className="py-2 md:py-3 px-2 md:px-4 text-right">
                             <button 
                               onClick={() => handleCancelOrder(order)}
                               disabled={isCancellingOrder === order.id}
@@ -1422,39 +1432,39 @@ function TerminalContent() {
             </div>
           )}
           {activeTab === 'history' && (
-            <div className="w-full">
-              <table className="w-full text-sm">
+            <div className="w-full overflow-x-auto overflow-y-auto flex-1 min-h-0">
+              <table className="w-full text-sm min-w-[600px]">
                 <thead className="text-gray-400 border-b border-gray-700/50">
                   <tr>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Time</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Market</th>
-                    <th className="text-left py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Side</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Size</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Price</th>
-                    <th className="text-right py-3 px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Total</th>
+                    <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Time</th>
+                    <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Market</th>
+                    <th className="text-left py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Side</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Size</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Price</th>
+                    <th className="text-right py-2 md:py-3 px-2 md:px-4 text-xs font-medium uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {!walletAddress ? (
                     <tr>
-                      <td colSpan={6} className="py-8 px-4 text-center text-gray-500 text-sm">
+                      <td colSpan={6} className="py-6 md:py-8 px-4 text-center text-gray-500 text-sm">
                         Connect wallet to view trade history
                       </td>
                     </tr>
                   ) : trades.length > 0 ? (
                     trades.map((trade, idx) => (
                       <tr key={trade.id || idx} className="border-b border-gray-800 hover:bg-gray-900/30">
-                        <td className="py-3 px-4 text-gray-400 whitespace-nowrap">
+                        <td className="py-2 md:py-3 px-2 md:px-4 text-gray-400 whitespace-nowrap">
                           {formatTimestamp(trade.timestamp)}
                         </td>
-                        <td className="py-3 px-4 text-white max-w-xs truncate" title={trade.market}>{trade.market}</td>
-                        <td className="py-3 px-4">
+                        <td className="py-2 md:py-3 px-2 md:px-4 text-white max-w-xs truncate" title={trade.market}>{trade.market}</td>
+                        <td className="py-2 md:py-3 px-2 md:px-4">
                           <span className={trade.side === 'BUY' ? 'text-green-400' : 'text-red-400'}>
                             {trade.side} {trade.outcome}
                           </span>
                         </td>
-                        <td className="py-3 px-4 text-right text-white">{trade.size.toFixed(2)}</td>
-                        <td className="py-3 px-4 text-right text-white">
+                        <td className="py-2 md:py-3 px-2 md:px-4 text-right text-white">{trade.size.toFixed(2)}</td>
+                        <td className="py-2 md:py-3 px-2 md:px-4 text-right text-white">
                           <>
                           <AnimatedPrice
                             value={trade.price * 100}
@@ -1463,12 +1473,12 @@ function TerminalContent() {
                             ¢
                           </>
                         </td>
-                        <td className="py-3 px-4 text-right text-white">${trade.total.toFixed(2)}</td>
+                        <td className="py-2 md:py-3 px-2 md:px-4 text-right text-white">${trade.total.toFixed(2)}</td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="py-8 px-4 text-center text-gray-500 text-sm">
+                      <td colSpan={6} className="py-6 md:py-8 px-4 text-center text-gray-500 text-sm">
                         {isLoading ? 'Loading trade history...' : 'No trade history'}
                       </td>
                     </tr>
@@ -1483,9 +1493,90 @@ function TerminalContent() {
           </div>
           
           {/* Right: Trade Interface + Market Insights + OrderBook */}
+          {/* Mobile: Hidden (shown in slide-up panel), Desktop: Fixed width sidebar */}
+          <div className="hidden lg:flex w-80 border-l border-gray-700/50 flex-shrink-0 overflow-hidden">
           <TerminalRightPanel />
         </div>
       </div>
+      </div>
+
+      {/* Mobile Bottom Bar - Buy/Sell Buttons */}
+      <div 
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-dark-bg border-t border-gray-700/50"
+        style={{ paddingBottom: 'max(env(safe-area-inset-bottom), 0px)' }}
+      >
+        <div className="flex gap-2 p-3">
+          <button
+            onClick={() => {
+              setMobileTradingAction('buy')
+              setShowMobileTradingPanel(true)
+            }}
+            className="flex-1 py-4 px-6 rounded-lg font-bold text-base transition-all duration-200 bg-green-500/10 border border-green-500 text-green-400 hover:bg-green-500/20 active:bg-green-500/30"
+          >
+            BUY
+          </button>
+          <button
+            onClick={() => {
+              setMobileTradingAction('sell')
+              setShowMobileTradingPanel(true)
+            }}
+            className="flex-1 py-4 px-6 rounded-lg font-bold text-base transition-all duration-200 bg-red-500/10 border border-red-500 text-red-400 hover:bg-red-500/20 active:bg-red-500/30"
+          >
+            SELL
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Trading Panel Slide-Up */}
+      {showMobileTradingPanel && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="md:hidden fixed inset-0 bg-black/60 z-[60] transition-opacity"
+            onClick={() => setShowMobileTradingPanel(false)}
+          />
+          {/* Slide-up Panel */}
+          <div
+            className={`md:hidden fixed bottom-0 left-0 right-0 z-[70] bg-dark-bg border-t border-gray-700/50 rounded-t-2xl transition-transform duration-300 ease-out ${
+              showMobileTradingPanel ? 'translate-y-0' : 'translate-y-full'
+            }`}
+            style={{ maxHeight: '85vh' }}
+          >
+            {/* Handle bar */}
+            <div className="flex justify-center pt-3 pb-2">
+              <div className="w-12 h-1 bg-gray-600 rounded-full" />
+            </div>
+            
+            {/* Close button */}
+            <div className="absolute top-3 right-4">
+              <button
+                onClick={() => setShowMobileTradingPanel(false)}
+                className="p-2 text-gray-400 hover:text-white transition-colors"
+                aria-label="Close"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            {/* Trading Panel Content */}
+            <div className="overflow-y-auto" style={{ maxHeight: 'calc(85vh - 60px)' }}>
+              <TradingPanel initialAction={mobileTradingAction} />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }

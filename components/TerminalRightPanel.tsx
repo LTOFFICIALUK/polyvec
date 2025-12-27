@@ -10,10 +10,10 @@ const TerminalRightPanel = () => {
   const [isMarketInsightsExpanded, setIsMarketInsightsExpanded] = useState(false)
 
   return (
-    <div className="w-80 border-l border-gray-700/50 h-full flex flex-col overflow-y-auto">
+    <div className="w-full lg:w-80 h-full flex flex-col overflow-hidden">
       {/* Trade Interface */}
-      <div className="flex-shrink-0 bg-dark-bg border-b border-gray-700/50">
-        <div className="px-4 py-2.5 border-b border-gray-700/50 flex items-center justify-between bg-dark-bg/40">
+      <div className="flex-shrink-0 bg-dark-bg border-b border-gray-700/50 overflow-hidden flex flex-col">
+        <div className="px-4 py-2.5 border-b border-gray-700/50 flex items-center justify-between bg-dark-bg/40 flex-shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-gold-primary/60"></div>
             <span className="text-xs font-medium text-gray-300 tracking-wider uppercase" style={{ fontFamily: 'monospace' }}>
@@ -21,7 +21,7 @@ const TerminalRightPanel = () => {
             </span>
           </div>
         </div>
-        <div className="p-0">
+        <div className="p-0 overflow-y-auto flex-1 min-h-0">
           <TradingPanel />
         </div>
       </div>

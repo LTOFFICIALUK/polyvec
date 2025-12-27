@@ -473,7 +473,7 @@ const PolyLineChart = () => {
         const fetchPastMarketData = async () => {
           try {
             const params = new URLSearchParams({
-              marketId: market.marketId,
+              marketId: market.marketId || '',
               startTime: eventStartTime.toString(),
               endTime: eventEndTime.toString(), // Use actual end time, not "now"
             })

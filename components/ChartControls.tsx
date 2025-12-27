@@ -5,7 +5,13 @@ import { useTradingContext } from '@/contexts/TradingContext'
 import { useToast } from '@/contexts/ToastContext'
 import useCurrentMarket from '@/hooks/useCurrentMarket'
 
-const ChartControls = () => {
+interface ChartControlsProps {
+  mobileChartView?: 'poly' | 'tradingview'
+  setMobileChartView?: (view: 'poly' | 'tradingview') => void
+}
+
+const ChartControls = (props: ChartControlsProps = {}) => {
+  const { mobileChartView, setMobileChartView } = props
   const { selectedTimeframe, selectedPair, showTradingView, marketOffset, setSelectedTimeframe, setSelectedPair, setShowTradingView, setMarketOffset } =
     useTradingContext()
   const { showToast } = useToast()
@@ -265,16 +271,21 @@ const ChartControls = () => {
   }
 
   return (
-    <div className="bg-dark-bg border-b border-gray-700/50 px-2 sm:px-4 py-2 sm:py-3">
-      <div className="flex items-center justify-between">
-        {/* Pair Selector and Timeframes */}
-        <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
-          <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+    <div className="bg-dark-bg border-b border-gray-700/50 px-3 sm:px-4 py-2 sm:py-3">
+      {/* Mobile: Single scrollable row, Desktop: Original horizontal layout */}
+      <div className="md:flex md:items-center md:justify-between">
+        {/* Mobile: Single scrollable row with all controls, Desktop: Horizontal with flex-wrap */}
+        <div className="md:flex md:items-center md:gap-4 md:flex-wrap flex-1 min-w-0">
+          {/* Mobile: Single row - All controls including chart toggles */}
+          {/* Desktop: Pairs and Timeframes */}
+          <div className="flex items-center gap-2 mb-0 md:mb-0 md:gap-2 overflow-x-auto -mx-2.5 px-2.5 md:mx-0 md:px-0">
+            {/* Pairs */}
+            <div className="flex items-center gap-1 flex-shrink-0">
             {pairs.map((pair) => (
               <button
                 key={pair}
                 onClick={() => setSelectedPair(pair)}
-                className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded transition-colors ${
+                  className={`px-2.5 py-1 md:px-2 md:py-1 md:sm:px-3 md:sm:py-1.5 text-xs md:text-xs md:sm:text-sm font-semibold md:font-medium rounded-md md:rounded transition-colors whitespace-nowrap ${
                   selectedPair === pair
                     ? 'bg-gold-primary text-white'
                     : 'text-gray-400 hover:text-white hover:bg-gray-800'
@@ -285,14 +296,16 @@ const ChartControls = () => {
             ))}
           </div>
 
-          <div className="h-6 w-px bg-gray-800 hidden sm:block" />
+            {/* Divider - Mobile: visible, Desktop: hidden */}
+            <div className="h-4 w-px bg-gray-700 md:hidden flex-shrink-0" />
 
-          <div className="flex items-center gap-1 sm:gap-2 flex-wrap relative" ref={dropdownRef}>
+            {/* Timeframes */}
+            <div className="flex items-center gap-1 flex-shrink-0 relative" ref={dropdownRef}>
             {timeframes.map((tf) => (
               <button
                 key={tf}
                 onClick={() => handleTimeframeClick(tf)}
-                className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded transition-colors flex items-center gap-1 ${
+                  className={`px-2.5 py-1 md:px-2 md:py-1 md:sm:px-3 md:sm:py-1.5 text-xs md:text-xs md:sm:text-sm font-semibold md:font-medium rounded-md md:rounded transition-colors flex items-center gap-1 md:gap-1 whitespace-nowrap ${
                   selectedTimeframe === tf
                     ? 'bg-gold-primary text-white'
                     : 'text-gray-400 hover:text-white hover:bg-gray-800'
@@ -301,7 +314,7 @@ const ChartControls = () => {
                 {tf}
                 {selectedTimeframe === tf && (
                   <svg
-                    className={`w-3 h-3 transition-transform ${showMarketDropdown ? 'rotate-180' : ''}`}
+                      className={`w-3 h-3 md:w-3 md:h-3 transition-transform flex-shrink-0 ${showMarketDropdown ? 'rotate-180' : ''}`}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -315,7 +328,7 @@ const ChartControls = () => {
             {/* Market Window Dropdown */}
             {showMarketDropdown && (
               <div className="absolute top-full left-0 mt-1 bg-dark-bg border border-gray-700/50 rounded-lg shadow-xl z-50 min-w-[180px] py-1">
-                <div className="px-3 py-1.5 text-[10px] uppercase text-gray-500 font-semibold tracking-wider border-b border-gray-700/50">
+                <div className="px-3 py-1.5 text-xs uppercase text-gray-500 font-semibold tracking-wider border-b border-gray-700/50">
                   Select Market Window
                 </div>
                 {marketOffsets.map((offset) => {
@@ -351,10 +364,100 @@ const ChartControls = () => {
             )}
           </div>
 
-          <div className="h-6 w-px bg-gray-800 hidden sm:block" />
+            {/* Mobile: Divider before LIVE section */}
+            <div className="h-4 w-px bg-gray-700 md:hidden flex-shrink-0" />
 
-          {/* Current Market Window Indicator */}
-          <div className="flex items-center gap-2 text-xs sm:text-sm">
+            {/* Mobile: LIVE badge, Date/Time, and Countdown - inline with pairs/timeframes */}
+            {/* Desktop: Separate section */}
+            <div className="md:hidden flex items-center gap-1.5 flex-shrink-0">
+              <span className={`px-2 py-1 rounded-md text-xs font-semibold uppercase tracking-wider flex-shrink-0 ${
+                marketOffset === 0 
+                  ? 'bg-green-500/20 text-green-400' 
+                  : marketOffset < 0 
+                    ? 'bg-gray-500/20 text-gray-400'
+                    : 'bg-blue-500/20 text-blue-400'
+              }`}>
+                {marketOffset === 0 ? 'LIVE' : marketOffset < 0 ? 'ENDED' : 'FUTURE'}
+              </span>
+              <span className="text-gray-300 font-medium text-sm whitespace-nowrap flex-shrink-0">
+                {getMarketWindowLabel(marketOffset, true)}
+              </span>
+              {/* Countdown Timer - only show for live market */}
+              {marketOffset === 0 && (
+                <>
+                  <span className="text-gray-500 flex-shrink-0">→</span>
+                  <span className="text-gray-300 font-semibold text-xs tabular-nums flex-shrink-0">
+                    {String(countdown.minutes).padStart(2, '0')}:{String(countdown.seconds).padStart(2, '0')}
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* Chart Type Toggle - Mobile: Inline with controls, Desktop: Hidden */}
+            {mobileChartView && setMobileChartView && (
+              <>
+                <div className="h-4 w-px bg-gray-700 md:hidden flex-shrink-0" />
+                <div className="md:hidden flex items-center gap-1.5 flex-shrink-0">
+            {/* Polymarket Logo Button */}
+            <button
+              onClick={() => setMobileChartView('poly')}
+              className={`p-1.5 rounded-md transition-all ${
+                mobileChartView === 'poly'
+                  ? 'bg-gold-primary/20 border-2 border-gold-primary/50'
+                  : 'border border-gray-700/50 hover:border-gray-600 hover:bg-gray-800/30'
+              }`}
+              aria-label="Poly Orderbook Chart"
+              title="Poly Orderbook"
+            >
+              {/* Polymarket "P" Logo */}
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M6 4h6c2.5 0 4.5 2 4.5 4.5S14.5 13 12 13H8v7H6V4zM8 6v6h4c1.5 0 2.5-1 2.5-2.5S13.5 8 12 8H8z"
+                  fill="currentColor"
+                  className={mobileChartView === 'poly' ? 'text-gold-primary' : 'text-gray-400'}
+                />
+              </svg>
+            </button>
+            
+            {/* TradingView Logo Button */}
+            <button
+              onClick={() => setMobileChartView('tradingview')}
+              className={`p-1.5 rounded-md transition-all ${
+                mobileChartView === 'tradingview'
+                  ? 'bg-gold-primary/20 border-2 border-gold-primary/50'
+                  : 'border border-gray-700/50 hover:border-gray-600 hover:bg-gray-800/30'
+              }`}
+              aria-label="TradingView Chart"
+              title="TradingView"
+            >
+              {/* TradingView Grid Logo */}
+              <svg
+                className="w-4 h-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <rect x="3" y="3" width="7" height="7" rx="1" fill="currentColor" className={mobileChartView === 'tradingview' ? 'text-gold-primary' : 'text-gray-400'} />
+                <rect x="14" y="3" width="7" height="7" rx="1" fill="currentColor" className={mobileChartView === 'tradingview' ? 'text-gold-primary' : 'text-gray-400'} />
+                <rect x="3" y="14" width="7" height="7" rx="1" fill="currentColor" className={mobileChartView === 'tradingview' ? 'text-gold-primary' : 'text-gray-400'} />
+                <rect x="14" y="14" width="7" height="7" rx="1" fill="currentColor" className={mobileChartView === 'tradingview' ? 'text-gold-primary' : 'text-gray-400'} />
+              </svg>
+            </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Desktop divider */}
+          <div className="h-6 w-px bg-gray-800 hidden md:block" />
+
+          {/* Desktop: LIVE badge, Date/Time, and Countdown - separate section */}
+          <div className="hidden md:flex items-center gap-2">
             <span className={`px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wider ${
               marketOffset === 0 
                 ? 'bg-green-500/20 text-green-400' 
@@ -364,54 +467,20 @@ const ChartControls = () => {
             }`}>
               {marketOffset === 0 ? 'LIVE' : marketOffset < 0 ? 'ENDED' : 'FUTURE'}
             </span>
-            <span className="text-gray-300 font-medium">
+            <span className="text-gray-300 font-medium text-sm whitespace-nowrap">
               {getMarketWindowLabel(marketOffset, true)}
             </span>
-          </div>
-
           {/* Countdown Timer - only show for live market */}
           {marketOffset === 0 && (
             <>
-              <span className="text-gray-500 hidden sm:inline">→</span>
-              <span className="text-gray-300 font-medium text-xs sm:text-sm">
+                <span className="text-gray-500">→</span>
+                <span className="text-gray-300 font-medium text-xs tabular-nums">
                 {String(countdown.minutes).padStart(2, '0')}:{String(countdown.seconds).padStart(2, '0')}
               </span>
             </>
           )}
         </div>
-
-        {/* TradingView Chart Button - Commented out, side-by-side view is now default */}
-        {/*
-        <div className="flex items-center">
-          <button
-            onClick={handleTradingViewToggle}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded transition-colors flex items-center gap-2 ${
-              showTradingView
-                ? 'bg-gold-primary text-white'
-                : isFutureMarket
-                  ? 'text-gray-600 cursor-not-allowed'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'
-            }`}
-            aria-label="TradingView Chart"
-            title={isFutureMarket && showTradingView ? 'Poly Orderbook not available for future markets' : 'TradingView Chart'}
-          >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              />
-            </svg>
-            <span className="hidden sm:inline">TradingView</span>
-          </button>
         </div>
-        */}
       </div>
     </div>
   )

@@ -164,7 +164,7 @@ export default function HistoryPage() {
 
     // Use match_time, fallback to last_update if match_time is missing
     const timestampValue = trade.match_time || (trade as any).last_update || (trade as any).timestamp
-    
+
     return {
       id: trade.id,
       timestamp: formatTimestamp(timestampValue),
