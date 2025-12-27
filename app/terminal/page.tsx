@@ -391,61 +391,49 @@ function TerminalContent() {
     setIsLoading(false)
   }, [fetchPositions, fetchOrders, fetchTrades])
 
-  // Handle claiming a winning position
+  // Handle claiming a winning position using custodial wallet
   const handleClaimPosition = useCallback(async (position: Position) => {
     if (!position.conditionId || isClaimingPosition) return
+    if (!user || !custodialWallet) {
+      showToast('Please log in to claim positions', 'error')
+      return
+    }
     
     setIsClaimingPosition(position.conditionId)
     showToast('Preparing to claim position...', 'info')
     
     try {
-      const provider = getBrowserProvider()
-      if (!provider) {
-        throw new Error('No wallet provider found. Please connect your wallet.')
+      const response = await fetch('/api/user/claim-position', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          conditionId: position.conditionId,
+          outcomeIndex: position.outcomeIndex ?? 0,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to claim position')
       }
       
-      // Request accounts to ensure wallet is connected and unlocked
-      try {
-        await provider.send('eth_requestAccounts', [])
-      } catch (accountError: any) {
-        if (accountError.code === 4001) {
-          throw new Error('Please connect your wallet to continue')
-        }
-        // Continue anyway, wallet might already be connected
-      }
+      showToast(`✓ Position claimed! TX: ${result.txHash.slice(0, 10)}...`, 'success')
       
-      // Ensure we're on Polygon network
-      await ensurePolygonNetwork(provider)
-      
-      showToast('Please confirm the transaction in your wallet...', 'info')
-      
-      const txHash = await redeemPosition(
-        provider,
-        position.conditionId,
-        position.outcomeIndex ?? 0
-      )
-      
-      showToast(`✓ Position claimed! TX: ${txHash.slice(0, 10)}...`, 'success')
-      
-      // Refresh positions after claim
+      // Refresh positions and balances after claim
       setTimeout(() => {
         fetchPositions()
+        refreshCustodialWallet(true)
       }, 2000)
     } catch (error: any) {
       console.error('[Claim] Error:', error)
-      if (error.message?.includes('rejected') || error.code === 4001 || error.message?.includes('ACTION_REJECTED')) {
-        showToast('Claim cancelled', 'warning')
-      } else if (error.message?.includes('connect your wallet')) {
-        showToast(error.message, 'error')
-      } else if (error.message?.includes('network')) {
-        showToast('Please switch to Polygon network', 'error')
-      } else {
-        showToast(`Failed to claim: ${error.message || 'Unknown error'}`, 'error')
-      }
+      showToast(`Failed to claim: ${error.message || 'Unknown error'}`, 'error')
     } finally {
       setIsClaimingPosition(null)
     }
-  }, [isClaimingPosition, showToast, fetchPositions])
+  }, [isClaimingPosition, user, custodialWallet, showToast, fetchPositions, refreshCustodialWallet])
 
   // Handle closing a losing position using custodial wallet
   const handleClosePosition = useCallback(async (position: Position) => {
