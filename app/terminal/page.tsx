@@ -142,13 +142,6 @@ function TerminalContent() {
           // as curPrice may be from wrong market
           const isRedeemable = pos.redeemable === true
           
-          // A position is a "loss" if market is resolved and redeemable is false
-          // Don't use curPrice to determine loss as it may be from wrong market
-          const isLoss = pos.redeemable === false && (pos.resolved === true || pos.is_resolved === true)
-          
-          // Winner is determined by redeemable flag directly from API
-          const isWinner = isRedeemable
-          
           // Extract market end date from slug timestamp if available
           // Slug format: "sol-updown-15m-1764356400" or "sol-updown-1h-1764356400"
           let marketEndDate: string | undefined = undefined
@@ -179,6 +172,32 @@ function TerminalContent() {
             marketEndDate = pos.endDate || pos.end_date || pos.endTime || pos.end_time
           }
           
+          // Determine if market is resolved (ended) - check multiple sources
+          // Don't rely solely on redeemable flag, as losing positions aren't redeemable but markets can still be resolved
+          let isResolved = false
+          
+          // Check if API explicitly says market is resolved
+          if (pos.resolved === true || pos.is_resolved === true) {
+            isResolved = true
+          }
+          
+          // Check if market end date has passed
+          if (!isResolved && marketEndDate) {
+            const endDate = new Date(marketEndDate)
+            if (!isNaN(endDate.getTime()) && endDate.getTime() <= Date.now()) {
+              isResolved = true
+            }
+          }
+          
+          // If redeemable is true, market must be resolved (you can only redeem resolved markets)
+          // But don't use this as the only check since losing positions aren't redeemable
+          if (!isResolved && isRedeemable) {
+            isResolved = true
+          }
+          
+          // A position is a "loss" if market is resolved and redeemable is false
+          const isLoss = isResolved && !isRedeemable
+          
           return {
             market: pos.title || pos.market || 'Unknown Market',
             outcome: pos.outcome || 'Yes',
@@ -189,11 +208,11 @@ function TerminalContent() {
             pnl: parseFloat(pos.cashPnl || pos.pnl || '0'),
             tokenId: pos.asset || pos.tokenId || pos.token_id || '',
           conditionId: pos.conditionId || pos.condition_id || '',
-            redeemable: isWinner, // Only show Claim for actual winners
+            redeemable: isRedeemable, // Only show Claim for actual winners (redeemable positions)
             outcomeIndex: pos.outcomeIndex ?? 0,
             slug: slug,
             isLoss: isLoss, // Show Close for resolved losers
-            resolved: isRedeemable, // Market has resolved
+            resolved: isResolved, // Market has resolved (ended) - independent of win/loss
             marketEndDate: marketEndDate,
           }
         })
