@@ -1,5 +1,3 @@
-'use server'
-
 import { NextRequest, NextResponse } from 'next/server'
 import { jwtVerify } from 'jose'
 import { ethers } from 'ethers'
