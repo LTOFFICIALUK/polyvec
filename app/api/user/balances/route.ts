@@ -87,18 +87,46 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify token
-    const { payload } = await jwtVerify(token, secret)
-    const userId = payload.userId as number
+    let userId: number
+    try {
+      const { payload } = await jwtVerify(token, secret)
+      userId = payload.userId as number
+    } catch (jwtError: any) {
+      console.error('[Balances API] JWT verification error:', jwtError)
+      return NextResponse.json(
+        { error: 'Invalid authentication token' },
+        { status: 401 }
+      )
+    }
 
-    const db = getDbPool()
+    let db
+    try {
+      db = getDbPool()
+    } catch (dbError: any) {
+      console.error('[Balances API] Database connection error:', dbError)
+      return NextResponse.json(
+        { error: 'Database connection failed' },
+        { status: 500 }
+      )
+    }
+
     const { searchParams } = new URL(request.url)
     const shouldSync = searchParams.get('sync') === 'true'
     
     // Get wallet address
-    const walletResult = await db.query(
-      'SELECT wallet_address FROM users WHERE id = $1',
-      [userId]
-    )
+    let walletResult
+    try {
+      walletResult = await db.query(
+        'SELECT wallet_address FROM users WHERE id = $1',
+        [userId]
+      )
+    } catch (queryError: any) {
+      console.error('[Balances API] Database query error:', queryError)
+      return NextResponse.json(
+        { error: 'Failed to fetch wallet address' },
+        { status: 500 }
+      )
+    }
 
     if (walletResult.rows.length === 0) {
       return NextResponse.json({
@@ -163,12 +191,23 @@ export async function GET(request: NextRequest) {
     }
     
     // Get balances from database
-    const balanceResult = await db.query(
-      `SELECT usdc_balance, pol_balance, wallet_address 
-       FROM user_balances 
-       WHERE user_id = $1`,
-      [userId]
-    )
+    let balanceResult
+    try {
+      balanceResult = await db.query(
+        `SELECT usdc_balance, pol_balance, wallet_address 
+         FROM user_balances 
+         WHERE user_id = $1`,
+        [userId]
+      )
+    } catch (queryError: any) {
+      console.error('[Balances API] Database query error (balances):', queryError)
+      // Return default values instead of failing
+      return NextResponse.json({
+        usdc_balance: '0',
+        pol_balance: '0',
+        wallet_address: walletAddressLower,
+      })
+    }
 
     if (balanceResult.rows.length === 0) {
       return NextResponse.json({
@@ -181,20 +220,26 @@ export async function GET(request: NextRequest) {
     const balance = balanceResult.rows[0]
 
     return NextResponse.json({
-      usdc_balance: balance.usdc_balance.toString(),
-      pol_balance: balance.pol_balance.toString(),
+      usdc_balance: balance.usdc_balance?.toString() || '0',
+      pol_balance: balance.pol_balance?.toString() || '0',
       wallet_address: balance.wallet_address || walletAddressLower,
     })
   } catch (error: any) {
-    console.error('[Balances API] Error:', error)
+    console.error('[Balances API] Unexpected error:', error)
     // Log more details for debugging
     if (error.code) {
       console.error('[Balances API] Error code:', error.code)
     }
-    return NextResponse.json(
-      { error: error.message || 'Failed to get balances' },
-      { status: 500 }
-    )
+    if (error.message) {
+      console.error('[Balances API] Error message:', error.message)
+    }
+    // Return default values instead of failing completely
+    return NextResponse.json({
+      usdc_balance: '0',
+      pol_balance: '0',
+      wallet_address: null,
+      error: 'Failed to get balances, using defaults',
+    })
   }
 }
 
