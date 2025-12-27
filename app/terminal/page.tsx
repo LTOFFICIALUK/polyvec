@@ -542,7 +542,7 @@ function TerminalContent() {
     }
   }, [isCancellingOrder, walletAddress, polymarketCredentials, showToast, fetchOrders])
 
-  // Handle selling entire position
+  // Handle selling entire position using custodial wallet
   const handleSellAllPosition = useCallback(async (position: Position) => {
     if (!position.tokenId || !position.size || isSellingPosition || !polymarketCredentials) {
       if (!polymarketCredentials) {
@@ -551,26 +551,17 @@ function TerminalContent() {
       return
     }
 
+    if (!user || !custodialWallet) {
+      showToast('Please log in to sell positions', 'error')
+      return
+    }
+
     setIsSellingPosition(position.tokenId)
     showToast(`Preparing to sell ${position.size.toFixed(2)} shares...`, 'info')
 
     try {
-      const provider = getBrowserProvider()
-      if (!provider) {
-        throw new Error('No wallet provider found')
-      }
-
-      await ensurePolygonNetwork(provider)
-
-      // Get the actual signer address
-      const walletSigner = await provider.getSigner()
-      const actualSignerAddress = await walletSigner.getAddress()
-
-      if (walletAddress && walletAddress.toLowerCase() !== actualSignerAddress.toLowerCase()) {
-        showToast('Wallet address changed. Please reconnect your wallet.', 'warning')
-        setIsSellingPosition(null)
-        return
-      }
+      // Use custodial wallet address
+      const actualSignerAddress = custodialWallet.walletAddress
 
       // Fetch current orderbook to get best bid price for market order
       // The orderbook API returns prices as decimals (0-1), same as how buy orders work
@@ -614,20 +605,28 @@ function TerminalContent() {
 
       showToast(`Signing SELL order: ${position.size.toFixed(2)} shares @ ${bestBidPriceCents.toFixed(0)}¢`, 'info', 6000)
 
-      // Create signed order (SELL market order - FAK for partial fills)
-      // Use priceDecimal directly (already in 0-1 format, same as buy orders)
-      const signedOrder = await createSignedOrder(
-        {
-          tokenId: position.tokenId,
+      // Sign order using VPS (secure - keys never leave VPS, uses custodial wallet)
+      const signResponse = await fetch('/api/trade/sign-order-vps', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tokenId: position.tokenId, // Use position's tokenId (correct for this position's outcome)
           side: OrderSide.SELL,
           price: priceDecimal, // Already in decimal format (0-1)
           size: position.size,
-          maker: actualSignerAddress,
-          signer: actualSignerAddress,
           negRisk: isNegRiskMarket,
-        },
-        provider
-      )
+        }),
+      })
+
+      if (!signResponse.ok) {
+        const errorData = await signResponse.json()
+        throw new Error(errorData.error || 'Failed to sign order')
+      }
+
+      const signData = await signResponse.json()
+      const signedOrder = signData.signedOrder
 
       // Place the order
       // Use FAK (Fill-And-Kill) for market orders - allows partial fills
