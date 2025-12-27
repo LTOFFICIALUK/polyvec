@@ -106,7 +106,8 @@ const PolyLineChart = () => {
     try {
       const now = Date.now()
       const eventStartTime = market.startTime
-      const eventEndTime = Math.min(market.endTime, now) // Don't fetch future data
+      // Use Math.min to only request data up to the current time (future data doesn't exist yet)
+      const eventEndTime = Math.min(market.endTime, now)
 
       // Build query parameters
       const params = new URLSearchParams({
@@ -438,14 +439,16 @@ const PolyLineChart = () => {
     }
     previousMarketIdRef.current = market?.marketId ?? null
 
-    // Only start charting if we have event start/end times
-    if (!market?.startTime || !market?.endTime) {
+    // Wait for market data to be ready before proceeding
+    if (!market?.startTime || !market?.endTime || !market?.marketId) {
       setSeries([])
       if (workerRef.current) {
         workerRef.current.postMessage({ type: 'STOP' })
         workerRef.current.terminate()
         workerRef.current = null
       }
+      // Return early - but the effect will run again when market data becomes available
+      // due to dependencies on market?.startTime, market?.endTime, market?.marketId
       return
     }
 
@@ -463,15 +466,14 @@ const PolyLineChart = () => {
       }
 
       // Fetch historical data for the past market
-      const currentMarketKey = market?.marketId ? `${market.marketId}-${market.startTime}-past` : null
-      if (currentMarketKey && historyFetchedRef.current !== currentMarketKey) {
-        historyFetchedRef.current = currentMarketKey
-        
+      const currentMarketKey = `${market.marketId}-${market.startTime}-past`
+      if (historyFetchedRef.current !== currentMarketKey) {
+        // Don't set the ref until AFTER the fetch completes successfully
         // For past markets, fetch for the full event window
         const fetchPastMarketData = async () => {
           try {
             const params = new URLSearchParams({
-              marketId: market.marketId!,
+              marketId: market.marketId,
               startTime: eventStartTime.toString(),
               endTime: eventEndTime.toString(), // Use actual end time, not "now"
             })
@@ -493,12 +495,14 @@ const PolyLineChart = () => {
 
             
             if (historicalData.length > 0) {
+              // Only set the ref after successful fetch to prevent race conditions
+              historyFetchedRef.current = currentMarketKey
               // Convert decimal prices (0-1) to cents (0-100) for chart
               setSeries(historicalData.map((point: any) => {
                 const up = point.upPrice || 0
                 const down = point.downPrice || 0
                 return {
-                time: point.time,
+                  time: point.time,
                   upPrice: up <= 1 ? up * 100 : up,
                   downPrice: down <= 1 ? down * 100 : down,
                 }
@@ -506,6 +510,7 @@ const PolyLineChart = () => {
             }
           } catch (error) {
             console.error('[PolyLineChart] Error loading past market data:', error)
+            // Don't set the ref on error, so it will retry on next render
           }
         }
 
@@ -526,22 +531,11 @@ const PolyLineChart = () => {
     }
 
     // LIVE market: Fetch historical data first (if market changed or first load)
-    const currentMarketKey = market?.marketId ? `${market.marketId}-${market.startTime}` : null
-    const shouldFetchHistory = (currentMarketKey && historyFetchedRef.current !== currentMarketKey)
-
-    if (shouldFetchHistory && currentMarketKey) {
-      historyFetchedRef.current = currentMarketKey
-      fetchHistoricalData().then((historicalData) => {
-        if (historicalData.length > 0) {
-          setSeries(historicalData)
-        } else {
-        }
-      }).catch((error) => {
-        console.error('[PolyLineChart] Error loading historical data:', error)
-      })
-    }
+    const currentMarketKey = `${market.marketId}-${market.startTime}`
+    const shouldFetchHistory = historyFetchedRef.current !== currentMarketKey
 
     // Update chart with current prices (LIVE market only)
+    // This appends new points to existing historical data
     const updateChart = async () => {
       if (!fetchPricesRef.current) return
       
@@ -552,6 +546,8 @@ const PolyLineChart = () => {
       
       setSeries((prev) => {
         // Filter out points outside the event window or from different markets
+        // If prev is empty (historical data still loading), this will return empty array
+        // and we'll still add the new point below
         const filtered = prev.filter((point) => point.time >= eventStartTime && point.time <= eventEndTime)
         
         // Use previous prices if new ones aren't available
@@ -567,22 +563,51 @@ const PolyLineChart = () => {
         }
 
         // Check if we already have a point for this second (avoid duplicates)
-        if (lastPoint && Math.abs(lastPoint.time - currentTime) < 500) {
-          // Update existing point if it's within 500ms
+        if (lastPoint && Math.abs(lastPoint.time - currentTime) < 1000) {
+          // Update existing point if it's within 1 second (more lenient to avoid overwriting historical data)
           return filtered.slice(0, -1).concat([newPoint])
         }
 
-        // Add new point, keeping only points within event window
-        const updated = [...filtered, newPoint].filter(
-          (point) => point.time >= eventStartTime && point.time <= eventEndTime
-        )
+        // Add new point to existing filtered data, preserving all historical points
+        const updated = [...filtered, newPoint]
+        // Sort by time to ensure correct order (historical data + new points)
+        updated.sort((a, b) => a.time - b.time)
         
         return updated
       })
     }
 
-    // Initial fetch
-    updateChart()
+    // Fetch historical data first, then start live updates
+    if (shouldFetchHistory) {
+      // Don't set the ref until AFTER the fetch completes successfully
+      fetchHistoricalData().then((historicalData) => {
+        // Only set the ref after successful fetch to prevent race conditions
+        historyFetchedRef.current = currentMarketKey
+        if (historicalData.length > 0) {
+          // Set historical data first, using a functional update to ensure it's set
+          setSeries(historicalData)
+          console.log(`[PolyLineChart] Loaded ${historicalData.length} historical price points for market ${market.marketId}`)
+          
+          // Use setTimeout to ensure state update completes before starting live updates
+          // This prevents updateChart from seeing empty prev state
+          setTimeout(() => {
+            updateChart()
+          }, 100)
+        } else {
+          console.warn(`[PolyLineChart] No historical data returned for market ${market.marketId}`)
+          // Start live updates anyway even without historical data
+          updateChart()
+        }
+      }).catch((error) => {
+        console.error('[PolyLineChart] Error loading historical data:', error)
+        // Don't set the ref on error, so it will retry on next render
+        // Start live updates anyway
+        updateChart()
+      })
+    } else {
+      // History already fetched, start live updates immediately
+      updateChart()
+    }
 
     // Create Web Worker for background-safe timing (avoids browser throttling)
     // Web Workers run independently of the main thread and aren't throttled in background tabs

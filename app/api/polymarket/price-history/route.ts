@@ -89,7 +89,7 @@ export async function GET(req: Request) {
             upPrice: p.yb / 100, // Convert cents to decimal
             downPrice: p.nb / 100, // Convert cents to decimal
           })
-        }
+    }
       }
     }
     

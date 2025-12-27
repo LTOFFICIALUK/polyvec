@@ -102,7 +102,7 @@ const OrderbookBarChart = () => {
 
     // Subscribe to orderbook updates via WebSocket (if connected)
     if (isConnected) {
-      subscribeMarkets([tokenId], handleOrderbookUpdate)
+    subscribeMarkets([tokenId], handleOrderbookUpdate)
     }
 
     // Fetch initial data from API (works regardless of WebSocket connection)
@@ -164,9 +164,9 @@ const OrderbookBarChart = () => {
       {/* Header */}
       <div className="px-4 py-2 border-b border-gray-700/50 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-gray-400 tracking-wider uppercase" style={{ fontFamily: 'monospace' }}>
-            ORDERBOOK
-          </span>
+        <span className="text-xs font-medium text-gray-400 tracking-wider uppercase" style={{ fontFamily: 'monospace' }}>
+          ORDERBOOK
+        </span>
           {market?.polymarketUrl && (
             <a
               href={market.polymarketUrl}

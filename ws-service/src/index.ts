@@ -2718,7 +2718,7 @@ const ensureMarketMetadataForPair = async (pair?: string, timeframe?: string): P
           marketMetadata = await fetchMarketBySlug(fallbackSlug)
           if (!marketMetadata) {
             console.log(`[Server] Fallback slug also returned no market`)
-            return
+        return
           }
           console.log(`[Server] Found market with fallback slug, using it`)
         } else {
@@ -3150,7 +3150,7 @@ function startAutomaticMarketRefresh() {
     }
   }, 60 * 1000) // 1 minute
   
-  // Refresh 1h markets every hour
+  // Refresh 1h markets every 15 minutes (more frequent to catch new markets quickly)
   setInterval(async () => {
     console.log('[Server] Auto-refreshing 1h markets...')
     for (const pair of pairs) {
@@ -3160,7 +3160,7 @@ function startAutomaticMarketRefresh() {
         console.error(`[Server] Error auto-refreshing ${pair} 1h:`, error)
       }
     }
-  }, 60 * 60 * 1000) // 1 hour
+  }, 15 * 60 * 1000) // 15 minutes (was 1 hour - changed to discover new markets faster)
   
   // Also do an initial refresh after 1 minute (to catch any markets that appeared after startup)
   setTimeout(async () => {
