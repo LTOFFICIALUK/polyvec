@@ -521,7 +521,7 @@ const Header = () => {
                   className="absolute right-0 top-full pt-1 z-50"
                   style={{ zIndex: 9999 }}
                 >
-                  <div className="w-40 rounded-lg border border-gray-800 bg-dark-bg/95 text-white shadow-lg backdrop-blur overflow-hidden">
+                  <div className="w-40 rounded-lg border border-gray-800 bg-dark-bg text-white shadow-lg overflow-hidden">
                     <button
                       onClick={() => {
                         setIsProfileMenuVisible(false)
