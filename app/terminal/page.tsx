@@ -1013,7 +1013,10 @@ function TerminalContent() {
                             if (!isNaN(endDate.getTime()) && endDate.getTime() <= Date.now()) {
                               isResolved = true
                             }
-                          } else if (position.redeemable || position.isLoss || position.resolved) {
+                          }
+                          
+                          // Final fallback: use position.resolved flag (set correctly in fetchPositions)
+                          if (!isResolved && position.resolved) {
                             isResolved = true
                           }
                         }
