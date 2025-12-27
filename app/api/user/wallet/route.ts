@@ -24,14 +24,42 @@ export async function GET(request: NextRequest) {
     }
 
     // Verify token
-    const { payload } = await jwtVerify(token, secret)
-    const userId = payload.userId as number
+    let userId: number
+    try {
+      const { payload } = await jwtVerify(token, secret)
+      userId = payload.userId as number
+    } catch (jwtError: any) {
+      console.error('[Wallet API] JWT verification error:', jwtError)
+      return NextResponse.json(
+        { error: 'Invalid authentication token' },
+        { status: 401 }
+      )
+    }
 
-    const db = getDbPool()
-    const result = await db.query(
-      'SELECT wallet_address FROM users WHERE id = $1',
-      [userId]
-    )
+    let db
+    try {
+      db = getDbPool()
+    } catch (dbError: any) {
+      console.error('[Wallet API] Database connection error:', dbError)
+      return NextResponse.json(
+        { error: 'Database connection failed' },
+        { status: 500 }
+      )
+    }
+
+    let result
+    try {
+      result = await db.query(
+        'SELECT wallet_address FROM users WHERE id = $1',
+        [userId]
+      )
+    } catch (queryError: any) {
+      console.error('[Wallet API] Database query error:', queryError)
+      return NextResponse.json(
+        { error: 'Failed to fetch wallet address' },
+        { status: 500 }
+      )
+    }
 
     if (result.rows.length === 0) {
       return NextResponse.json(
@@ -52,13 +80,17 @@ export async function GET(request: NextRequest) {
       wallet_address: walletAddress,
     })
   } catch (error: any) {
-    console.error('[Wallet API] Error:', error)
+    console.error('[Wallet API] Unexpected error:', error)
     // Log more details for debugging
     if (error.code) {
-      console.error('[Wallet API] Database error code:', error.code)
+      console.error('[Wallet API] Error code:', error.code)
     }
+    if (error.message) {
+      console.error('[Wallet API] Error message:', error.message)
+    }
+    // Return a more graceful error instead of 500
     return NextResponse.json(
-      { error: error.message || 'Failed to get wallet' },
+      { error: 'Failed to get wallet address' },
       { status: 500 }
     )
   }
