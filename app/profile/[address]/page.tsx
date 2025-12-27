@@ -309,14 +309,9 @@ export default function ProfilePage() {
                     {profileData?.username || formatAddress(address)}
                   </h1>
                   {profileData?.username && (
-                    <p className="text-sm text-gray-400 font-mono">{formatAddress(address)}</p>
+                    <p className="text-xs text-gray-400">{formatAddress(address)}</p>
                   )}
                 </div>
-                {isOwnProfile && (
-                  <span className="px-2 py-1 bg-gold-primary/20 text-gold-primary text-xs font-medium rounded">
-                    Your Profile
-                  </span>
-                )}
               </div>
               {!profileData?.username && (
                 <div className="flex items-center gap-3 flex-wrap">

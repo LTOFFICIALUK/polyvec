@@ -10,7 +10,7 @@ const TerminalRightPanel = () => {
   const [isMarketInsightsExpanded, setIsMarketInsightsExpanded] = useState(false)
 
   return (
-    <div className="w-full lg:w-80 h-full flex flex-col overflow-hidden">
+    <div className="w-full lg:w-80 h-full flex flex-col overflow-y-auto">
       {/* Trade Interface */}
       <div className="flex-shrink-0 bg-dark-bg border-b border-gray-700/50 overflow-hidden flex flex-col">
         <div className="px-4 py-2.5 border-b border-gray-700/50 flex items-center justify-between bg-dark-bg/40 flex-shrink-0">
@@ -49,7 +49,7 @@ const TerminalRightPanel = () => {
           </svg>
         </button>
         {isOrderBookExpanded && (
-          <div className="flex-shrink-0" style={{ height: '400px' }}>
+          <div className="flex-shrink-0 overflow-y-auto" style={{ height: '400px' }}>
             <OrderBook />
           </div>
         )}
@@ -78,7 +78,7 @@ const TerminalRightPanel = () => {
           </svg>
         </button>
         {isMarketInsightsExpanded && (
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 overflow-y-auto">
             <MarketInsights />
           </div>
         )}

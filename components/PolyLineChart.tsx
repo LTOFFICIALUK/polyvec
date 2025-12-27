@@ -994,6 +994,60 @@ const PolyLineChart = () => {
                     opacity="0.7"
                   />
                 )}
+                
+                {/* Price labels on crosshair */}
+                {hoveredPositions && hoveredPoint && (
+                  <>
+                    {/* UP price label */}
+                    <g>
+                      <rect
+                        x={hoveredPositions.x - 1.5}
+                        y={hoveredPositions.upY - 1}
+                        width="3"
+                        height="2"
+                        fill="#10b981"
+                        opacity="0.9"
+                        rx="0.2"
+                      />
+                      <text
+                        x={hoveredPositions.x}
+                        y={hoveredPositions.upY}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill="#ffffff"
+                        fontSize="0.8"
+                        fontWeight="bold"
+                        style={{ pointerEvents: 'none', userSelect: 'none' }}
+                      >
+                        {hoveredPoint.upPrice.toFixed(1)}¢
+                      </text>
+                    </g>
+                    {/* DOWN price label */}
+                    <g>
+                      <rect
+                        x={hoveredPositions.x - 1.5}
+                        y={hoveredPositions.downY - 1}
+                        width="3"
+                        height="2"
+                        fill="#ef4444"
+                        opacity="0.9"
+                        rx="0.2"
+                      />
+                      <text
+                        x={hoveredPositions.x}
+                        y={hoveredPositions.downY}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill="#ffffff"
+                        fontSize="0.8"
+                        fontWeight="bold"
+                        style={{ pointerEvents: 'none', userSelect: 'none' }}
+                      >
+                        {hoveredPoint.downPrice.toFixed(1)}¢
+                      </text>
+                    </g>
+                  </>
+                )}
               </svg>
 
               {/* Trade bubble tooltips - rendered outside SVG for better positioning */}
@@ -1029,32 +1083,71 @@ const PolyLineChart = () => {
                 )
               })()}
               
-              {/* Hover dots - rendered as HTML for proper circular shape */}
-              {hoveredPositions && (
-                <div 
-                  className="absolute left-14 top-0 bottom-0 pointer-events-none"
-                  style={{ width: 'calc(100% - 56px)' }}
-                >
-                  {/* UP price dot (green) */}
-                  <div
-                    className="absolute w-3 h-3 rounded-full bg-emerald-500 border-2 border-black"
-                    style={{
-                      left: `${hoveredPositions.x}%`,
-                      top: `${hoveredPositions.upY}%`,
-                      transform: 'translate(-50%, -50%)',
-                    }}
-                  />
-                  {/* DOWN price dot (red) */}
-                  <div
-                    className="absolute w-3 h-3 rounded-full bg-red-500 border-2 border-black"
-                    style={{
-                      left: `${hoveredPositions.x}%`,
-                      top: `${hoveredPositions.downY}%`,
-                      transform: 'translate(-50%, -50%)',
-                    }}
-                  />
-                </div>
-              )}
+              {/* Hover dots and price tooltip - rendered as HTML for proper circular shape */}
+              {hoveredPositions && hoveredPoint && chartContainerRef.current && (() => {
+                const rect = chartContainerRef.current.getBoundingClientRect()
+                const svgLeftOffset = 56 // left-14 = 56px
+                const svgWidth = rect.width - svgLeftOffset
+                const svgHeight = rect.height
+                
+                // Convert viewBox coordinates to pixel coordinates
+                const pixelX = (hoveredPositions.x / 100) * svgWidth + svgLeftOffset
+                const upPixelY = (hoveredPositions.upY / 100) * svgHeight
+                const downPixelY = (hoveredPositions.downY / 100) * svgHeight
+                
+                return (
+                  <>
+                    {/* UP price dot (green) */}
+                    <div
+                      className="absolute w-3 h-3 rounded-full bg-emerald-500 border-2 border-black pointer-events-none z-10"
+                      style={{
+                        left: `${pixelX}px`,
+                        top: `${upPixelY}px`,
+                        transform: 'translate(-50%, -50%)',
+                      }}
+                    />
+                    {/* DOWN price dot (red) */}
+                    <div
+                      className="absolute w-3 h-3 rounded-full bg-red-500 border-2 border-black pointer-events-none z-10"
+                      style={{
+                        left: `${pixelX}px`,
+                        top: `${downPixelY}px`,
+                        transform: 'translate(-50%, -50%)',
+                      }}
+                    />
+                    
+                    {/* Price tooltip at top of chart */}
+                    <div
+                      className="absolute pointer-events-none z-20"
+                      style={{
+                        left: `${pixelX}px`,
+                        top: '8px',
+                        transform: 'translateX(-50%)',
+                      }}
+                    >
+                      <div className="bg-gray-800/95 border border-gray-700 rounded px-2 py-1 shadow-lg">
+                        <div className="flex items-center gap-3 text-xs">
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                            <span className="text-emerald-400 font-semibold font-mono">
+                              UP: {hoveredPoint.upPrice.toFixed(1)}¢
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 rounded-full bg-red-500"></div>
+                            <span className="text-red-400 font-semibold font-mono">
+                              DOWN: {hoveredPoint.downPrice.toFixed(1)}¢
+                            </span>
+                          </div>
+                          <span className="text-gray-400 text-[10px] ml-1">
+                            {formatTime(hoveredPoint.time)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )
+              })()}
               
               {/* Invisible hover area for mouse events - overlays the chart area */}
               <div
