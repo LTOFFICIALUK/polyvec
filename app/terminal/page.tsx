@@ -138,9 +138,8 @@ function TerminalContent() {
         const data = await response.json()
         const formattedPositions: Position[] = (data.positions || []).map((pos: any) => {
           const curPrice = parseFloat(pos.curPrice || pos.currentPrice || '0')
-          // Use API's redeemable flag directly - don't calculate based on curPrice
-          // as curPrice may be from wrong market
-          const isRedeemable = pos.redeemable === true
+          const cashPnl = parseFloat(pos.cashPnl || pos.pnl || '0')
+          const currentValue = parseFloat(pos.currentValue || (curPrice * parseFloat(pos.size || '0')) || '0')
           
           // Extract market end date from slug timestamp if available
           // Slug format: "sol-updown-15m-1764356400" or "sol-updown-1h-1764356400"
@@ -173,7 +172,6 @@ function TerminalContent() {
           }
           
           // Determine if market is resolved (ended) - check multiple sources
-          // Don't rely solely on redeemable flag, as losing positions aren't redeemable but markets can still be resolved
           let isResolved = false
           
           // Check if API explicitly says market is resolved
@@ -190,13 +188,52 @@ function TerminalContent() {
           }
           
           // If redeemable is true, market must be resolved (you can only redeem resolved markets)
-          // But don't use this as the only check since losing positions aren't redeemable
-          if (!isResolved && isRedeemable) {
+          if (!isResolved && pos.redeemable === true) {
             isResolved = true
           }
           
-          // A position is a "loss" if market is resolved and redeemable is false
-          const isLoss = isResolved && !isRedeemable
+          // Determine WIN/LOSS more accurately using multiple indicators
+          // For resolved markets, check: PnL, price, and value to determine actual outcome
+          // redeemable flag alone is not reliable - it may mean "can be redeemed" not "is a winner"
+          let isWinner = false
+          let isLoss = false
+          
+          if (isResolved) {
+            // A position is a WINNER if:
+            // 1. redeemable is true AND
+            // 2. (PnL is positive OR price is > 0.5 OR value is significant)
+            const hasPositivePnL = cashPnl > 0.01 // More than 1 cent profit
+            const hasHighPrice = curPrice > 0.5 // Price above 50 cents
+            const hasSignificantValue = currentValue > 0.01 // Value more than 1 cent
+            
+            // A position is a LOSER if:
+            // 1. redeemable is false OR
+            // 2. (PnL is zero/negative AND price is < 0.5 AND value is near zero)
+            const hasNegativePnL = cashPnl <= 0
+            const hasLowPrice = curPrice < 0.5 // Price below 50 cents
+            const hasNoValue = currentValue <= 0.01 // Value is near zero
+            
+            if (pos.redeemable === true && (hasPositivePnL || hasHighPrice || hasSignificantValue)) {
+              isWinner = true
+            } else if (pos.redeemable === false || (hasNegativePnL && hasLowPrice && hasNoValue)) {
+              isLoss = true
+            } else if (pos.redeemable === true) {
+              // redeemable is true but indicators suggest loss - trust the indicators
+              // This handles the case where redeemable=true but it's actually a loss
+              if (hasNegativePnL && hasLowPrice && hasNoValue) {
+                isLoss = true
+              } else {
+                // If redeemable is true and indicators are mixed, trust redeemable
+                isWinner = true
+              }
+            } else {
+              // Market is resolved but redeemable is false/undefined - it's a loss
+              isLoss = true
+            }
+          }
+          
+          // For display purposes, use the more accurate determination
+          const isRedeemable = isWinner // Only show "Claim" for actual winners
           
           return {
             market: pos.title || pos.market || 'Unknown Market',
