@@ -136,8 +136,8 @@ export async function PATCH(
           { status: 400 }
         )
       }
-      // Basic URL validation
-      if (profilePictureUrl && !profilePictureUrl.match(/^https?:\/\/.+/)) {
+      // Accept both absolute URLs (https://) and relative URLs (/) for uploaded images
+      if (profilePictureUrl && !profilePictureUrl.match(/^(https?:\/\/|\/).+/)) {
         return NextResponse.json(
           { error: 'Invalid profile picture URL' },
           { status: 400 }

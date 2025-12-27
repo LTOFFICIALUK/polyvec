@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useToast } from '@/contexts/ToastContext'
 
 interface EditProfileModalProps {
@@ -24,7 +24,11 @@ const EditProfileModal = ({
   const [username, setUsername] = useState(currentUsername || '')
   const [profilePictureUrl, setProfilePictureUrl] = useState(currentProfilePictureUrl || '')
   const [isLoading, setIsLoading] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
   const [errors, setErrors] = useState<{ username?: string; profilePictureUrl?: string }>({})
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const dropZoneRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (isOpen) {
@@ -48,25 +52,95 @@ const EditProfileModal = ({
   }
 
   const validateProfilePictureUrl = (value: string): string | undefined => {
-    if (value && value.length > 500) {
-      return 'URL is too long'
-    }
-    if (value && !value.match(/^https?:\/\/.+/)) {
-      return 'Invalid URL format'
+    // Only validate if a value exists - must be from our upload (starts with /)
+    if (value && !value.startsWith('/')) {
+      return 'Invalid profile picture'
     }
     return undefined
+  }
+
+  const handleFileUpload = async (file: File) => {
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+    if (!allowedTypes.includes(file.type)) {
+      showToast('Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.', 'error')
+      return
+    }
+
+    // Validate file size (5MB max)
+    const maxSize = 5 * 1024 * 1024
+    if (file.size > maxSize) {
+      showToast('File size exceeds 5MB limit', 'error')
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch('/api/profile/upload', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to upload image')
+      }
+
+      // Set the uploaded image URL
+      setProfilePictureUrl(data.url)
+      showToast('Image uploaded successfully!', 'success')
+    } catch (error: any) {
+      console.error('Error uploading image:', error)
+      showToast(error.message || 'Failed to upload image', 'error')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+
+    const file = e.dataTransfer.files[0]
+    if (file) {
+      handleFileUpload(file)
+    }
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      handleFileUpload(file)
+    }
+  }
+
+  const handleRemoveProfilePicture = () => {
+    setProfilePictureUrl('')
+    setErrors((prev) => ({ ...prev, profilePictureUrl: undefined }))
   }
 
   const handleUsernameChange = (value: string) => {
     setUsername(value)
     const error = validateUsername(value)
     setErrors((prev) => ({ ...prev, username: error }))
-  }
-
-  const handleProfilePictureUrlChange = (value: string) => {
-    setProfilePictureUrl(value)
-    const error = validateProfilePictureUrl(value)
-    setErrors((prev) => ({ ...prev, profilePictureUrl: error }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -164,28 +238,72 @@ const EditProfileModal = ({
             </p>
           </div>
 
-          {/* Profile Picture URL Field */}
+          {/* Profile Picture Upload/URL Field */}
           <div>
-            <label htmlFor="profilePictureUrl" className="block text-sm font-medium text-gray-300 mb-2">
-              Profile Picture URL
-            </label>
-            <input
-              id="profilePictureUrl"
-              type="url"
-              value={profilePictureUrl}
-              onChange={(e) => handleProfilePictureUrlChange(e.target.value)}
-              placeholder="https://example.com/image.jpg"
-              className={`w-full bg-dark-bg border ${
-                errors.profilePictureUrl ? 'border-red-500' : 'border-gray-700/50'
-              } text-white px-4 py-2 rounded focus:outline-none focus:ring-2 focus:ring-gold-primary focus:border-transparent`}
-              maxLength={500}
-            />
-            {errors.profilePictureUrl && (
-              <p className="mt-1 text-sm text-red-400">{errors.profilePictureUrl}</p>
-            )}
-            <p className="mt-1 text-xs text-gray-500">
-              Enter a URL to an image (e.g., from Imgur, Cloudinary, etc.)
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <label htmlFor="profilePictureUrl" className="block text-sm font-medium text-gray-300">
+                Profile Picture
+              </label>
+              {profilePictureUrl && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleRemoveProfilePicture()
+                  }}
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Remove
+                </button>
+              )}
+            </div>
+            
+            {/* Drag and Drop Zone */}
+            <div
+              ref={dropZoneRef}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                isDragging
+                  ? 'border-gold-primary bg-gold-primary/10'
+                  : 'border-gray-700/50 hover:border-gray-600 bg-dark-bg/40'
+              } ${isUploading ? 'opacity-50 cursor-wait' : ''}`}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                onChange={handleFileSelect}
+                className="hidden"
+                disabled={isUploading}
+              />
+              
+              {isUploading ? (
+                <div className="flex flex-col items-center gap-2">
+                  <svg className="w-8 h-8 animate-spin text-gold-primary" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  <p className="text-sm text-gray-400">Uploading...</p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <p className="text-sm text-gray-300">
+                    <span className="text-gold-primary hover:underline">Click to upload</span> or drag and drop
+                  </p>
+                  <p className="text-xs text-gray-500">PNG, JPG, GIF, WebP up to 5MB</p>
+                </div>
+              )}
+            </div>
+
           </div>
 
           {/* Preview */}
