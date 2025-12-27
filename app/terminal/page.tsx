@@ -1030,9 +1030,13 @@ function TerminalContent() {
                         }
                       }
                       
-                      // For resolved positions (ended markets), always use the position's curPrice from API
+                      // For resolved positions (ended markets), determine WIN/LOSS
+                      // For active positions, use live price if available, otherwise position's currentPrice from API
+                      const isWinner = isResolved && (position.redeemable === true || position.currentPrice > 0.01)
+                      const isLoser = isResolved && (position.isLoss === true || position.currentPrice < 0.01)
+                      
                       const currentPrice = isResolved 
-                        ? position.currentPrice 
+                        ? (isWinner ? 1.0 : 0.0) // WIN = $1, LOSS = $0
                         : (livePriceCents !== null ? livePriceCents / 100 : position.currentPrice)
                       
                       // Use API PnL for resolved positions, calculate for active ones
@@ -1043,8 +1047,12 @@ function TerminalContent() {
                             ? (currentPrice - position.avgPrice) * position.size
                             : position.pnl)
                       
-                      // Calculate current value - for ended markets, this should be 0 or the final value
-                      const currentValue = isResolved ? 0 : (currentPrice * position.size)
+                      // Calculate current value
+                      // For ended markets: WIN = shares * $1, LOSS = $0
+                      // For active markets: currentPrice * size
+                      const currentValue = isResolved 
+                        ? (isWinner ? position.size * 1.0 : 0.0)
+                        : (currentPrice * position.size)
                       
                       // Determine outcome color based on trade side
                       // UP/YES positions that were bought = green, DOWN/NO positions that were bought = red
@@ -1083,9 +1091,11 @@ function TerminalContent() {
                           </td>
                         <td className="py-3 px-4 text-right text-white">{position.size.toFixed(2)}</td>
                           <td className="py-3 px-4 text-right text-white">{(position.avgPrice * 100).toFixed(1)}¢</td>
-                          <td className={`py-3 px-4 text-right ${isResolved ? 'text-gray-500' : (currentPrice > position.avgPrice ? 'text-green-400' : currentPrice < position.avgPrice ? 'text-red-400' : 'text-white')}`}>
+                          <td className={`py-3 px-4 text-right ${isResolved ? (isWinner ? 'text-green-400' : 'text-red-400') : (currentPrice > position.avgPrice ? 'text-green-400' : currentPrice < position.avgPrice ? 'text-red-400' : 'text-white')}`}>
                             {isResolved ? (
-                              <span className="text-gray-500">ENDED</span>
+                              <span className={isWinner ? 'text-green-400 font-medium' : 'text-red-400 font-medium'}>
+                                {isWinner ? 'WIN' : 'LOSS'}
+                              </span>
                             ) : (
                               <>
                           <AnimatedPrice
@@ -1098,7 +1108,9 @@ function TerminalContent() {
                         </td>
                           <td className="py-3 px-4 text-right text-white">
                             {isResolved ? (
-                              <span className="text-gray-500">ENDED</span>
+                              <span className={isWinner ? 'text-green-400' : 'text-red-400'}>
+                                ${currentValue.toFixed(2)}
+                              </span>
                             ) : (
                               `$${currentValue.toFixed(2)}`
                             )}
