@@ -821,25 +821,39 @@ const TradingPanel = () => {
         throw new Error(errorMessage)
       }
 
-      // Build success message with order details
-      const orderTypeText = executionType === 'limit' ? 'Limit' : 'Market'
-      const sideText = isBuy ? 'You bought' : 'You sold'
-      const outcomeText = selectedOutcome === 'up' ? 'UP' : 'DOWN'
+      // Calculate priceInCents and dollarAmount for both limit and market orders
       const priceInCents = executionType === 'limit' 
         ? parseFloat(limitPrice)
-        : (priceDecimal * 100)
-      
-      // Calculate dollar amount
+        : priceDecimal * 100
       const dollarAmount = (shares * priceInCents) / 100
       
-      // Format the message similar to screenshot: "You bought X shares at Y¢ per share | $Z total"
-      const successMessage = `${sideText} ${shares.toLocaleString('en-US', { 
-        minimumFractionDigits: 2, 
-        maximumFractionDigits: 2 
-      })} ${outcomeText} shares at ${priceInCents.toFixed(0)}¢ per share\n$${dollarAmount.toLocaleString('en-US', { 
-        minimumFractionDigits: 2, 
-        maximumFractionDigits: 2 
-      })} total`
+      // Build success message with order details
+      let successMessage: string
+      let sideTextForEvent: string
+      
+      if (executionType === 'limit') {
+        // For limit orders, just confirm the order was placed
+        const sideText = isBuy ? 'BUY' : 'SELL'
+        sideTextForEvent = isBuy ? 'buy' : 'sell'
+        successMessage = `Placed limit ${sideText} order for ${shares.toLocaleString('en-US', { 
+          minimumFractionDigits: 2, 
+          maximumFractionDigits: 2 
+        })} shares`
+      } else {
+        // For market orders, show execution details
+        const sideText = isBuy ? 'You bought' : 'You sold'
+        sideTextForEvent = isBuy ? 'bought' : 'sold'
+        const outcomeText = selectedOutcome === 'up' ? 'UP' : 'DOWN'
+        
+        // Format the message similar to screenshot: "You bought X shares at Y¢ per share | $Z total"
+        successMessage = `${sideText} ${shares.toLocaleString('en-US', { 
+          minimumFractionDigits: 2, 
+          maximumFractionDigits: 2 
+        })} ${outcomeText} shares at ${priceInCents.toFixed(0)}¢ per share\n$${dollarAmount.toLocaleString('en-US', { 
+          minimumFractionDigits: 2, 
+          maximumFractionDigits: 2 
+        })} total`
+      }
       
       showToast(successMessage, 'success', 5000)
       
@@ -856,7 +870,7 @@ const TradingPanel = () => {
             shares,
             price: priceInCents,
             dollarAmount,
-            side: sideText.toLowerCase(), // 'you bought' or 'you sold'
+            side: sideTextForEvent,
             outcome: selectedOutcome,
             timestamp: Date.now(),
           }

@@ -243,10 +243,50 @@ export default function AnalyticsPage() {
     { value: '90d', label: 'Last 90 Days' },
   ]
 
-  const formatTimestamp = (timestamp: string | number): string => {
-    const date = typeof timestamp === 'number' 
-      ? new Date(timestamp * 1000) 
-      : new Date(timestamp)
+  const formatTimestamp = (timestamp: string | number | null | undefined): string => {
+    // Handle null, undefined, or empty values
+    if (timestamp === null || timestamp === undefined) {
+      return 'N/A'
+    }
+    
+    // Handle string values - trim whitespace
+    let processedTimestamp = timestamp
+    if (typeof timestamp === 'string') {
+      processedTimestamp = timestamp.trim()
+      if (processedTimestamp === '' || processedTimestamp === 'null' || processedTimestamp === 'undefined') {
+        return 'N/A'
+      }
+    }
+    
+    let date: Date
+    
+    if (typeof processedTimestamp === 'number') {
+      // If it's a number, check if it's in seconds or milliseconds
+      date = processedTimestamp > 1000000000000 ? new Date(processedTimestamp) : new Date(processedTimestamp * 1000)
+    } else if (typeof processedTimestamp === 'string') {
+      // Try parsing as ISO string first (most common format)
+      date = new Date(processedTimestamp)
+      
+      // If that fails, try parsing as a number (timestamp string)
+      if (isNaN(date.getTime())) {
+        const numTimestamp = parseFloat(processedTimestamp)
+        if (!isNaN(numTimestamp) && isFinite(numTimestamp)) {
+          date = numTimestamp > 1000000000000 ? new Date(numTimestamp) : new Date(numTimestamp * 1000)
+        }
+      }
+    } else {
+      return 'N/A'
+    }
+    
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      // Only log in development to avoid console spam
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[formatTimestamp] Invalid date:', timestamp, 'processed:', processedTimestamp)
+      }
+      return 'N/A'
+    }
+    
     return date.toLocaleString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -288,10 +328,18 @@ export default function AnalyticsPage() {
       sideColor = 'text-green-400'
     }
 
+    // Use match_time, fallback to last_update if match_time is missing
+    const timestampValue = trade.match_time || (trade as any).last_update || (trade as any).timestamp
+    
+    // Debug: log the raw timestamp to see what format it's in (only in dev)
+    if (process.env.NODE_ENV === 'development' && !timestampValue) {
+      console.warn('[transformTrade] Missing timestamp for trade:', trade.id, 'Available fields:', Object.keys(trade))
+    }
+    
     return {
       id: trade.id,
-      timestamp: formatTimestamp(trade.match_time),
-      rawTimestamp: trade.match_time,
+      timestamp: formatTimestamp(timestampValue),
+      rawTimestamp: timestampValue,
       market: trade.market,
       title: trade.title || 'Unknown Market',
       side: sideDisplay,

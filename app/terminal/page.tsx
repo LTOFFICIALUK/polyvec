@@ -397,6 +397,59 @@ function TerminalContent() {
   }, [walletAddress, polymarketCredentials])
 
   // Fetch trade history
+  const formatTimestamp = useCallback((timestamp: string | number | null | undefined): string => {
+    // Handle null, undefined, or empty values
+    if (timestamp === null || timestamp === undefined) {
+      return 'N/A'
+    }
+    
+    // Handle string values - trim whitespace
+    let processedTimestamp = timestamp
+    if (typeof timestamp === 'string') {
+      processedTimestamp = timestamp.trim()
+      if (processedTimestamp === '' || processedTimestamp === 'null' || processedTimestamp === 'undefined') {
+        return 'N/A'
+      }
+    }
+    
+    let date: Date
+    
+    if (typeof processedTimestamp === 'number') {
+      // If it's a number, check if it's in seconds or milliseconds
+      date = processedTimestamp > 1000000000000 ? new Date(processedTimestamp) : new Date(processedTimestamp * 1000)
+    } else if (typeof processedTimestamp === 'string') {
+      // Try parsing as ISO string first (most common format)
+      date = new Date(processedTimestamp)
+      
+      // If that fails, try parsing as a number (timestamp string)
+      if (isNaN(date.getTime())) {
+        const numTimestamp = parseFloat(processedTimestamp)
+        if (!isNaN(numTimestamp) && isFinite(numTimestamp)) {
+          date = numTimestamp > 1000000000000 ? new Date(numTimestamp) : new Date(numTimestamp * 1000)
+        }
+      }
+    } else {
+      return 'N/A'
+    }
+    
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      // Only log in development to avoid console spam
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[formatTimestamp] Invalid date:', timestamp, 'processed:', processedTimestamp)
+      }
+      return 'N/A'
+    }
+    
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }, [])
+
   const fetchTrades = useCallback(async () => {
     if (!walletAddress) return
     try {
@@ -1391,8 +1444,8 @@ function TerminalContent() {
                   ) : trades.length > 0 ? (
                     trades.map((trade, idx) => (
                       <tr key={trade.id || idx} className="border-b border-gray-800 hover:bg-gray-900/30">
-                        <td className="py-3 px-4 text-gray-400">
-                          {new Date(trade.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <td className="py-3 px-4 text-gray-400 whitespace-nowrap">
+                          {formatTimestamp(trade.timestamp)}
                         </td>
                         <td className="py-3 px-4 text-white max-w-xs truncate" title={trade.market}>{trade.market}</td>
                         <td className="py-3 px-4">

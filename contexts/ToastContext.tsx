@@ -56,13 +56,13 @@ function ToastContainer({ toasts, dismissToast }: { toasts: Toast[], dismissToas
             animation: 'toast-slide-in 0.3s ease-out',
             backgroundColor: toast.type === 'error' ? 'rgba(127, 29, 29, 0.98)' 
               : toast.type === 'warning' ? 'rgba(120, 53, 15, 0.98)'
-              : toast.type === 'success' ? 'rgba(55, 65, 81, 0.98)' // Dark grey for success trades (like screenshot)
-              : 'rgba(31, 41, 55, 0.98)',
+              : toast.type === 'success' ? 'rgba(20, 18, 16, 0.98)' // Dark website background for success
+              : 'rgba(20, 18, 16, 0.98)', // Dark website background (#141210)
             border: `1px solid ${
               toast.type === 'error' ? '#b91c1c' 
               : toast.type === 'warning' ? '#b45309'
-              : toast.type === 'success' ? '#6b7280' // Grey border for success trades
-              : '#374151'
+              : toast.type === 'success' ? '#3a3a3a' // Subtle border matching dark theme
+              : '#3a3a3a' // Subtle border matching dark theme
             }`,
             color: toast.type === 'error' ? '#fecaca' 
               : toast.type === 'warning' ? '#fef3c7'
