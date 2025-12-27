@@ -165,31 +165,44 @@ export async function redeemPosition(
 }
 
 /**
- * Close a position from a resolved market (works for both winners and losers)
+ * Close a position from a market (works for both winners and losers, resolved or not)
  * 
  * This redeems ALL outcomes [1, 2] which ensures the position is fully closed.
- * - Winners: Receive USDC.e collateral
- * - Losers: Receive $0 but position is cleared from portfolio
+ * - For resolved markets: Winners receive USDC.e collateral, losers receive $0
+ * - For unresolved markets: Attempts to redeem all outcomes (may fail if contract requires resolution)
+ * 
+ * Note: Some markets may require on-chain resolution before redemption works.
+ * If the market hasn't been resolved by the oracle yet, this will fail with a contract error.
  * 
  * @param provider - Ethers BrowserProvider with signer (or object with getSigner method)
  * @param conditionId - The market's condition ID
+ * @param skipResolutionCheck - If true, skip the on-chain resolution check (default: false)
  * @returns Transaction hash
  */
 export async function closePosition(
   provider: ethers.BrowserProvider | { getSigner: () => Promise<ethers.Signer> },
-  conditionId: string
+  conditionId: string,
+  skipResolutionCheck: boolean = false
 ): Promise<string> {
   console.log('[Close] Closing position for condition:', conditionId.slice(0, 10) + '...')
   
-  // First check if the market is resolved on-chain
-  // For JsonRpcProvider wrapper, use the provider property if available
-  const readProvider = 'provider' in provider && provider.provider
-    ? provider.provider as ethers.Provider
-    : (await provider.getSigner()).provider as ethers.Provider
-  const resolved = await isMarketResolved(readProvider, conditionId)
-  if (!resolved) {
-    console.log('[Close] Market not resolved yet:', conditionId.slice(0, 10) + '...')
-    throw new Error('Market not yet resolved on-chain. Please wait for the oracle to settle the market.')
+  // Check if the market is resolved on-chain (optional check)
+  // We allow closing even if not resolved, as the contract call will fail naturally if needed
+  if (!skipResolutionCheck) {
+    try {
+      const readProvider = 'provider' in provider && provider.provider
+        ? provider.provider as ethers.Provider
+        : (await provider.getSigner()).provider as ethers.Provider
+      const resolved = await isMarketResolved(readProvider, conditionId)
+      if (!resolved) {
+        console.log('[Close] Market not resolved on-chain yet, but attempting to close anyway:', conditionId.slice(0, 10) + '...')
+        // Don't throw - let the contract call attempt to proceed
+        // The contract will revert if resolution is required
+      }
+    } catch (checkError) {
+      // If resolution check fails, continue anyway - let the contract call handle it
+      console.log('[Close] Could not check market resolution, proceeding with close attempt:', conditionId.slice(0, 10) + '...')
+    }
   }
   
   const signer = await provider.getSigner()
