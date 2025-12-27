@@ -172,7 +172,7 @@ const OrderbookBarChart = () => {
               href={market.polymarketUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[10px] text-blue-400 hover:text-blue-300 underline transition-colors"
+              className="text-xs text-blue-400 hover:text-blue-300 underline transition-colors"
               title={`View market on Polymarket: ${market.slug || market.marketId || 'Market'}`}
             >
               View on Polymarket

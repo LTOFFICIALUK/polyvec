@@ -2687,13 +2687,12 @@ const ensureMarketMetadataForPair = async (pair?: string, timeframe?: string): P
   // For 15m markets: construct slug for the *current* 15m ET window and fetch by slug
   // Slug format (from Gamma / website): "{pairSlug}-updown-15m-{eventStartTimeUtcInSeconds}"
   // Example: "sol-updown-15m-1764351000" → eventStartTime "2025-11-28T17:30:00Z" (12:30PM ET)
-  // NOTE: Polymarket labels markets 24 hours ahead, so we need to add 24h to the timestamp
-  // to find the market that actually starts "now" (which Polymarket has labeled as tomorrow)
   if (timeframeKey === '15m') {
     try {
       // Start of the current 15m window in ET, converted to UTC ms
-      // Add 24 hours because Polymarket labels markets 24h ahead
-      const windowStartMs = getEventWindowStart(15) + (24 * 60 * 60 * 1000)
+      const actualWindowStart = getEventWindowStart(15)
+      // Polymarket labels markets 24h ahead, so add 24h to the timestamp when generating the slug
+      const windowStartMs = actualWindowStart + (24 * 60 * 60 * 1000)
       const eventStartSeconds = Math.floor(windowStartMs / 1000)
       const slug = generateSlug(pairKey, timeframeKey, eventStartSeconds)
 
@@ -2703,16 +2702,40 @@ const ensureMarketMetadataForPair = async (pair?: string, timeframe?: string): P
       }
 
       console.log(
-        `[Server] 15m slug lookup for ${pairKey}: ${slug} (windowStartET=${new Date(windowStartMs).toLocaleString(
+        `[Server] 15m slug lookup for ${pairKey}: ${slug} (actualWindowStartET=${new Date(actualWindowStart).toLocaleString(
           'en-US',
           { timeZone: 'America/New_York' }
-        )})`
+        )}, slugTimestampET=${new Date(windowStartMs).toLocaleString('en-US', { timeZone: 'America/New_York' })})`
       )
 
-      const marketMetadata = await fetchMarketBySlug(slug)
+      let marketMetadata = await fetchMarketBySlug(slug)
       if (!marketMetadata) {
         console.log(`[Server] 15m slug lookup returned no market for ${pairKey} slug ${slug}`)
-        return
+        // Try without 24h offset as fallback
+        const fallbackSlug = generateSlug(pairKey, timeframeKey, Math.floor(actualWindowStart / 1000))
+        if (fallbackSlug && fallbackSlug !== slug) {
+          console.log(`[Server] Trying fallback slug without 24h offset: ${fallbackSlug}`)
+          marketMetadata = await fetchMarketBySlug(fallbackSlug)
+          if (!marketMetadata) {
+            console.log(`[Server] Fallback slug also returned no market`)
+            return
+          }
+          console.log(`[Server] Found market with fallback slug, using it`)
+        } else {
+          return
+        }
+      }
+
+      // Verify the market's eventStartTime - use API's eventStartTime as the source of truth
+      // The API's eventStartTime should match the actual current window (not the slug timestamp)
+      if (marketMetadata.eventStartTime) {
+        const hoursDiff = (marketMetadata.eventStartTime - actualWindowStart) / (1000 * 60 * 60)
+        console.log(`[Server] Market eventStartTime is ${hoursDiff.toFixed(1)}h from actual window start`)
+        // If eventStartTime is 18-26 hours in the future, it's likely tomorrow's market, skip it
+        if (hoursDiff > 18 && hoursDiff < 26) {
+          console.log(`[Server] Market eventStartTime is ${hoursDiff.toFixed(1)}h in future - this is tomorrow's market, skipping`)
+          return
+        }
       }
 
       if (!marketMetadata.tokenIds || marketMetadata.tokenIds.length < 2) {

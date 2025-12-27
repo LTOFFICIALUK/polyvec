@@ -818,7 +818,23 @@ const PolyLineChart = () => {
     return (
       <div className="w-full h-full bg-dark-bg text-white flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-400 text-sm">Waiting for event data...</p>
+          <p className="text-gray-400 text-sm mb-3">Waiting for event data...</p>
+          {market?.polymarketUrl && (
+            <a
+              href={market.polymarketUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-400 hover:text-blue-300 underline transition-colors inline-block"
+              title={`View market on Polymarket: ${market.slug || market.marketId || 'Market'}`}
+            >
+              View on Polymarket
+            </a>
+          )}
+          {market?.marketId && !market?.polymarketUrl && (
+            <p className="text-gray-500 text-xs mt-2">
+              Market ID: {market.marketId}
+            </p>
+          )}
         </div>
       </div>
     )
@@ -855,7 +871,20 @@ const PolyLineChart = () => {
       <div className="relative h-full flex flex-col p-4 gap-4">
         <div className="flex items-center justify-between text-xs sm:text-sm flex-shrink-0">
           <div>
-            <p className="text-gray-400 uppercase tracking-widest">POLY ORDERBOOK</p>
+            <div className="flex items-center gap-3">
+              <p className="text-gray-400 uppercase tracking-widest">POLY ORDERBOOK</p>
+              {market?.polymarketUrl && (
+                <a
+                  href={market.polymarketUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-400 hover:text-blue-300 underline transition-colors"
+                  title={`View market on Polymarket: ${market.slug || market.marketId || 'Market'}`}
+                >
+                  View on Polymarket
+                </a>
+              )}
+            </div>
             <p className="text-lg font-semibold">
               {selectedPair} • {isMarketEnded ? (
                 <span className="text-gray-500">Historical</span>
