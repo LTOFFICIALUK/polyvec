@@ -331,18 +331,6 @@ const TradingPanel = () => {
         })
       : null
 
-  const handlePolymarketLinkClick = (event?: MouseEvent<HTMLAnchorElement>) => {
-    event?.preventDefault()
-    if (!currentMarket.polymarketUrl || typeof window === 'undefined') return
-    window.open(currentMarket.polymarketUrl, '_blank', 'noopener,noreferrer')
-  }
-
-  const handlePolymarketLinkKeyDown = (event: KeyboardEvent<HTMLAnchorElement>) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return
-    event.preventDefault()
-    handlePolymarketLinkClick()
-  }
-
   // Check USDC allowance when wallet connects or changes (server-side for custodial wallet)
   useEffect(() => {
     const checkAllowance = async () => {
@@ -1263,30 +1251,6 @@ const TradingPanel = () => {
                   </span>
                 </button>
           </div>
-          {/* View on Polymarket link - Always show for debugging */}
-          <div className="mt-3 text-center">
-            {currentMarket.polymarketUrl ? (
-              <a
-                href={currentMarket.polymarketUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-blue-400 hover:text-blue-300 underline transition-colors"
-                onClick={handlePolymarketLinkClick}
-                onKeyDown={handlePolymarketLinkKeyDown}
-                tabIndex={0}
-                aria-label={`View current market on Polymarket: ${currentMarket.slug || currentMarket.marketId || 'Market'}`}
-              >
-                View on Polymarket
-              </a>
-            ) : currentMarket.marketId ? (
-              <p className="text-xs text-gray-500">
-                Market ID: {currentMarket.marketId}
-                {currentMarket.slug && ` (slug: ${currentMarket.slug})`}
-              </p>
-            ) : (
-              <p className="text-xs text-gray-500">No market data available</p>
-            )}
-          </div>
         </div>
       )}
 
@@ -1511,20 +1475,6 @@ const TradingPanel = () => {
             <span className="font-semibold text-gray-200">
               {currentMarket.marketId ? `Market ID: ${currentMarket.marketId}` : 'Market metadata unavailable'}
             </span>
-            {currentMarket.polymarketUrl && (
-              <a
-                href={currentMarket.polymarketUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-400 hover:text-blue-300 underline"
-                tabIndex={0}
-                aria-label="Open current market on Polymarket"
-                onClick={handlePolymarketLinkClick}
-                onKeyDown={handlePolymarketLinkKeyDown}
-              >
-                View on Polymarket
-              </a>
-            )}
           </div>
           {currentMarket.question ? (
             <p className="text-gray-400">{currentMarket.question}</p>

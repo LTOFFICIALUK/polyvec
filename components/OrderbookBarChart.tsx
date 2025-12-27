@@ -136,17 +136,6 @@ const OrderbookBarChart = () => {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 text-sm gap-2">
         <div>Loading liquidity depth...</div>
-        {market?.polymarketUrl && (
-          <a
-            href={market.polymarketUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[10px] text-blue-400 hover:text-blue-300 underline transition-colors"
-            title={`View market on Polymarket: ${market.slug || market.marketId || 'Market'}`}
-          >
-            View on Polymarket
-          </a>
-        )}
       </div>
     )
   }
@@ -167,17 +156,6 @@ const OrderbookBarChart = () => {
         <span className="text-xs font-medium text-gray-400 tracking-wider uppercase" style={{ fontFamily: 'monospace' }}>
           ORDERBOOK
         </span>
-          {market?.polymarketUrl && (
-            <a
-              href={market.polymarketUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-blue-400 hover:text-blue-300 underline transition-colors"
-              title={`View market on Polymarket: ${market.slug || market.marketId || 'Market'}`}
-            >
-              View on Polymarket
-            </a>
-          )}
         </div>
         {spread && (
           <span className="text-xs text-gray-500">
