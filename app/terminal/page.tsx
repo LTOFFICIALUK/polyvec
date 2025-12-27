@@ -140,15 +140,16 @@ function TerminalContent() {
         const data = await response.json()
         const formattedPositions: Position[] = (data.positions || []).map((pos: any) => {
           const curPrice = parseFloat(pos.curPrice || pos.currentPrice || '0')
+          // Use API's redeemable flag directly - don't calculate based on curPrice
+          // as curPrice may be from wrong market
           const isRedeemable = pos.redeemable === true
           
-          // A position is a "loss" if:
-          // - Market is resolved (redeemable is true) AND
-          // - Current price is 0 or near 0 (meaning this outcome lost)
-          const isLoss = isRedeemable && curPrice < 0.01
+          // A position is a "loss" if market is resolved and redeemable is false
+          // Don't use curPrice to determine loss as it may be from wrong market
+          const isLoss = pos.redeemable === false && (pos.resolved === true || pos.is_resolved === true)
           
-          // Only truly redeemable (winner) if redeemable=true AND curPrice > 0
-          const isWinner = isRedeemable && curPrice > 0.01
+          // Winner is determined by redeemable flag directly from API
+          const isWinner = isRedeemable
           
           // Extract market end date from slug timestamp if available
           // Slug format: "sol-updown-15m-1764356400" or "sol-updown-1h-1764356400"
