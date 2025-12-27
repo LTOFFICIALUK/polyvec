@@ -115,9 +115,22 @@ export async function POST(request: NextRequest) {
     console.error('[Close Position] Error:', error)
     
     // Provide user-friendly error messages
-    if (error.message?.includes('not yet resolved') || error.message?.includes('condition not resolved')) {
+    if (error.message?.includes('not yet resolved') || 
+        error.message?.includes('condition not resolved') ||
+        error.message?.includes('denominator') ||
+        error.message?.includes('payoutDenominator') ||
+        error.code === 'CALL_EXCEPTION' ||
+        error.message?.includes('revert')) {
+      // Check if it's a contract revert due to unresolved market
+      if (error.message?.includes('denominator') || error.message?.includes('payoutDenominator')) {
+        return NextResponse.json(
+          { error: 'Market not yet resolved on-chain. Please wait for the oracle to settle the market.' },
+          { status: 400 }
+        )
+      }
+      // Generic contract revert - might be resolution issue or other contract requirement
       return NextResponse.json(
-        { error: 'Market not yet resolved on-chain. Please wait for the oracle to settle the market.' },
+        { error: 'Cannot close position. The market may not be resolved yet, or there may be insufficient tokens to redeem.' },
         { status: 400 }
       )
     }
