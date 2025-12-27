@@ -952,20 +952,20 @@ function TerminalContent() {
                     }
                     
                     return filteredPositions.map((position, idx) => {
-                      // Check if position matches current market by tokenId or outcome FIRST
-                      // This is important because we want to use the current market's end time if it matches
+                      // Check if position matches current market by tokenId ONLY (exact match required)
+                      // Do NOT match by outcome direction - each position belongs to a specific market
                       const positionIsUp = position.outcome?.toLowerCase().includes('yes') || 
-                                          position.outcome?.toLowerCase().includes('up') ||
-                                          position.tokenId === currentMarket?.yesTokenId
+                                          position.outcome?.toLowerCase().includes('up')
                       const positionIsDown = position.outcome?.toLowerCase().includes('no') || 
-                                            position.outcome?.toLowerCase().includes('down') ||
-                                            position.tokenId === currentMarket?.noTokenId
+                                            position.outcome?.toLowerCase().includes('down')
                       
+                      // Only match if tokenId exactly matches current market's tokenIds
+                      // This prevents all UP/DOWN positions from matching the current market
                       const matchesCurrentMarket = currentMarket?.yesTokenId && currentMarket?.noTokenId && 
-                        (position.tokenId === currentMarket.yesTokenId || 
-                         position.tokenId === currentMarket.noTokenId ||
-                         (positionIsUp && currentMarket.yesTokenId) ||
-                         (positionIsDown && currentMarket.noTokenId))
+                        position.tokenId && (
+                          position.tokenId === currentMarket.yesTokenId || 
+                          position.tokenId === currentMarket.noTokenId
+                        )
                       
                       // For resolved/ended positions, use the position's actual price
                       // Don't override with live orderbook prices for settled markets
@@ -1021,12 +1021,12 @@ function TerminalContent() {
                         }
                       }
                       
-                      // Use live price ONLY for active (non-resolved) positions matching current market
+                      // Use live price ONLY for active (non-resolved) positions matching current market by tokenId
                       let livePriceCents: number | null = null
-                      if (matchesCurrentMarket && !isResolved) {
-                        if (position.tokenId === currentMarket?.yesTokenId || positionIsUp) {
+                      if (matchesCurrentMarket && !isResolved && position.tokenId) {
+                        if (position.tokenId === currentMarket?.yesTokenId) {
                           livePriceCents = livePrices.upBidPrice
-                        } else if (position.tokenId === currentMarket?.noTokenId || positionIsDown) {
+                        } else if (position.tokenId === currentMarket?.noTokenId) {
                           livePriceCents = livePrices.downBidPrice
                         }
                       }
