@@ -98,9 +98,12 @@ export async function POST(request: NextRequest) {
     } as any
 
     // Close the position (redeems all outcomes)
+    // Skip resolution check - allow closing even if market not resolved on-chain yet
+    // The contract will revert naturally if resolution is required
     const txHash = await closePosition(
       providerWrapper,
-      conditionId
+      conditionId,
+      true // skipResolutionCheck = true
     )
 
     return NextResponse.json({
