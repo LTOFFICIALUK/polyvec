@@ -1056,10 +1056,11 @@ function TerminalContent() {
                         }
                       }
                       
-                      // For resolved positions (ended markets), determine WIN/LOSS based ONLY on redeemable flag
-                      // Don't use currentPrice from API as it may be from wrong market
-                      const isWinner = isResolved && position.redeemable === true
-                      const isLoser = isResolved && !position.redeemable
+                      // For resolved positions (ended markets), use the isLoss flag from position data
+                      // This is calculated more accurately using PnL, price, and value indicators
+                      // Don't rely solely on redeemable flag as it may mean "can redeem" not "is winner"
+                      const isWinner = isResolved && !position.isLoss && position.redeemable === true
+                      const isLoser = isResolved && (position.isLoss || !position.redeemable)
                       
                       // For ended markets: WIN = $1, LOSS = $0
                       // For active markets: use live price if available, otherwise position's currentPrice from API
