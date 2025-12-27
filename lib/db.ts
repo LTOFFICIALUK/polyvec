@@ -20,12 +20,19 @@ export const getDbPool = (): Pool => {
 
   pool = new Pool({
     connectionString: databaseUrl,
-    max: 20, // Increased for better concurrency
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000, // Reduced timeout for faster failures
+    max: 5, // Further reduced to avoid hitting PostgreSQL connection limits (25 max, 22 already in use)
+    idleTimeoutMillis: 10000, // Release idle connections faster
+    connectionTimeoutMillis: 3000, // Faster timeout for connection attempts
     ssl: useSSL ? { rejectUnauthorized: false } : false,
     // Optimize for read-heavy workloads
     statement_timeout: 5000, // 5 second query timeout
+    // Ensure connections are properly released
+    allowExitOnIdle: true,
+  })
+  
+  // Handle pool errors gracefully
+  pool.on('error', (err) => {
+    console.error('[DB Pool] Unexpected error on idle client:', err)
   })
 
   return pool

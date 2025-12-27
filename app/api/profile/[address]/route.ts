@@ -21,7 +21,7 @@ export async function GET(
         { status: 400 }
       )
     }
-
+    
     const db = getDbPool()
     const result = await db.query(
       `SELECT 
@@ -85,7 +85,7 @@ export async function PATCH(
         { status: 400 }
       )
     }
-
+    
     // Verify the user owns this wallet address
     const db = getDbPool()
     const userCheck = await db.query(

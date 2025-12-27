@@ -52,6 +52,8 @@ import {
 import {
   initializeCustodialWallet,
   getCustodialWalletPrivateKey,
+} from './db/custodialWallet'
+import {
   deactivateKey,
   deleteKey,
   getKeyAuditLog,
@@ -1286,7 +1288,8 @@ const httpServer = http.createServer(async (req, res) => {
           const timeframeMinutes = timeframeNormalized === '15m' ? 15 : 60
           
           // Calculate the target time window based on offset
-          const baseWindowStart = getEventWindowStart(timeframeMinutes)
+          // Add 24 hours because Polymarket labels markets 24h ahead
+          const baseWindowStart = getEventWindowStart(timeframeMinutes) + (24 * 60 * 60 * 1000)
           const targetWindowStart = baseWindowStart + (offset * timeframeMinutes * 60 * 1000)
           const targetTimestampSeconds = Math.floor(targetWindowStart / 1000)
           
@@ -1300,9 +1303,11 @@ const httpServer = http.createServer(async (req, res) => {
               const marketMetadata = await fetchMarketBySlug(slug)
               
               if (marketMetadata) {
-                // Calculate event start/end times
-                const eventStart = targetWindowStart
-                const eventEnd = targetWindowStart + (timeframeMinutes * 60 * 1000)
+                // Use eventStartTime from API if available (actual event time), otherwise use calculated time
+                // Note: we subtract 24h from targetWindowStart because we added 24h when generating the slug
+                const calculatedStart = targetWindowStart - (24 * 60 * 60 * 1000)
+                const eventStart = marketMetadata.eventStartTime || calculatedStart
+                const eventEnd = marketMetadata.eventEndTime || (eventStart + (timeframeMinutes * 60 * 1000))
                 const now = Date.now()
                 
                 // Determine market status
@@ -2335,10 +2340,10 @@ const httpServer = http.createServer(async (req, res) => {
           return
         }
 
-        const { walletAddress, privateKey } = walletData
+        const { walletAddress, privateKey: privateKeyValue } = walletData
 
         // Create wallet from private key
-        const wallet = new ethers.Wallet(privateKey)
+        let wallet = new ethers.Wallet(privateKeyValue)
 
         // Verify wallet address matches
         if (wallet.address.toLowerCase() !== walletAddress.toLowerCase()) {
@@ -2430,9 +2435,8 @@ const httpServer = http.createServer(async (req, res) => {
         // Sign the order
         const signature = await wallet.signTypedData(domain, types, orderForSigning)
 
-        // Clear sensitive data from memory
-        privateKey = null
-        wallet = null
+        // Note: We don't need to manually clear wallet - Node.js garbage collector will handle it
+        // The wallet object will be garbage collected after the function completes
 
         // Return signed order
         res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -2625,9 +2629,12 @@ const httpServer = http.createServer(async (req, res) => {
   }
 
   // API endpoints for user data (kept for backward compatibility)
+  // Only check for address parameter on specific endpoints that require it
+  // Exclude endpoints that are already handled above (like /api/trade/sign-order)
   const address = url.searchParams.get('address')
+  const requiresAddress = path === '/api/balance' || path === '/api/positions' || path === '/api/orders' || path === '/api/history'
   
-  if (!address && path.startsWith('/api/')) {
+  if (requiresAddress && !address) {
     res.writeHead(400, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ success: false, error: 'Missing address parameter' }))
     return
@@ -2680,10 +2687,13 @@ const ensureMarketMetadataForPair = async (pair?: string, timeframe?: string): P
   // For 15m markets: construct slug for the *current* 15m ET window and fetch by slug
   // Slug format (from Gamma / website): "{pairSlug}-updown-15m-{eventStartTimeUtcInSeconds}"
   // Example: "sol-updown-15m-1764351000" → eventStartTime "2025-11-28T17:30:00Z" (12:30PM ET)
+  // NOTE: Polymarket labels markets 24 hours ahead, so we need to add 24h to the timestamp
+  // to find the market that actually starts "now" (which Polymarket has labeled as tomorrow)
   if (timeframeKey === '15m') {
     try {
       // Start of the current 15m window in ET, converted to UTC ms
-      const windowStartMs = getEventWindowStart(15)
+      // Add 24 hours because Polymarket labels markets 24h ahead
+      const windowStartMs = getEventWindowStart(15) + (24 * 60 * 60 * 1000)
       const eventStartSeconds = Math.floor(windowStartMs / 1000)
       const slug = generateSlug(pairKey, timeframeKey, eventStartSeconds)
 

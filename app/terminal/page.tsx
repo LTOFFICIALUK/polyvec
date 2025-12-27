@@ -951,45 +951,8 @@ function TerminalContent() {
                     }
                     
                     return filteredPositions.map((position, idx) => {
-                      // For resolved/ended positions, use the position's actual price
-                      // Don't override with live orderbook prices for settled markets
-                      // Use TIME LOGIC to determine if market has ended
-                      let isResolved = false
-                      
-                      // Parse slug to check if market has ended
-                      if (position.slug) {
-                        const timestampMatch = position.slug.match(/-(\d+)$/)
-                        if (timestampMatch) {
-                          const startTimestamp = parseInt(timestampMatch[1]) * 1000
-                          const timeframeMatch = position.slug.match(/updown-(\d+m|1h)/)
-                          let timeframeMinutes = 15
-                          if (timeframeMatch) {
-                            const tf = timeframeMatch[1]
-                            if (tf === '1h') timeframeMinutes = 60
-                            else if (tf === '15m') timeframeMinutes = 15
-                            else if (tf === '5m') timeframeMinutes = 5
-                            else if (tf === '1m') timeframeMinutes = 1
-                          }
-                          const endTimestamp = startTimestamp + (timeframeMinutes * 60 * 1000)
-                          if (endTimestamp <= Date.now()) {
-                            isResolved = true
-                          }
-                        }
-                      }
-                      
-                      // Fallback to marketEndDate or API flags
-                      if (!isResolved) {
-                        if (position.marketEndDate && position.marketEndDate.trim() !== '') {
-                          const endDate = new Date(position.marketEndDate)
-                          if (!isNaN(endDate.getTime()) && endDate.getTime() <= Date.now()) {
-                            isResolved = true
-                          }
-                        } else if (position.redeemable || position.isLoss || position.resolved) {
-                          isResolved = true
-                        }
-                      }
-                      
-                      // Check if position matches current market by tokenId or outcome
+                      // Check if position matches current market by tokenId or outcome FIRST
+                      // This is important because we want to use the current market's end time if it matches
                       const positionIsUp = position.outcome?.toLowerCase().includes('yes') || 
                                           position.outcome?.toLowerCase().includes('up') ||
                                           position.tokenId === currentMarket?.yesTokenId
@@ -997,11 +960,65 @@ function TerminalContent() {
                                             position.outcome?.toLowerCase().includes('down') ||
                                             position.tokenId === currentMarket?.noTokenId
                       
-                      const matchesCurrentMarket = !isResolved && currentMarket?.yesTokenId && currentMarket?.noTokenId && 
+                      const matchesCurrentMarket = currentMarket?.yesTokenId && currentMarket?.noTokenId && 
                         (position.tokenId === currentMarket.yesTokenId || 
                          position.tokenId === currentMarket.noTokenId ||
                          (positionIsUp && currentMarket.yesTokenId) ||
                          (positionIsDown && currentMarket.noTokenId))
+                      
+                      // For resolved/ended positions, use the position's actual price
+                      // Don't override with live orderbook prices for settled markets
+                      // Use TIME LOGIC to determine if market has ended
+                      let isResolved = false
+                      
+                      // If position matches current market, use current market's end time (most accurate)
+                      if (matchesCurrentMarket && currentMarket?.endTime) {
+                        const marketEndTime = currentMarket.endTime
+                        if (marketEndTime <= Date.now()) {
+                          isResolved = true
+                        }
+                      } else {
+                        // For other positions, parse slug to check if market has ended
+                        if (position.slug) {
+                          const timestampMatch = position.slug.match(/-(\d+)$/)
+                          if (timestampMatch) {
+                            const startTimestamp = parseInt(timestampMatch[1]) * 1000
+                            const timeframeMatch = position.slug.match(/updown-(\d+m|1h)/)
+                            let timeframeMinutes = 15
+                            if (timeframeMatch) {
+                              const tf = timeframeMatch[1]
+                              if (tf === '1h') timeframeMinutes = 60
+                              else if (tf === '15m') timeframeMinutes = 15
+                              else if (tf === '5m') timeframeMinutes = 5
+                              else if (tf === '1m') timeframeMinutes = 1
+                            }
+                            const endTimestamp = startTimestamp + (timeframeMinutes * 60 * 1000)
+                            if (endTimestamp <= Date.now()) {
+                              isResolved = true
+                            }
+                          }
+                        }
+                        
+                        // Fallback to marketEndDate or API flags
+                        if (!isResolved) {
+                          if (position.marketEndDate && position.marketEndDate.trim() !== '') {
+                            // Parse endDate - could be just a date string like "2025-12-26" or full ISO string
+                            const endDateStr = position.marketEndDate
+                            let endDate: Date
+                            // If it's just a date (YYYY-MM-DD), add end of day time
+                            if (/^\d{4}-\d{2}-\d{2}$/.test(endDateStr)) {
+                              endDate = new Date(endDateStr + 'T23:59:59Z')
+                            } else {
+                              endDate = new Date(endDateStr)
+                            }
+                            if (!isNaN(endDate.getTime()) && endDate.getTime() <= Date.now()) {
+                              isResolved = true
+                            }
+                          } else if (position.redeemable || position.isLoss || position.resolved) {
+                            isResolved = true
+                          }
+                        }
+                      }
                       
                       // Use live price ONLY for active (non-resolved) positions matching current market
                       let livePriceCents: number | null = null
@@ -1053,7 +1070,17 @@ function TerminalContent() {
                               <span className="text-white">{position.market}</span>
                             )}
                           </td>
-                          <td className={`py-3 px-4 ${outcomeColor} font-medium`}>{position.outcome}</td>
+                          <td className={`py-3 px-4 ${outcomeColor} font-medium`}>
+                            {(() => {
+                              const outcomeLower = (position.outcome || '').toLowerCase()
+                              if (outcomeLower.includes('yes') || outcomeLower.includes('up')) {
+                                return 'UP'
+                              } else if (outcomeLower.includes('no') || outcomeLower.includes('down')) {
+                                return 'DOWN'
+                              }
+                              return (position.outcome || '').toUpperCase()
+                            })()}
+                          </td>
                         <td className="py-3 px-4 text-right text-white">{position.size.toFixed(2)}</td>
                           <td className="py-3 px-4 text-right text-white">{(position.avgPrice * 100).toFixed(1)}¢</td>
                           <td className={`py-3 px-4 text-right ${isResolved ? 'text-gray-500' : (currentPrice > position.avgPrice ? 'text-green-400' : currentPrice < position.avgPrice ? 'text-red-400' : 'text-white')}`}>

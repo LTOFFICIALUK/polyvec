@@ -80,7 +80,8 @@ const OrderbookBarChart = () => {
   const [maxTotal, setMaxTotal] = useState(0)
 
   useEffect(() => {
-    if (!isConnected || !market?.yesTokenId || !market?.noTokenId) return
+    // Don't require WebSocket connection - fetch orderbook via API regardless
+    if (!market?.yesTokenId || !market?.noTokenId) return
 
     const tokenId = activeTokenId === 'down' ? market.noTokenId : market.yesTokenId
     if (!tokenId) return
@@ -99,10 +100,12 @@ const OrderbookBarChart = () => {
       }
     }
 
-    // Subscribe to orderbook updates
-    subscribeMarkets([tokenId], handleOrderbookUpdate)
+    // Subscribe to orderbook updates via WebSocket (if connected)
+    if (isConnected) {
+      subscribeMarkets([tokenId], handleOrderbookUpdate)
+    }
 
-    // Also fetch initial data from API
+    // Fetch initial data from API (works regardless of WebSocket connection)
     const fetchInitialOrderbook = async () => {
       try {
         const response = await fetch(`/api/polymarket/orderbook?tokenId=${tokenId}`)
@@ -114,6 +117,8 @@ const OrderbookBarChart = () => {
           const bidMax = normalized.bids.length > 0 ? (normalized.bids[normalized.bids.length - 1]?.total || 0) : 0
           const askMax = normalized.asks.length > 0 ? (normalized.asks[normalized.asks.length - 1]?.total || 0) : 0
           setMaxTotal(Math.max(bidMax, askMax, 1))
+        } else {
+          console.warn('[OrderbookBarChart] Orderbook API response not OK:', response.status, response.statusText)
         }
       } catch (error) {
         console.error('[OrderbookBarChart] Error fetching initial orderbook:', error)
@@ -129,8 +134,19 @@ const OrderbookBarChart = () => {
 
   if (marketLoading || !orderBook) {
     return (
-      <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
-        Loading liquidity depth...
+      <div className="w-full h-full flex flex-col items-center justify-center text-gray-500 text-sm gap-2">
+        <div>Loading liquidity depth...</div>
+        {market?.polymarketUrl && (
+          <a
+            href={market.polymarketUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[10px] text-blue-400 hover:text-blue-300 underline transition-colors"
+            title={`View market on Polymarket: ${market.slug || market.marketId || 'Market'}`}
+          >
+            View on Polymarket
+          </a>
+        )}
       </div>
     )
   }
@@ -147,9 +163,22 @@ const OrderbookBarChart = () => {
     <div className="w-full h-full flex flex-col bg-dark-bg">
       {/* Header */}
       <div className="px-4 py-2 border-b border-gray-700/50 flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-400 tracking-wider uppercase" style={{ fontFamily: 'monospace' }}>
-          ORDERBOOK
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-gray-400 tracking-wider uppercase" style={{ fontFamily: 'monospace' }}>
+            ORDERBOOK
+          </span>
+          {market?.polymarketUrl && (
+            <a
+              href={market.polymarketUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-blue-400 hover:text-blue-300 underline transition-colors"
+              title={`View market on Polymarket: ${market.slug || market.marketId || 'Market'}`}
+            >
+              View on Polymarket
+            </a>
+          )}
+        </div>
         {spread && (
           <span className="text-xs text-gray-500">
             Spread: <span className="text-gold-primary">{spread}¢</span>

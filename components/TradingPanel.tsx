@@ -544,29 +544,60 @@ const TradingPanel = () => {
         throw new Error(result.error || 'Failed to approve USDC')
       }
 
-      showToast('On-chain approval complete! Syncing with Polymarket...', 'info')
+      // Always poll for confirmation (transactions are sent immediately, confirmation happens async)
+      showToast('Approval transactions sent! Waiting for confirmation...', 'info', 5000)
+      
+      // Poll for confirmation
+      let attempts = 0
+      const maxAttempts = 60 // 60 attempts = 60 seconds (blockchain can be slow)
+      const checkInterval = setInterval(async () => {
+        attempts++
+        try {
+          const allowanceResponse = await fetch('/api/user/allowance')
+          if (allowanceResponse.ok) {
+            const allowanceData = await allowanceResponse.json()
+            if (allowanceData.success && allowanceData.allowance) {
+              const hasAllowance = allowanceData.allowance.usdce.allowance > 0 || 
+                                   allowanceData.allowance.needsAnyApproval === false
+              if (hasAllowance) {
+                clearInterval(checkInterval)
+                setAllowanceStatus(allowanceData.allowance)
 
       // Sync with Polymarket's internal balance/allowance system
       if (polymarketCredentials) {
+                  try {
         const syncResult = await syncAllowanceWithPolymarket(walletAddress, polymarketCredentials)
-        
         if (syncResult.collateral) {
           showToast('USDC approved and synced! You can now trade on Polymarket.', 'success')
         } else {
-          showToast('USDC approved on-chain. If trading fails, try again or refresh the page.', 'warning')
+                      showToast('USDC approved on-chain. You can now trade.', 'success')
+                    }
+                  } catch (syncError) {
+                    console.error('[Approval] Sync error:', syncError)
+                    showToast('USDC approved on-chain. You can now trade.', 'success')
         }
       } else {
-        showToast('USDC approved! Please authenticate with Polymarket if not already done.', 'success')
+                  showToast('USDC approved successfully! You can now trade.', 'success')
       }
 
-      // Refresh allowance status
-      const allowanceResponse = await fetch('/api/user/allowance')
-      if (allowanceResponse.ok) {
-        const allowanceData = await allowanceResponse.json()
-        if (allowanceData.success && allowanceData.allowance) {
-          setAllowanceStatus(allowanceData.allowance)
+                setIsApprovingUsdc(false)
+                return
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[Approval] Error checking status:', error)
         }
-      }
+        
+        if (attempts >= maxAttempts) {
+          clearInterval(checkInterval)
+          showToast('Approval is taking longer than expected. The transactions may still be processing. Please refresh the page in a moment.', 'warning', 8000)
+          setIsApprovingUsdc(false)
+        }
+      }, 1000) // Check every second
+      
+      // Note: We don't return here because the interval continues running
+      // The cleanup will happen in the finally block or when the component unmounts
     } catch (error: any) {
       console.error('[Approval] Error:', error)
         showToast(`Approval failed: ${error.message || 'Unknown error'}`, 'error')
@@ -1232,6 +1263,23 @@ const TradingPanel = () => {
                   </span>
                 </button>
           </div>
+          {/* View on Polymarket link */}
+          {currentMarket.polymarketUrl && (
+            <div className="mt-3">
+              <a
+                href={currentMarket.polymarketUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] text-blue-400 hover:text-blue-300 underline transition-colors"
+                onClick={handlePolymarketLinkClick}
+                onKeyDown={handlePolymarketLinkKeyDown}
+                tabIndex={0}
+                aria-label={`View current market on Polymarket: ${currentMarket.slug || currentMarket.marketId || 'Market'}`}
+              >
+                View on Polymarket
+              </a>
+            </div>
+          )}
         </div>
       )}
 
@@ -1406,11 +1454,14 @@ const TradingPanel = () => {
           disabled={
             isMarketEnded || 
             isPlacingOrder || 
-            (!isPolymarketAuthenticated ? false : (isBuy && allowanceStatus?.needsAnyApproval && allowanceStatus?.hasAnyBalance) || (!isBuy && availableShares <= 0) || (!isBuy && ctfApprovalStatus?.needsApproval))
+            isApprovingUsdc ||
+            (!isPolymarketAuthenticated ? false : (!isBuy && availableShares <= 0) || (!isBuy && ctfApprovalStatus?.needsApproval))
           }
           onClick={() => {
             if (!isPolymarketAuthenticated) {
               setShowAuthModal(true)
+            } else if (isBuy && allowanceStatus?.needsAnyApproval && allowanceStatus?.hasAnyBalance) {
+              handleApproveUsdc()
             } else {
               handlePlaceOrder()
             }
@@ -1418,8 +1469,10 @@ const TradingPanel = () => {
           className={`w-full py-3 rounded-lg font-bold text-sm transition-all duration-200 border ${
             !isPolymarketAuthenticated
               ? 'bg-gold-primary/10 border-gold-primary text-gold-primary hover:bg-gold-primary/20 cursor-pointer'
-              : isMarketEnded || isPlacingOrder || (isBuy && allowanceStatus?.needsAnyApproval && allowanceStatus?.hasAnyBalance) || (!isBuy && availableShares <= 0) || (!isBuy && ctfApprovalStatus?.needsApproval)
+              : isMarketEnded || isPlacingOrder || isApprovingUsdc || (!isBuy && availableShares <= 0) || (!isBuy && ctfApprovalStatus?.needsApproval)
               ? 'bg-dark-bg/50 border-gray-700 text-gray-500 cursor-not-allowed'
+              : (isBuy && allowanceStatus?.needsAnyApproval && allowanceStatus?.hasAnyBalance)
+              ? 'bg-gold-primary/10 border-gold-primary text-gold-primary hover:bg-gold-primary/20 cursor-pointer'
               : isTradingUp
               ? 'bg-green-500/10 border-green-500 text-green-400 hover:bg-green-500/20'
               : 'bg-red-500/10 border-red-500 text-red-400 hover:bg-red-500/20'
@@ -1427,6 +1480,8 @@ const TradingPanel = () => {
         >
           {isPlacingOrder
             ? 'PLACING ORDER...'
+            : isApprovingUsdc
+            ? 'APPROVING USDC...'
             : !isPolymarketAuthenticated
             ? 'AUTHENTICATE WITH POLYMARKET'
             : (isBuy && allowanceStatus?.needsAnyApproval && allowanceStatus?.hasAnyBalance)

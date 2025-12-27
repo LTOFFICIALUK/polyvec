@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 const WEBSOCKET_SERVER_HTTP_URL = process.env.WEBSOCKET_SERVER_HTTP_URL || 
   (process.env.WEBSOCKET_SERVER_URL 
     ? process.env.WEBSOCKET_SERVER_URL.replace('ws://', 'http://').replace('wss://', 'https://')
-    : 'http://localhost:8081')
+    : 'http://206.189.70.100:3001')
 
 export async function POST(req: Request) {
   try {

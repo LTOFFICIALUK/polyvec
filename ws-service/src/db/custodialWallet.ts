@@ -59,8 +59,10 @@ const getMasterSecret = (): string => {
 /**
  * Derive user-specific encryption key
  */
-const deriveUserKey = (masterSecret: string, walletAddress: string, salt: Buffer): Buffer => {
-  const info = `polyvec:custodial-wallet:${walletAddress.toLowerCase()}`
+const deriveUserKey = (masterSecret: string, walletAddress: string, salt: Buffer, useLegacyPrefix: boolean = false): Buffer => {
+  // Support both "polyvec" (current) and "polytrade" (legacy) prefixes for backward compatibility
+  const prefix = useLegacyPrefix ? 'polytrade' : 'polyvec'
+  const info = `${prefix}:custodial-wallet:${walletAddress.toLowerCase()}`
   
   return crypto.pbkdf2Sync(
     masterSecret,
@@ -82,15 +84,42 @@ const decryptPrivateKey = (encryptedData: EncryptedWalletData, walletAddress: st
   const authTag = Buffer.from(encryptedData.authTag, 'base64')
   const ciphertext = Buffer.from(encryptedData.ciphertext, 'base64')
   
-  const derivedKey = deriveUserKey(masterSecret, walletAddress, salt)
+  // Try current prefix first (polyvec), then legacy (polytrade) for backward compatibility
+  let derivedKey: Buffer
+  let decrypted: Buffer
   
+  try {
+    // First try with current prefix (polyvec)
+    derivedKey = deriveUserKey(masterSecret, walletAddress, salt, false)
+    const decipher = crypto.createDecipheriv(ALGORITHM, derivedKey, iv)
+    decipher.setAuthTag(authTag)
+    decrypted = Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final()
+    ])
+  } catch (firstError: any) {
+    // If authentication fails, try with legacy prefix (polytrade)
+    // This handles wallets created before the rename from PolyTrade to PolyVec
+    if (firstError.message?.includes('Unsupported state') || 
+        firstError.message?.includes('unable to authenticate') ||
+        firstError.message?.includes('bad decrypt')) {
+      try {
+        derivedKey = deriveUserKey(masterSecret, walletAddress, salt, true) // Use legacy prefix
   const decipher = crypto.createDecipheriv(ALGORITHM, derivedKey, iv)
   decipher.setAuthTag(authTag)
-  
-  const decrypted = Buffer.concat([
+        decrypted = Buffer.concat([
     decipher.update(ciphertext),
     decipher.final()
   ])
+      } catch (secondError: any) {
+        // Both attempts failed
+        throw new Error('Decryption failed: Authentication tag mismatch. This may indicate corrupted data, incorrect wallet address, or encryption secret mismatch.')
+      }
+    } else {
+      // Not an authentication error, rethrow
+      throw firstError
+    }
+  }
   
   return decrypted.toString('utf8')
 }

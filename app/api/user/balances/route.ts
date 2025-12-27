@@ -155,7 +155,7 @@ export async function GET(request: NextRequest) {
         console.error('[Balances API] Sync error:', syncError)
         // If timeout, return cached values instead of failing
         if (syncError.message?.includes('timeout')) {
-          // Fall through to return database values
+        // Fall through to return database values
         } else {
           // For other errors, still try to return database values
         }

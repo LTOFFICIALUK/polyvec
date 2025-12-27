@@ -2,7 +2,7 @@
 
 import { NextResponse } from 'next/server'
 
-const WS_SERVICE_URL = process.env.WS_SERVICE_URL || 'http://206.189.70.100:3001'
+const WS_SERVICE_URL = process.env.WS_SERVICE_URL || 'http://206.189.70.100:8081'
 
 export async function GET(req: Request) {
   try {

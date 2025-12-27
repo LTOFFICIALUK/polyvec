@@ -35,8 +35,11 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
 
   // Use cached data from context, or fallback to null
   const walletAddress = custodialWallet?.walletAddress || null
-  const usdcBalance = custodialWallet ? parseFloat(custodialWallet.usdcBalance) : 0
-  const polBalance = custodialWallet ? parseFloat(custodialWallet.polBalance) : 0
+  // Also fetch fresh balance from blockchain API for accurate display
+  const [freshBalance, setFreshBalance] = useState<{ usdc: number; pol: number } | null>(null)
+  
+  const usdcBalance = freshBalance?.usdc ?? (custodialWallet ? parseFloat(custodialWallet.usdcBalance) : 0)
+  const polBalance = freshBalance?.pol ?? (custodialWallet ? parseFloat(custodialWallet.polBalance) : 0)
   const needsPol = polBalance < 0.01
 
   const fetchWalletAndBalances = useCallback(async (syncFromBlockchain = false) => {
@@ -52,18 +55,33 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
     }
   }, [user, refreshCustodialWallet])
 
-  // Refresh in background when modal opens (if we have cached data, show it instantly)
+  // Fetch fresh balance from blockchain when modal opens
   useEffect(() => {
-    if (isOpen && user) {
-      // If we don't have cached data, fetch it
-      if (!custodialWallet) {
-      fetchWalletAndBalances()
-      } else {
-        // If we have cached data, refresh in background without showing loading
-        refreshCustodialWallet().catch(console.error)
-      }
+    if (isOpen && user && walletAddress) {
+      // Always sync from blockchain when modal opens to get the most up-to-date balance
+      // This ensures deposits are immediately visible
+      refreshCustodialWallet(true).catch(console.error)
+      
+      // Also fetch from the balance API endpoint (always fetches from blockchain)
+      fetch(`/api/user/balance?address=${walletAddress}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.cashBalance !== undefined) {
+            setFreshBalance({
+              usdc: data.cashBalance || 0,
+              pol: data.breakdown?.polBalance || 0,
+            })
+          }
+        })
+        .catch(err => {
+          console.error('Failed to fetch fresh balance:', err)
+        })
+    } else if (!isOpen) {
+      // Clear fresh balance when modal closes
+      setFreshBalance(null)
     }
-  }, [isOpen, user, custodialWallet, fetchWalletAndBalances, refreshCustodialWallet])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, user, walletAddress])
 
   // Reset withdraw form when switching tabs
   useEffect(() => {
@@ -158,8 +176,31 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
 
       showToast(`Successfully withdrew ${amountNum} ${withdrawTokenType}`, 'success')
       
-      // Refresh balances
+      // Refresh balances immediately after successful withdrawal
+      // Wait a moment for blockchain to update, then refresh
+      setTimeout(async () => {
+        // Refresh AuthContext balances
       await refreshCustodialWallet(true)
+        
+        // Refresh fresh balance in modal
+        if (walletAddress) {
+          try {
+            const res = await fetch(`/api/user/balance?address=${walletAddress}`)
+            const data = await res.json()
+            if (data.cashBalance !== undefined) {
+              setFreshBalance({
+                usdc: data.cashBalance || 0,
+                pol: data.breakdown?.polBalance || 0,
+              })
+            }
+          } catch (err) {
+            console.error('Failed to refresh balance after withdrawal:', err)
+          }
+        }
+        
+        // Trigger header balance refresh by dispatching a custom event
+        window.dispatchEvent(new CustomEvent('refreshBalances'))
+      }, 2000) // Wait 2 seconds for transaction to be confirmed on blockchain
       
       // Reset form
       setWithdrawAmount('')
@@ -371,7 +412,26 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
                   </div>
                 </div>
                 <button
-                  onClick={() => fetchWalletAndBalances(true)}
+                  onClick={async () => {
+                    setIsLoading(true)
+                    try {
+                      await refreshCustodialWallet(true)
+                      if (walletAddress) {
+                        const res = await fetch(`/api/user/balance?address=${walletAddress}`)
+                        const data = await res.json()
+                        if (data.cashBalance !== undefined) {
+                          setFreshBalance({
+                            usdc: data.cashBalance || 0,
+                            pol: data.breakdown?.polBalance || 0,
+                          })
+                        }
+                      }
+                    } catch (err) {
+                      console.error('Failed to sync:', err)
+                    } finally {
+                      setIsLoading(false)
+                    }
+                  }}
                   disabled={isLoading}
                   className="px-3 py-1.5 text-xs text-gray-400 hover:text-white hover:bg-gray-800/50 rounded-lg transition-colors disabled:opacity-50 flex items-center gap-1.5"
                   title="Sync balances from blockchain"
@@ -478,12 +538,18 @@ export default function DepositModal({ isOpen, onClose }: DepositModalProps) {
               <button
                 onClick={handleWithdraw}
                 disabled={isWithdrawing || !withdrawAmount || !withdrawAddress || parseFloat(withdrawAmount) <= 0}
-                className={`w-full px-6 py-3 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                className={`w-full px-6 py-3 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
                   isWithdrawing || !withdrawAmount || !withdrawAddress || parseFloat(withdrawAmount) <= 0
                     ? 'bg-gray-800/50 text-gray-500 cursor-not-allowed'
                     : 'bg-gold-primary hover:bg-gold-hover text-white shadow-lg shadow-gold-primary/20 hover:shadow-gold-primary/30'
                 }`}
               >
+                {isWithdrawing && (
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                )}
                 {isWithdrawing ? 'Processing...' : `Withdraw ${withdrawTokenType}`}
               </button>
             </div>

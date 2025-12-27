@@ -78,11 +78,11 @@ export async function GET(request: NextRequest) {
     
     const results = await Promise.race([
       Promise.all([
-        usdcContract.balanceOf(walletAddress),
-        usdcContract.allowance(walletAddress, CTF_EXCHANGE),
-        usdcContract.allowance(walletAddress, NEG_RISK_CTF_EXCHANGE),
-        conditionalTokensContract.isApprovedForAll(walletAddress, CTF_EXCHANGE),
-        conditionalTokensContract.isApprovedForAll(walletAddress, NEG_RISK_CTF_EXCHANGE),
+      usdcContract.balanceOf(walletAddress),
+      usdcContract.allowance(walletAddress, CTF_EXCHANGE),
+      usdcContract.allowance(walletAddress, NEG_RISK_CTF_EXCHANGE),
+      conditionalTokensContract.isApprovedForAll(walletAddress, CTF_EXCHANGE),
+      conditionalTokensContract.isApprovedForAll(walletAddress, NEG_RISK_CTF_EXCHANGE),
       ]),
       timeoutPromise
     ])
@@ -107,6 +107,7 @@ export async function GET(request: NextRequest) {
           needsApproval: false,
         },
         needsAnyApproval: regularAllowanceNum < balanceNum || negRiskAllowanceNum < balanceNum,
+        hasAnyBalance: balanceNum > 0,
       },
       conditionalTokens: {
         ctfApproved,

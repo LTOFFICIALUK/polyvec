@@ -43,14 +43,18 @@ const Header = () => {
   }
 
   // Fetch balances from API (silent refresh - only updates if values change)
+  // Use custodial wallet address if available, otherwise fall back to connected wallet
   const fetchBalances = useCallback(async () => {
-    if (!walletAddress || isLandingPage) {
+    // Use custodial wallet address if available (for authenticated users)
+    const addressToUse = custodialWallet?.walletAddress || walletAddress
+    
+    if (!addressToUse || isLandingPage) {
       setBalances({ portfolioValue: 0, cashBalance: 0 })
       return
     }
 
     try {
-      const balanceRes = await fetch(`/api/user/balance?address=${walletAddress}`)
+      const balanceRes = await fetch(`/api/user/balance?address=${addressToUse}`)
       const balanceData = await balanceRes.json()
       
       const newPortfolioValue = balanceData.portfolioValue || 0
@@ -79,7 +83,7 @@ const Header = () => {
         return prev
       })
     }
-  }, [walletAddress, isLandingPage])
+  }, [custodialWallet?.walletAddress, walletAddress, isLandingPage])
 
   // Use custodial wallet balances from AuthContext (auto-refreshes every 5 seconds)
   const custodialUsdcBalance = custodialWallet ? parseFloat(custodialWallet.usdcBalance) : 0
@@ -87,14 +91,25 @@ const Header = () => {
 
   // Fetch balances on mount and when auth changes
   useEffect(() => {
-    if (!isLandingPage) {
+    const addressToUse = custodialWallet?.walletAddress || walletAddress
+    if (!isLandingPage && addressToUse) {
     fetchBalances()
     
-    // Refresh balances every 5 seconds
-    const interval = setInterval(fetchBalances, 5000)
-    return () => clearInterval(interval)
+      // Refresh balances every 3 seconds (faster updates for header)
+      const interval = setInterval(fetchBalances, 3000)
+      
+      // Listen for custom refresh event (triggered after withdrawals)
+      const handleRefresh = () => {
+        fetchBalances()
+      }
+      window.addEventListener('refreshBalances', handleRefresh)
+      
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('refreshBalances', handleRefresh)
     }
-  }, [fetchBalances, isLandingPage])
+    }
+  }, [fetchBalances, isLandingPage, custodialWallet?.walletAddress, walletAddress])
 
   const handleLogoClick = () => {
     router.push('/')
@@ -436,10 +451,10 @@ const Header = () => {
             <div className="hidden lg:flex flex-col">
                 <span className="text-xs text-gray-400 uppercase tracking-wider" style={{ fontFamily: 'monospace' }}>Cash</span>
               <span 
-                  key={`cash-${custodialUsdcBalance}`}
+                  key={`cash-${balances.cashBalance}`}
                 className="text-sm font-semibold text-green-400 transition-all duration-300 font-mono"
               >
-                  {formatCurrency(custodialUsdcBalance)}
+                  {formatCurrency(balances.cashBalance || custodialUsdcBalance)}
               </span>
             </div>
             )}

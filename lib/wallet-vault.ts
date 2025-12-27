@@ -36,9 +36,11 @@ export interface EncryptedWalletData {
  * This means even if one user's key is somehow compromised,
  * it doesn't help decrypt other users' keys
  */
-const deriveUserKey = (masterSecret: string, walletAddress: string, salt: Buffer): Buffer => {
+const deriveUserKey = (masterSecret: string, walletAddress: string, salt: Buffer, useLegacyPrefix: boolean = false): Buffer => {
   // Use PBKDF2 with user-specific data to derive unique key
-  const info = `polyvec:custodial-wallet:${walletAddress.toLowerCase()}`
+  // Support both "polyvec" (current) and "polytrade" (legacy) prefixes for backward compatibility
+  const prefix = useLegacyPrefix ? 'polytrade' : 'polyvec'
+  const info = `${prefix}:custodial-wallet:${walletAddress.toLowerCase()}`
   
   return crypto.pbkdf2Sync(
     masterSecret,
@@ -81,12 +83,15 @@ const getMasterSecret = (): string => {
 export const encryptPrivateKey = (privateKey: string, walletAddress: string): EncryptedWalletData => {
   const masterSecret = getMasterSecret()
   
+  // Normalize wallet address to lowercase for consistency
+  const normalizedAddress = walletAddress.toLowerCase()
+  
   // Generate random salt and IV for this encryption
   const salt = crypto.randomBytes(SALT_LENGTH)
   const iv = crypto.randomBytes(IV_LENGTH)
   
   // Derive user-specific encryption key
-  const derivedKey = deriveUserKey(masterSecret, walletAddress, salt)
+  const derivedKey = deriveUserKey(masterSecret, normalizedAddress, salt)
   
   // Create cipher
   const cipher = crypto.createCipheriv(ALGORITHM, derivedKey, iv)
@@ -121,28 +126,93 @@ export const encryptPrivateKey = (privateKey: string, walletAddress: string): En
  * @returns The decrypted private key
  */
 export const decryptPrivateKey = (encryptedData: EncryptedWalletData, walletAddress: string): string => {
+  try {
   const masterSecret = getMasterSecret()
   
-  // Parse stored components
-  const salt = Buffer.from(encryptedData.salt, 'base64')
-  const iv = Buffer.from(encryptedData.iv, 'base64')
-  const authTag = Buffer.from(encryptedData.authTag, 'base64')
-  const ciphertext = Buffer.from(encryptedData.ciphertext, 'base64')
+    // Validate inputs
+    if (!encryptedData.ciphertext || !encryptedData.iv || !encryptedData.authTag || !encryptedData.salt) {
+      throw new Error('Missing required encryption data fields')
+    }
+    
+    if (!walletAddress || typeof walletAddress !== 'string') {
+      throw new Error('Invalid wallet address provided')
+    }
+    
+    // Normalize wallet address to lowercase for consistency
+    const normalizedAddress = walletAddress.toLowerCase()
+    
+    // Parse stored components (validate base64 format)
+    let salt: Buffer
+    let iv: Buffer
+    let authTag: Buffer
+    let ciphertext: Buffer
+    
+    try {
+      salt = Buffer.from(encryptedData.salt, 'base64')
+      iv = Buffer.from(encryptedData.iv, 'base64')
+      authTag = Buffer.from(encryptedData.authTag, 'base64')
+      ciphertext = Buffer.from(encryptedData.ciphertext, 'base64')
+    } catch (parseError: any) {
+      throw new Error(`Invalid base64 encoding: ${parseError.message}`)
+    }
+    
+    // Validate buffer sizes
+    if (salt.length !== SALT_LENGTH) {
+      throw new Error(`Invalid salt length: expected ${SALT_LENGTH}, got ${salt.length}`)
+    }
+    if (iv.length !== IV_LENGTH) {
+      throw new Error(`Invalid IV length: expected ${IV_LENGTH}, got ${iv.length}`)
+    }
+    if (ciphertext.length === 0) {
+      throw new Error('Ciphertext is empty')
+    }
   
   // Derive the same user-specific key
-  const derivedKey = deriveUserKey(masterSecret, walletAddress, salt)
+  // Try current prefix first (polyvec), then legacy (polytrade) for backward compatibility
+  let derivedKey: Buffer
+  let decrypted: Buffer
   
-  // Create decipher
+  try {
+    // First try with current prefix (polyvec)
+    derivedKey = deriveUserKey(masterSecret, normalizedAddress, salt, false)
+    const decipher = crypto.createDecipheriv(ALGORITHM, derivedKey, iv)
+    decipher.setAuthTag(authTag)
+    decrypted = Buffer.concat([
+      decipher.update(ciphertext),
+      decipher.final()
+    ])
+  } catch (firstError: any) {
+    // If authentication fails, try with legacy prefix (polytrade)
+    // This handles wallets created before the rename from PolyTrade to PolyVec
+    if (firstError.message?.includes('Unsupported state') || 
+        firstError.message?.includes('unable to authenticate') ||
+        firstError.message?.includes('bad decrypt')) {
+      try {
+        derivedKey = deriveUserKey(masterSecret, normalizedAddress, salt, true) // Use legacy prefix
   const decipher = crypto.createDecipheriv(ALGORITHM, derivedKey, iv)
   decipher.setAuthTag(authTag)
-  
-  // Decrypt
-  const decrypted = Buffer.concat([
+        decrypted = Buffer.concat([
     decipher.update(ciphertext),
     decipher.final()
   ])
+      } catch (secondError: any) {
+        // Both attempts failed
+        throw new Error('Decryption failed: Authentication tag mismatch. This may indicate corrupted data, incorrect wallet address, or encryption secret mismatch.')
+      }
+    } else {
+      // Not an authentication error, rethrow
+      throw firstError
+    }
+  }
   
   return decrypted.toString('utf8')
+  } catch (error: any) {
+    // Provide more specific error messages
+    if (error.message?.includes('Unsupported state') || error.message?.includes('unable to authenticate')) {
+      throw new Error('Decryption failed: Authentication tag mismatch. This may indicate corrupted data or incorrect wallet address.')
+    }
+    throw error
+  }
 }
 
 // ============================================
